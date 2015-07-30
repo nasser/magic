@@ -21,11 +21,6 @@ Clojure forms are turned into MAGE bytecode using *symbolizers*. Symbolizers are
                     (il/ldc-i4-0)))) }
 ```
 
-var closure trick
-swapable symbolizers
-composable functions
-
-
 Rationale and History
 ---------------------
 During the development of [Arcadia](https://github.com/arcadia-unity/Arcadia), it was found that binaries produced by the ClojureCLR compiler did not survive Unity's AOT compilation process to its more restrictive export targets, particularly iOS, WebGL, and the PlayStation. While it is understood that certain more 'dynamic' features of C# are generally not supported on these platforms, the exact cause of the failures is difficult to pinpoint. MAGIC was built primarily to support a well reasoned approach to Arcadia export.
