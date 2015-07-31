@@ -1,7 +1,7 @@
 MAGIC Progress
 ==============
 
-The goal of MAGIC is to compile all of Clojure. To do this, it must provide symbolizers and tests for every Clojure AST node. This list will be kept in sync with progress on the library.
+The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, it must provide symbolizers and tests for every Clojure AST node. This list will be kept in sync with progress on the library.
 
 <table>
 <tr><th>Node</th><th>Example</th><th>Symbolizer + Tests</th></tr>
