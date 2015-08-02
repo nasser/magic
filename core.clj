@@ -347,7 +347,7 @@
                 (cleanup-stack pcon)]))
    
    ;; (f a b)
-   InvokeExpr (fn [this symbolizers]
+   InvokeExpr (fn invoke-symbolizer [this symbolizers]
                 (let [data (data-map this)
                       pcon (.ParsedContext this)
                       fexpr (:_fexpr data)
