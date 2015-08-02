@@ -4,11 +4,11 @@
   (:require [mage.core :as il]
             [clojure.string :as string])
   (:import [clojure.lang RT Numbers Compiler LineNumberingTextReader
-            Symbol Namespace IFn Var Keyword]
+            Symbol Namespace IFn Var Keyword Symbol]
            [clojure.lang.CljCompiler.Ast RHC ParserContext
-            LiteralExpr StaticMethodExpr InstanceMethodExpr StaticPropertyExpr NumberExpr
+            Expr LiteralExpr StaticMethodExpr InstanceMethodExpr StaticPropertyExpr NumberExpr
             InstancePropertyExpr InstanceFieldExpr MapExpr VarExpr TheVarExpr InvokeExpr HostExpr
-            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr]
+            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr]
            [System.IO FileInfo Path]
            [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
            AppDomain
@@ -55,6 +55,9 @@
 (defn find-method
   ([type name & params] (.GetMethod type name (into-array Type params))))
 
+(defn find-constructor
+  ([type & params] (.GetConstructor type (into-array Type params))))
+
 (defn property-getter [type name]
   (find-method type (str "get_" name)))
 
@@ -95,17 +98,57 @@
 
 (def load-constant)
 
-(defn load-vector [v]
-  [(load-constant (int (count v)))
-   (il/newarr Object)
-   (map (fn [i c]
-          [(il/dup)
-           (load-constant (int i))
-           (load-constant c)
-           (il/stelem (type c))])
-        (range)
-        v)
-   (il/call (find-method clojure.lang.RT "vector" |System.Object[]|))])
+(defn box-if-value-type-value [a]
+  (if (.IsValueType (type a))
+    (il/box (type a))))
+
+(defn box-if-value-type-expr [a]
+  (if (and (.HasClrType a)
+           (.IsValueType (.ClrType a)))
+    (il/box (.ClrType a))))
+
+(defn box-if-value-type [a]
+  (cond
+    (isa? (type a) Expr) (box-if-value-type-expr a)
+    :else (box-if-value-type-value a)))
+
+
+(defn cast-if-different [obj typ]
+  (if (or (and (isa? (type obj) Expr)
+               (.HasClrType obj)
+               (not (isa? (.ClrType obj) typ)))
+          (not (isa? (type obj) typ)))
+    (il/castclass typ)))
+
+(defn load-vector
+  ([v] (load-vector v load-constant))
+  ([v f]
+   [(load-constant (int (count v)))
+    (il/newarr Object)
+    (map (fn [i c]
+           [(il/dup)
+            (load-constant (int i))
+            (f c)
+            (box-if-value-type c)
+            (il/stelem-ref)])
+         (range)
+         v)
+    (il/call (find-method clojure.lang.RT "vector" |System.Object[]|))]))
+
+(defn load-list
+  ([v] (load-list v load-constant))
+  ([v f]
+   [(load-constant (int (count v)))
+    (il/newarr Object)
+    (map (fn [i c]
+           [(il/dup)
+            (load-constant (int i))
+            (f c)
+            (box-if-value-type c)
+            (il/stelem-ref)])
+         (range)
+         v)
+    (il/call (find-method clojure.lang.PersistentList "create" |System.Object[]|))]))
 
 (defn load-map [keyvals]
   (let [ks (take-nth 2 keyvals)
@@ -116,7 +159,8 @@
             [(il/dup)
              (load-constant (int i))
              (load-constant kv)
-             (il/stelem (type kv))])
+             ; (cast-if-different kv Object)
+             (il/stelem-ref)])
           (range)
           (interleave ks vs))
      (il/call (find-method clojure.lang.PersistentArrayMap "createWithCheck" |System.Object[]|))]))
@@ -128,6 +172,13 @@
      (load-constant name)
      (il/call (find-method Keyword "intern" String String))]))
 
+(defn load-symbol [k]
+  (let [ns  (.. k Namespace)
+        name (.. k Name)]
+    [(load-constant ns)
+     (load-constant name)
+     (il/call (find-method Symbol "intern" String String))]))
+
 (defn load-var [v]
   (let [nsname  (.. v Namespace Name ToString)
         symname (.. v Symbol ToString)]
@@ -135,26 +186,51 @@
      (load-constant symname)
      (il/call (find-method RT "var" String String))]))
 
+;; NOTE the stock compiler looks up types using RT.classForName
+;; if the type is not a valuetype. why? does it make a difference?
+(defn load-type [v]
+  [(il/ldtoken v)
+   (il/call (find-method Type "GetTypeFromHandle" RuntimeTypeHandle))])
+
 (defn get-var [v]
   (if (.isDynamic v)
     (il/call (find-method Var "get"))
     (il/call (find-method Var "getRawRoot"))))
 
+(defn load-regexp [r]
+  [(il/ldstr (str r))
+   (il/newobj (find-constructor System.Text.RegularExpressions.Regex String))])
+
+(defn load-ratio [r]
+  [(il/ldstr (pr-str r))
+   (il/call (find-method clojure.lang.RT "readString" String))])
+
+(defn load-bigint [r]
+  [(il/ldstr (pr-str r))
+   (il/call (find-method clojure.lang.RT "readString" String))])
+
 ;; multimethod?
 (defn load-constant [k]
   (cond 
-    (nil? k)                                      (il/ldnull)
-    (instance? System.String k)                   (il/ldstr k)
-    (instance? System.Boolean k)                  (if k (il/ldc-i4-1) (il/ldc-i4-0))
-    (instance? System.Int32 k)                    (il/ldc-i4 k)
-    (instance? System.Int64 k)                    (il/ldc-i8 k)
-    (instance? System.Single k)                   (il/ldc-r4 k)
-    (instance? System.Double k)                   (il/ldc-r8 k)
+    (nil? k)                         (il/ldnull)
+    (instance? System.String k)      (il/ldstr k)
+    (instance? System.Boolean k)     (if k (il/ldc-i4-1) (il/ldc-i4-0))
+    (instance? System.Int32 k)       (il/ldc-i4 k)
+    (instance? System.Int64 k)       (il/ldc-i8 k)
+    (instance? System.Single k)      (il/ldc-r4 k)
+    (instance? System.Double k)      (il/ldc-r8 k)
+    (instance? System.Char k)        [(il/ldc-i4-s (int k)) (il/conv-u2)]
     
-    (instance? clojure.lang.Keyword k)            (load-keyword k)
-    (instance? clojure.lang.Var k)                (load-var k)
-    (instance? clojure.lang.APersistentVector k)  (load-vector k)
-    (instance? clojure.lang.APersistentMap k)     (load-map (seq k))))
+    (instance? System.Type k)                           (load-type k)
+    (instance? System.Text.RegularExpressions.Regex k)  (load-regexp k)
+    (instance? clojure.lang.BigInt k)                   (load-bigint k)
+    (instance? clojure.lang.Ratio k)                    (load-ratio k)
+    (instance? clojure.lang.Symbol k)                   (load-symbol k)
+    (instance? clojure.lang.Keyword k)                  (load-keyword k)
+    (instance? clojure.lang.Var k)                      (load-var k)
+    (instance? clojure.lang.PersistentList k)           (load-list k)
+    (instance? clojure.lang.APersistentVector k)        (load-vector k)
+    (instance? clojure.lang.APersistentMap k)           (load-map (seq k))))
 
 (defn to-address [t]
   (let [l (il/local t)]
@@ -225,6 +301,10 @@
                    (if-not (.IsStatementContext (data :ParsedContext))
                      (load-constant (data :Val)))))
    
+   VectorExpr (fn vector-symbolizer [this symbolizers]
+                (load-vector (-> this data-map :_args)
+                             #(symbolize % symbolizers)))
+   
    ;; {:foo bar}
    MapExpr (fn map-symbolizer [this symbolizers]
              (let [pcon (.ParsedContext this)
@@ -236,7 +316,8 @@
                        [(il/dup)
                         (load-constant (int i))
                         (symbolize kv symbolizers)
-                        (il/stelem (.ClrType kv))])
+                        (box-if-value-type kv)
+                        (il/stelem-ref)])
                      (range)
                      (interleave ks vs))
                 (il/call (find-method RT "mapUniqueKeys" |System.Object[]|))
@@ -253,9 +334,7 @@
                    (il/castclass IFn)
                    (map (fn [a]
                           [(symbolize a symbolizers)
-                           (if (and (.HasClrType a)
-                                    (.IsValueType (.ClrType a)))
-                             (il/box (.ClrType a)))])
+                           (box-if-value-type a)])
                         args)
                    (il/callvirt (apply find-method IFn "invoke" (repeat arity Object)))
                    (cleanup-stack pcon)]))
@@ -345,6 +424,10 @@
             (let [{:keys [Name Constants Vars ProtocolCallsites VarCallsites Keywords _methods] :as data} (data-map this)
                   protected-static (enum-or FieldAttributes/Static FieldAttributes/FamORAssem)
                   
+                  arities (->> _methods
+                               (map data-map)
+                               (map :NumParams))
+                  
                   ;; set up var fields
                   vars (keys Vars)
                   var-fields (->> vars
@@ -379,7 +462,23 @@
                     (map (fn [[v fld]] [(load-var v) (il/stsfld fld)])
                          var-fields)
                     (il/ret)])
-                 (il/method)
+                 (il/method
+                   "HasArity"
+                   (enum-or MethodAttributes/Public
+                            MethodAttributes/Virtual)
+                   Boolean [Int32]
+                   (let [ret-true (il/label)]
+                     [(map
+                        (fn [arity]
+                          [(il/ldarg-1)
+                           (load-constant arity)
+                           (il/beq ret-true)])
+                        arities)
+                      (il/ldc-i4-0)
+                      (il/ret)
+                      ret-true
+                      (il/ldc-i4-1)
+                      (il/ret)]))
                  (map #(symbolize % symbolizers) _methods)])
               ; data
               ))
@@ -391,6 +490,7 @@
                                     MethodAttributes/Virtual)
                            _retType (mapv (constantly Object) _reqParms)
                            [(symbolize _body symbolizers)
+                            (box-if-value-type (.LastExpr _body))
                            (il/ret)]
                            )))
    
@@ -431,8 +531,6 @@
   (if-let [symbolizer (ast->symbolizer ast symbolizers)]
     (symbolizer ast symbolizers)))
 
-
-(defn test-prancer [] ((if (< 0.5 (rand)) #'+ #'-) 4 5))
 
 (comment 
   (use 'clojure.pprint)
