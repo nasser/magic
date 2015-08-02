@@ -8,7 +8,7 @@
            [clojure.lang.CljCompiler.Ast RHC ParserContext
             Expr LiteralExpr StaticMethodExpr InstanceMethodExpr StaticPropertyExpr NumberExpr
             InstancePropertyExpr InstanceFieldExpr MapExpr VarExpr TheVarExpr InvokeExpr HostExpr
-            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr]
+            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr]
            [System.IO FileInfo Path]
            [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
            AppDomain
@@ -112,13 +112,36 @@
     (isa? (type a) Expr) (box-if-value-type-expr a)
     :else (box-if-value-type-value a)))
 
+;; TODO overflows?
+(def conv
+  {Int32  (il/conv-i4)
+   Int64  (il/conv-i8)
+   Single (il/conv-r4)
+   Double (il/conv-r8)})
 
-(defn cast-if-different [obj typ]
-  (if (or (and (isa? (type obj) Expr)
-               (.HasClrType obj)
-               (not (isa? (.ClrType obj) typ)))
-          (not (isa? (type obj) typ)))
-    (il/castclass typ)))
+(defn cast-if-different [obj dest-typ]
+  (let [src-typ (if (and (isa? (type obj) Expr)
+                          (.HasClrType obj))
+                   (.ClrType obj)
+                   (type obj))]
+    (if (not (isa? src-typ dest-typ))
+      (cond
+        (and (.IsValueType src-typ)
+             (.IsValueType dest-typ))
+        (conv dest-typ)
+        
+        (and (.IsValueType src-typ) 
+             (not (.IsValueType dest-typ)))
+        [(il/box src-typ)
+         (il/castclass dest-typ)]
+         
+        (and (not (.IsValueType src-typ))
+             (.IsValueType dest-typ))
+        (il/unbox-any dest-typ)
+        
+        (and (not (.IsValueType src-typ))
+             (not (.IsValueType dest-typ)))
+        (il/castclass dest-typ)))))
 
 (defn load-vector
   ([v] (load-vector v load-constant))
@@ -338,6 +361,28 @@
                         args)
                    (il/callvirt (apply find-method IFn "invoke" (repeat arity Object)))
                    (cleanup-stack pcon)]))
+   
+   NewExpr (fn new-symbolizer [this symbolizers]
+             (let [{:keys [_args _type _ctor] :as data} (data-map this)]
+               (if _ctor
+                 ;; have constructor, normal newobj path 
+                 (let [arg-exprs (map #(.ArgExpr %) _args)
+                       ctor-param-types (->> _ctor .GetParameters (map #(.ParameterType %)))]
+                   ;; TODO what about LocalBindings?
+                   [(interleave
+                      (map #(symbolize % symbolizers)
+                           arg-exprs)
+                      (map #(cast-if-different %1 %2)
+                           arg-exprs
+                           ctor-param-types))
+                    (il/newobj _ctor)])
+                 ;; no constructor, might be initobj path
+                 (if (.IsValueType _type)
+                   (let [loc (il/local _type)]
+                     [(il/ldloca-s loc)
+                      (il/initobj _type)
+                      (il/ldloc loc)])
+                   (throw (Exception. (str "No constructor for non-valuetype " _type)))))))
    
    VarExpr (fn var-symbolizer [this symbolizers]
              (let [pcon (.ParsedContext this)

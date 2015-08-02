@@ -39,6 +39,10 @@
     (is (= (magic-eval (quote ~expr))
            ~expr))))
 
+(defmacro test-not-nil [name expr]
+  `(deftest ~name
+    (is (not (nil? (magic-eval (quote ~expr)))))))
+
 ;; nil
 (test-same strings nil)
 
@@ -107,6 +111,16 @@
 (test-same regexp-works-1 (re-find #"bar" "foo bar baz"))
 (test-same regexp-works-2 (re-find #"bar\b" "foo bar baz"))
 (test-same regexp-works-3 (re-find #"bar\b" "foo barbaz"))
+
+;; new expr
+(test-not-nil new-object-1 (System.Xml.XmlDocument.))
+(test-not-nil new-object-2 (System.IO.DirectoryInfo. "foo"))
+
+(test-same new-valuetype-1 (System.Drawing.Point.))
+(test-same new-valuetype-2 (System.Drawing.Point. 1 3))
+(test-same new-valuetype-3 (System.Drawing.Point. 1.2 3.1))
+(test-same new-valuetype-4 (System.Drawing.Point. 1.2 3))
+(test-same new-valuetype-5 (System.Drawing.Point. (System.Drawing.Size. 5 6)))
 
 (comment
   (-> '(fn [] clojure.lang.Symbol)
