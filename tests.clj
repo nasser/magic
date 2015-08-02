@@ -39,6 +39,16 @@
     (is (= (magic-eval (quote ~expr))
            ~expr))))
 
+;; nil
+(test-same strings nil)
+
+;; strings
+(test-same strings "foo")
+
+;; boolean
+(test-same strings true)
+(test-same strings false)
+
 ;; numbers
 (test-same integers 12)
 (test-same negative-integers -12)
@@ -49,6 +59,17 @@
 (test-same huge-ratios 999999999999999999999999999999999999/99999999999999999999999999999999999)
 (test-same bigints-1 1N)
 (test-same bigints-2 999999999999999999999999999999999999N)
+
+;; chars
+(test-same chars \f)
+
+;; types
+(test-same types-1 clojure.lang.Symbol)
+(test-same types-2 System.Text.RegularExpressions.Regex)
+
+(compile-fn '(fn [] clojure.lang.Symbol))
+(compile-fn '(fn [] System.Text.RegularExpressions.Regex))
+(compile-fn '(fn [] System.Int32))
 
 ;; lists
 (test-same lists-1 '(1 2 3))
@@ -70,6 +91,7 @@
 
 ;; symbols
 (test-same symbols 'foo)
+(test-same symbols-namespace 'foo/bar)
 
 ;; keywords
 (test-same keywords :foo)
@@ -79,12 +101,6 @@
 ;; invoke
 (test-same invoke-str (str 1 2))
 
-;; strings
-(test-same strings "foo")
-
-;; chars
-(test-same chars \f)
-
 ;; regexp
 (test-same regexp-1 (str #"foo")) ;; regexps arent values, is str the best test?  
 (test-same regexp-2 (str #"foo(.*[a-z]+)")) ;; regexps arent values, is str the best test?  
@@ -93,7 +109,7 @@
 (test-same regexp-works-3 (re-find #"bar\b" "foo barbaz"))
 
 (comment
-  (-> '(fn [] 'foo)
+  (-> '(fn [] clojure.lang.Symbol)
       analyze
       data-map
       :_methods
@@ -102,6 +118,9 @@
       :_body
       data-map
       :LastExpr
+      data-map
+      :Val
+      type
       
       )
   
