@@ -104,6 +104,9 @@
 
 ;; invoke
 (test-same invoke-str (str 1 2))
+(test-same invoke-map-inc-range (map inc (range 20)))
+(test-same invoke-map-lookup-1 (({:foo inc :bar dec} :foo) 10))
+(test-same invoke-map-lookup-2 (({:foo inc :bar dec} :foo) ({:foo 10 :bar 9} :foo)))
 
 ;; regexp
 (test-same regexp-1 (str #"foo")) ;; regexps arent values, is str the best test?  
