@@ -416,7 +416,10 @@
                       (let [data (data-map this)
                             pcon (.ParsedContext this)
                             args (map data-map (:_args data))
-                            method (:_method data)]
+                            method (:_method data)
+                            method-parameter-types (->> method
+                                                        .GetParameters
+                                                        (map #(.ParameterType %)))]
                         
                         [(->> args
                               (map :ArgExpr)
