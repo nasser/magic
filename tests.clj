@@ -125,6 +125,49 @@
 (test-same new-valuetype-4 (System.Drawing.Point. 1.2 3))
 (test-same new-valuetype-5 (System.Drawing.Point. (System.Drawing.Size. 5 6)))
 
+;; instance property
+(test-same instance-property (.Length (.GetFiles (System.IO.DirectoryInfo. "."))))
+(test-same instance-property-valuetype (.X (System.Drawing.Point. 1 3)))
+
+;; instance method
+(test-same instance-method (.Length (.GetFiles (System.IO.DirectoryInfo. "."))))
+(test-same instance-method-valuetype (.Offset (System.Drawing.Point. 1 3) 4 1))
+
+;; static method
+(test-same static-method-1 (Directory/Exists "."))
+(test-same static-method-2 (.FullName (Directory/GetParent ".")))
+(test-same static-method-valuetype (System.Drawing.Point/Add
+                                     (System.Drawing.Point. 3 4)
+                                     (System.Drawing.Size. 25 45)))
+
+;; let bindings
+(test-same let-valuetype (let [a 20] a))
+(test-same let-reference (let [a "20"] a))
+(test-same let-body (let [a "hello" b "world"] (str a b)))
+(test-same let-body-valuetypes (let [a 1 b 2] (+ a b)))
+(test-same let-nested
+           (let [a 1]
+             (let [b 2]
+               (+ a b))))
+(test-same let-nested-shadow
+           (let [a 1]
+             (let [b 2]
+               (let [a 10]
+                 (+ a b)))))
+(test-same let-name-reuse-1
+           (let [a 4
+                 b (mapv inc (range a))
+                 a "A Vector: "]
+             (str a b)))
+(test-same let-name-reuse-2
+           (let [a 20
+                 a (range a)
+                 a (map inc a)
+                 a (mapv str a)]
+             a))
+(test-same let-vector-destructure (let [[a b c] [1 2 3]] (+ a b c)))
+(test-same let-map-destructure (let [{:keys [a b c]} {:a 1 :b 2 :c 3}] (+ a b c)))
+
 (comment
   (-> '(fn [] clojure.lang.Symbol)
       analyze
