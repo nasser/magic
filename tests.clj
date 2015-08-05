@@ -169,21 +169,6 @@
 (test-same let-map-destructure (let [{:keys [a b c]} {:a 1 :b 2 :c 3}] (+ a b c)))
 
 (comment
-  (-> '(fn [] clojure.lang.Symbol)
-      analyze
-      data-map
-      :_methods
-      first
-      data-map
-      :_body
-      data-map
-      :LastExpr
-      data-map
-      :Val
-      type
-      
-      )
-  
   (binding [*compile-path* "."]
     (compile 'magic.reference))
   
