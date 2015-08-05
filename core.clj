@@ -549,7 +549,7 @@
                            _retType (mapv (constantly Object) _reqParms)
                            [(symbolize _body symbolizers)
                             (box-if-value-type (.LastExpr _body))
-                           (il/ret)]
+                            (il/ret)]
                            )))
    
    IfExpr (fn if-symbolizer [this symbolizers]
