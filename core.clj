@@ -465,6 +465,7 @@
                                 target (:_target data)
                                 getter (-> data :_tinfo .GetGetMethod)]
                             [(symbolize target symbolizers)
+                             (box-if-value-type target)
                              (il/callvirt getter)
                              (cleanup-stack return-type pcon)]))
    
