@@ -7,7 +7,7 @@
 
 ;; this will change when the magic api settles down
 (defn symbolize-fn [expr]
-  (let [asm-name (-> "magicTest" gensym str)]
+  (let [asm-name "magic.tests"]
     (il/assembly
       asm-name
       (il/module
@@ -15,7 +15,7 @@
         (symbolize (analyze expr) base-symbolizers)))))
 
 (defn compile-fn [expr]
-  (let [asm-name (-> "magicTest" gensym str)]
+  (let [asm-name "magic.tests"]
     (-> (il/assembly
           asm-name
           (il/module
