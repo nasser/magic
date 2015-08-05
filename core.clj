@@ -8,7 +8,7 @@
            [clojure.lang.CljCompiler.Ast RHC ParserContext
             Expr LiteralExpr StaticMethodExpr InstanceMethodExpr StaticPropertyExpr NumberExpr
             InstancePropertyExpr InstanceFieldExpr MapExpr VarExpr TheVarExpr InvokeExpr HostExpr
-            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr]
+            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr]
            [System.IO FileInfo Path]
            [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
            AppDomain
@@ -310,6 +310,15 @@
        (il/mul)])]
    })
 
+;; bah! super gross because ClrType is not safe to call AST nodes... 
+(defn clr-type [e]
+  (if (isa? (type e) Expr)
+    (try
+      (.ClrType e)
+      (catch System.ArgumentException e
+        Object))
+    (type e)))
+
 ;; ast -symbolize-> symbolics -emit-> bytecode
 ;;        M&GIC                M&GE
 
@@ -559,8 +568,31 @@
                       (let [{:keys [IsArg Index ClrType]} (-> this data-map :Binding data-map)]
                         (if IsArg
                           (load-argument Index)
-                          (il/local (or ClrType Object)) ;; ??
-                          )))
+                          (il/ldloc (il/local (or ClrType Object)))))) ;; TODO is this nonsensical? throw an error?
+   
+   LetExpr (fn let-symbolizer [this symbolizers]
+             (let [{:keys [_bindingInits _body]} (-> this data-map)
+                   bindings (map #(.Binding %) _bindingInits)
+                   binding-map (->> (interleave bindings
+                                                (map #(il/local (clr-type (.Init %))) bindings))
+                                    (apply hash-map))
+                   
+                   specialized-symbolizers
+                   (assoc symbolizers LocalBindingExpr
+                     (fn let-body-symbolizer [this syms]
+                       (if-let [loc (-> this data-map :Binding binding-map)]
+                         (il/ldloc loc)
+                         (symbolize this symbolizers))))]
+               
+               ;; emit local initializations
+               [(map (fn [b loc]
+                       [(symbolize (.Init b) specialized-symbolizers)
+                        (il/stloc loc)])
+                     bindings
+                     (map binding-map bindings))
+                
+                ;; emit body with specialized symbolizers
+                (symbolize _body specialized-symbolizers)]))
    })
 
 (defn ast->symbolizer [ast symbolizers]
