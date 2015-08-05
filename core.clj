@@ -113,6 +113,7 @@
     :else (box-if-value-type-value a)))
 
 ;; TODO overflows?
+;; can overflow opcodes replace e.g. RT.intCast?
 (def conv
   {Int32  (il/conv-i4)
    Int64  (il/conv-i8)
