@@ -8,8 +8,10 @@
            [clojure.lang.CljCompiler.Ast RHC ParserContext
             Expr LiteralExpr StaticMethodExpr InstanceMethodExpr StaticPropertyExpr NumberExpr
             InstancePropertyExpr InstanceFieldExpr MapExpr VarExpr TheVarExpr InvokeExpr HostExpr
-            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr]
+            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr
+            MonitorEnterExpr MonitorExitExpr]
            [System.IO FileInfo Path]
+           [System.Threading Monitor]
            [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
            AppDomain
            System.Reflection.Emit.OpCodes
@@ -311,6 +313,24 @@
        (il/mul)])]
    })
 
+(defn has-arity-method [arities]
+  (il/method
+    "HasArity"
+    (enum-or MethodAttributes/Public
+             MethodAttributes/Virtual)
+    Boolean [Int32]
+    (let [ret-true (il/label)]
+      [(map (fn [arity]
+              [(il/ldarg-1)
+               (load-constant arity)
+               (il/beq ret-true)])
+            arities)
+       (il/ldc-i4-0)
+       (il/ret)
+       ret-true
+       (il/ldc-i4-1)
+       (il/ret)])))
+
 ;; bah! super gross because ClrType is not safe to call AST nodes... 
 (defn clr-type [e]
   (if (isa? (type e) Expr)
@@ -325,279 +345,304 @@
 
 (def symbolize)
 
+;; 42
+;; "foo"
+(defn literal-symbolizer
+  [ast symbolizers]
+  (let [data (data-map ast)]
+    (if-not (.IsStatementContext (data :ParsedContext))
+      (load-constant (data :Val)))))
+
+(defn vector-symbolizer
+  [ast symbolizers]
+  (load-vector (-> ast data-map :_args)
+               #(symbolize % symbolizers)))
+
+;; {:foo bar}
+(defn map-symbolizer
+  [ast symbolizers]
+  (let [pcon (.ParsedContext ast)
+        ks (take-nth 2 (.KeyVals ast))
+        vs (take-nth 2 (drop 1 (.KeyVals ast)))]
+    [(load-constant (int (+ (count ks) (count vs))))
+     (il/newarr Object)
+     (map (fn [i kv]
+            [(il/dup)
+             (load-constant (int i))
+             (symbolize kv symbolizers)
+             (box-if-value-type kv)
+             (il/stelem-ref)])
+          (range)
+          (interleave ks vs))
+     (il/call (find-method RT "mapUniqueKeys" |System.Object[]|))
+     (cleanup-stack pcon)]))
+
+;; (f a b)
+(defn invoke-symbolizer
+  [ast symbolizers]
+  (let [data (data-map ast)
+        pcon (.ParsedContext ast)
+        fexpr (:_fexpr data)
+        args (:_args data)
+        arity (count args)]
+    [(symbolize fexpr symbolizers)
+     (il/castclass IFn)
+     (map (fn [a]
+            [(symbolize a symbolizers)
+             (box-if-value-type a)])
+          args)
+     (il/callvirt (apply find-method IFn "invoke" (repeat arity Object)))
+     (cleanup-stack pcon)]))
+
+;; (new Foo)
+(defn new-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_args _type _ctor] :as data} (data-map ast)]
+    (if _ctor
+      ;; have constructor, normal newobj path 
+      (let [arg-exprs (map #(.ArgExpr %) _args)
+            ctor-param-types (->> _ctor .GetParameters (map #(.ParameterType %)))]
+        ;; TODO what about LocalBindings?
+        [(interleave
+           (map #(symbolize % symbolizers)
+                arg-exprs)
+           (map #(cast-if-different %1 %2)
+                arg-exprs
+                ctor-param-types))
+         (il/newobj _ctor)])
+      ;; no constructor, might be initobj path
+      (if (.IsValueType _type)
+        (let [loc (il/local _type)]
+          [(il/ldloca-s loc)
+           (il/initobj _type)
+           (il/ldloc loc)])
+        (throw (Exception. (str "No constructor for non-valuetype " _type)))))))
+
+(defn var-symbolizer
+  [ast symbolizers]
+  (let [pcon (.ParsedContext ast)
+        v (.. ast Var)]
+    [(load-var v)
+     (get-var v)
+     (cleanup-stack pcon)]))
+
+;; interop
+
+;; (+ 1 2)
+;; (Foo/Bar a b)
+(defn static-method-symbolizer
+  [ast symbolizers]
+  (let [data (data-map ast)
+        pcon (.ParsedContext ast)
+        args (map data-map (:_args data))
+        method (:_method data)
+        method-parameter-types (->> method
+                                    .GetParameters
+                                    (map #(.ParameterType %)))]
+    [(->> args
+          (map :ArgExpr)
+          (map #(symbolize % symbolizers))) 
+     (if-let [intrinsic-bytecode (intrinsics method)]
+       intrinsic-bytecode
+       (il/call method))
+     (cleanup-stack (.ReturnType method) pcon)]))
+
+(defn instance-method-symbolizer
+  [ast symbolizers]
+  (let [data (data-map ast)
+        pcon (.ParsedContext ast)
+        target (:_target data)
+        target-type (-> target .ClrType)
+        args (map data-map (:_args data))
+        method (:_method data)]
+    
+    [(symbolize target symbolizers)
+     (if (.IsValueType target-type)
+       (to-address target-type))
+     (->> args
+          (map :ArgExpr)
+          (map #(symbolize % symbolizers))) 
+     (if (.IsValueType target-type)
+       (il/call method)
+       (il/callvirt method))
+     (cleanup-stack (.ReturnType method)
+                    pcon)]))
+
+(defn static-property-symbolizer
+  [ast symbolizers]
+  (let [pcon (.ParsedContext ast)
+        return-type (.ClrType ast)
+        getter (-> ast data-map :_tinfo .GetGetMethod)]
+    [(il/call getter)
+     (cleanup-stack return-type pcon)]))
+
+(defn instance-property-symbolizer
+  [ast symbolizers]
+  (let [data (data-map ast)
+        pcon (.ParsedContext ast)
+        return-type (.ClrType ast)
+        target (:_target data)
+        getter (-> data :_tinfo .GetGetMethod)]
+    [(symbolize target symbolizers)
+     (box-if-value-type target)
+     (il/callvirt getter)
+     (cleanup-stack return-type pcon)]))
+
+(defn instance-field-symbolizer
+  [ast symbolizers]
+  (let [data (data-map ast)
+        pcon (.ParsedContext ast)
+        target (:_target data)
+        field (:_tinfo data)
+        return-type (.FieldType field)]
+    [(symbolize target symbolizers)
+     (il/ldfld field)
+     (cleanup-stack return-type pcon)]))
+
+(defn fn-symbolizer
+  [ast symbolizers]
+  (let [{:keys [Name Constants Vars ProtocolCallsites VarCallsites Keywords _methods] :as data} (data-map ast)
+        protected-static (enum-or FieldAttributes/Static FieldAttributes/FamORAssem)
+        arities (->> _methods
+                     (map data-map)
+                     (map :NumParams))
+        ;; set up var fields
+        vars (keys Vars)
+        var-fields (->> vars
+                        (map #(il/field (type %)
+                                        protected-static
+                                        (gensym (str (.. % Symbol Name) "_"))))
+                        (interleave vars)
+                        (apply hash-map))
+        var-symbolizer (fn fn-specialized-var-symbolizer [this symbolizers]
+                         (let [pcon (.ParsedContext this)
+                               v (or (-> this data-map :_var)
+                                     (.. this Var))]
+                           [(il/ldsfld (var-fields v))
+                            (get-var v)
+                            (cleanup-stack pcon)]))
+        symbolizers (assoc symbolizers
+                      VarExpr var-symbolizer
+                      TheVarExpr var-symbolizer)]
+    (mage.core/type
+      Name
+      TypeAttributes/Public []
+      clojure.lang.AFn
+      
+      [(il/constructor
+         MethodAttributes/Public
+         CallingConventions/Standard []
+         (il/ret))
+       (il/constructor
+         (enum-or MethodAttributes/Static)
+         CallingConventions/Standard []
+         [;; populate var fields
+          (map (fn [[v fld]] [(load-var v) (il/stsfld fld)])
+               var-fields)
+          (il/ret)])
+       (has-arity-method arities)
+       (map #(symbolize % symbolizers) _methods)])
+    ; data
+    ))
+
+(defn fn-method-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_retType _reqParms _body] :as data} (data-map ast)]
+    (il/method "invoke"
+               (enum-or MethodAttributes/Public
+                        MethodAttributes/Virtual)
+               _retType (mapv (constantly Object) _reqParms)
+               [(symbolize _body symbolizers)
+                (box-if-value-type (.LastExpr _body))
+                (il/ret)]
+               )))
+
+(defn if-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_testExpr _thenExpr _elseExpr] :as data} (data-map ast)
+        false-label (il/label)
+        true-label (il/label)
+        end-label (il/label)]
+    [(symbolize _testExpr symbolizers)
+     (il/brfalse false-label)
+     (symbolize _thenExpr symbolizers)
+     (il/br end-label)
+     false-label
+     (symbolize _elseExpr symbolizers)
+     end-label]))
+
+(defn body-symbolizer
+  [ast symbolizers]
+  (map #(symbolize % symbolizers) (-> ast data-map :_exprs)))
+
+;; TODO is this nonsensical? throw an error?
+(defn local-binding-symbolizer
+  [ast symbolizers]
+  (let [{:keys [IsArg Index ClrType]} (-> ast data-map :Binding data-map)]
+    (if IsArg
+      (load-argument Index)
+      (il/ldloc (il/local (or ClrType Object))))))
+
+(defn let-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_bindingInits _body]} (-> ast data-map)
+        bindings (map #(.Binding %) _bindingInits)
+        binding-map (->> (interleave bindings
+                                     (map #(il/local (clr-type (.Init %))) bindings))
+                         (apply hash-map))
+        
+        specialized-symbolizers
+        (assoc symbolizers LocalBindingExpr
+          (fn let-body-symbolizer [ast syms]
+            (if-let [loc (-> ast data-map :Binding binding-map)]
+              (il/ldloc loc)
+              (symbolize ast symbolizers))))]
+    
+    ;; emit local initializations
+    [(map (fn [b loc]
+            [(symbolize (.Init b) specialized-symbolizers)
+             (il/stloc loc)])
+          bindings
+          (map binding-map bindings))
+     
+     ;; emit body with specialized symbolizers
+     (symbolize _body specialized-symbolizers)]))
+
+(defn monitor-enter-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_target]} (data-map ast)]
+    [(symbolize _target symbolizers)
+     (il/call (find-method Monitor "Enter" Object))
+     (il/ldnull)]))
+
+(defn monitor-exit-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_target]} (data-map ast)]
+    [(symbolize _target symbolizers)
+     (il/call (find-method Monitor "Exit" Object))
+     (il/ldnull)]))
+
 (def base-symbolizers
-  {
-   ;; 42
-   ;; "foo"
-   LiteralExpr (fn literal-symbolizer [this symbolizers]
-                 (let [data (data-map this)]
-                   (if-not (.IsStatementContext (data :ParsedContext))
-                     (load-constant (data :Val)))))
-   
-   VectorExpr (fn vector-symbolizer [this symbolizers]
-                (load-vector (-> this data-map :_args)
-                             #(symbolize % symbolizers)))
-   
-   ;; {:foo bar}
-   MapExpr (fn map-symbolizer [this symbolizers]
-             (let [pcon (.ParsedContext this)
-                   ks (take-nth 2 (.KeyVals this))
-                   vs (take-nth 2 (drop 1 (.KeyVals this)))]
-               [(load-constant (int (+ (count ks) (count vs))))
-                (il/newarr Object)
-                (map (fn [i kv]
-                       [(il/dup)
-                        (load-constant (int i))
-                        (symbolize kv symbolizers)
-                        (box-if-value-type kv)
-                        (il/stelem-ref)])
-                     (range)
-                     (interleave ks vs))
-                (il/call (find-method RT "mapUniqueKeys" |System.Object[]|))
-                (cleanup-stack pcon)]))
-   
-   ;; (f a b)
-   InvokeExpr (fn invoke-symbolizer [this symbolizers]
-                (let [data (data-map this)
-                      pcon (.ParsedContext this)
-                      fexpr (:_fexpr data)
-                      args (:_args data)
-                      arity (count args)]
-                  [(symbolize fexpr symbolizers)
-                   (il/castclass IFn)
-                   (map (fn [a]
-                          [(symbolize a symbolizers)
-                           (box-if-value-type a)])
-                        args)
-                   (il/callvirt (apply find-method IFn "invoke" (repeat arity Object)))
-                   (cleanup-stack pcon)]))
-   
-   NewExpr (fn new-symbolizer [this symbolizers]
-             (let [{:keys [_args _type _ctor] :as data} (data-map this)]
-               (if _ctor
-                 ;; have constructor, normal newobj path 
-                 (let [arg-exprs (map #(.ArgExpr %) _args)
-                       ctor-param-types (->> _ctor .GetParameters (map #(.ParameterType %)))]
-                   ;; TODO what about LocalBindings?
-                   [(interleave
-                      (map #(symbolize % symbolizers)
-                           arg-exprs)
-                      (map #(cast-if-different %1 %2)
-                           arg-exprs
-                           ctor-param-types))
-                    (il/newobj _ctor)])
-                 ;; no constructor, might be initobj path
-                 (if (.IsValueType _type)
-                   (let [loc (il/local _type)]
-                     [(il/ldloca-s loc)
-                      (il/initobj _type)
-                      (il/ldloc loc)])
-                   (throw (Exception. (str "No constructor for non-valuetype " _type)))))))
-   
-   VarExpr (fn var-symbolizer [this symbolizers]
-             (let [pcon (.ParsedContext this)
-                   v (.. this Var)]
-               [(load-var v)
-                (get-var v)
-                (cleanup-stack pcon)]))
-   
-   TheVarExpr (fn var-symbolizer [this symbolizers]
-                (let [pcon (.ParsedContext this)
-                      v (-> this data-map :_var)]
-                  [(load-var v)
-                   (get-var v)
-                   (cleanup-stack pcon)]))
-   
-   ;; interop
-   
-   ;; (+ 1 2)
-   ;; (Foo/Bar a b)
-   StaticMethodExpr (fn static-method-symbolizer [this symbolizers]
-                      (let [data (data-map this)
-                            pcon (.ParsedContext this)
-                            args (map data-map (:_args data))
-                            method (:_method data)
-                            method-parameter-types (->> method
-                                                        .GetParameters
-                                                        (map #(.ParameterType %)))]
-                        
-                        [(->> args
-                              (map :ArgExpr)
-                              (map #(symbolize % symbolizers))) 
-                         
-                         (if-let [intrinsic-bytecode (intrinsics method)]
-                           intrinsic-bytecode
-                           (il/call method))
-                         
-                         (cleanup-stack (.ReturnType method) pcon)]))
-   
-   InstanceMethodExpr (fn instance-method-symbolizer [this symbolizers]
-                        (let [data (data-map this)
-                              pcon (.ParsedContext this)
-                              target (:_target data)
-                              target-type (-> target .ClrType)
-                              args (map data-map (:_args data))
-                              method (:_method data)]
-                          
-                          [(symbolize target symbolizers)
-                           (if (.IsValueType target-type)
-                             (to-address target-type))
-                           (->> args
-                                (map :ArgExpr)
-                                (map #(symbolize % symbolizers))) 
-                           (if (.IsValueType target-type)
-                             (il/call method)
-                             (il/callvirt method))
-                           (cleanup-stack (.ReturnType method)
-                                          pcon)]))
-   
-   StaticPropertyExpr (fn static-property-symbolizer [this symbolizers]
-                        (let [pcon (.ParsedContext this)
-                              return-type (.ClrType this)
-                              getter (-> this data-map :_tinfo .GetGetMethod)]
-                          [(il/call getter)
-                           (cleanup-stack return-type pcon)]))
-   
-   InstancePropertyExpr (fn instance-property-symbolizer [this symbolizers]
-                          (let [data (data-map this)
-                                pcon (.ParsedContext this)
-                                return-type (.ClrType this)
-                                target (:_target data)
-                                getter (-> data :_tinfo .GetGetMethod)]
-                            [(symbolize target symbolizers)
-                             (box-if-value-type target)
-                             (il/callvirt getter)
-                             (cleanup-stack return-type pcon)]))
-   
-   InstanceFieldExpr (fn instance-field-symbolizer [this symbolizers]
-                       (let [data (data-map this)
-                             pcon (.ParsedContext this)
-                             target (:_target data)
-                             field (:_tinfo data)
-                             return-type (.FieldType field)]
-                         [(symbolize target symbolizers)
-                          (il/ldfld field)
-                          (cleanup-stack return-type pcon)]))
-   
-   FnExpr (fn fn-symbolizer [this symbolizers]
-            (let [{:keys [Name Constants Vars ProtocolCallsites VarCallsites Keywords _methods] :as data} (data-map this)
-                  protected-static (enum-or FieldAttributes/Static FieldAttributes/FamORAssem)
-                  
-                  arities (->> _methods
-                               (map data-map)
-                               (map :NumParams))
-                  
-                  ;; set up var fields
-                  vars (keys Vars)
-                  var-fields (->> vars
-                                  (map #(il/field (type %)
-                                                  protected-static
-                                                  (gensym (str (.. % Symbol Name) "_"))))
-                                  (interleave vars)
-                                  (apply hash-map))
-                  var-symbolizer (fn fn-specialized-var-symbolizer [this symbolizers]
-                                   (let [pcon (.ParsedContext this)
-                                         v (or (-> this data-map :_var)
-                                               (.. this Var))]
-                                     [(il/ldsfld (var-fields v))
-                                      (get-var v)
-                                      (cleanup-stack pcon)]))
-                  symbolizers (assoc symbolizers
-                                VarExpr var-symbolizer
-                                TheVarExpr var-symbolizer)]
-              (mage.core/type
-                Name
-                TypeAttributes/Public []
-                clojure.lang.AFn
-                
-                [(il/constructor
-                   MethodAttributes/Public
-                   CallingConventions/Standard []
-                   (il/ret))
-                 (il/constructor
-                   (enum-or MethodAttributes/Static)
-                   CallingConventions/Standard []
-                   [;; populate var fields
-                    (map (fn [[v fld]] [(load-var v) (il/stsfld fld)])
-                         var-fields)
-                    (il/ret)])
-                 (il/method
-                   "HasArity"
-                   (enum-or MethodAttributes/Public
-                            MethodAttributes/Virtual)
-                   Boolean [Int32]
-                   (let [ret-true (il/label)]
-                     [(map
-                        (fn [arity]
-                          [(il/ldarg-1)
-                           (load-constant arity)
-                           (il/beq ret-true)])
-                        arities)
-                      (il/ldc-i4-0)
-                      (il/ret)
-                      ret-true
-                      (il/ldc-i4-1)
-                      (il/ret)]))
-                 (map #(symbolize % symbolizers) _methods)])
-              ; data
-              ))
-   
-   FnMethod (fn fn-method-symbolizer [this symbolizers]
-              (let [{:keys [_retType _reqParms _body] :as data} (data-map this)]
-                (il/method "invoke"
-                           (enum-or MethodAttributes/Public
-                                    MethodAttributes/Virtual)
-                           _retType (mapv (constantly Object) _reqParms)
-                           [(symbolize _body symbolizers)
-                            (box-if-value-type (.LastExpr _body))
-                            (il/ret)]
-                           )))
-   
-   IfExpr (fn if-symbolizer [this symbolizers]
-            (let [{:keys [_testExpr _thenExpr _elseExpr] :as data} (data-map this)
-                  false-label (il/label)
-                  true-label (il/label)
-                  end-label (il/label)]
-              [(symbolize _testExpr symbolizers)
-               (il/brfalse false-label)
-               (symbolize _thenExpr symbolizers)
-               (il/br end-label)
-               false-label
-               (symbolize _elseExpr symbolizers)
-               end-label]))
-   
-   BodyExpr (fn body-symbolizer [this symbolizers]
-              (map #(symbolize % symbolizers) (-> this data-map :_exprs)))
-   
-   LocalBindingExpr (fn local-binding-symbolizer [this symbolizers]
-                      (let [{:keys [IsArg Index ClrType]} (-> this data-map :Binding data-map)]
-                        (if IsArg
-                          (load-argument Index)
-                          (il/ldloc (il/local (or ClrType Object)))))) ;; TODO is this nonsensical? throw an error?
-   
-   LetExpr (fn let-symbolizer [this symbolizers]
-             (let [{:keys [_bindingInits _body]} (-> this data-map)
-                   bindings (map #(.Binding %) _bindingInits)
-                   binding-map (->> (interleave bindings
-                                                (map #(il/local (clr-type (.Init %))) bindings))
-                                    (apply hash-map))
-                   
-                   specialized-symbolizers
-                   (assoc symbolizers LocalBindingExpr
-                     (fn let-body-symbolizer [this syms]
-                       (if-let [loc (-> this data-map :Binding binding-map)]
-                         (il/ldloc loc)
-                         (symbolize this symbolizers))))]
-               
-               ;; emit local initializations
-               [(map (fn [b loc]
-                       [(symbolize (.Init b) specialized-symbolizers)
-                        (il/stloc loc)])
-                     bindings
-                     (map binding-map bindings))
-                
-                ;; emit body with specialized symbolizers
-                (symbolize _body specialized-symbolizers)]))
+  {LiteralExpr          literal-symbolizer
+   VectorExpr           vector-symbolizer
+   MapExpr              map-symbolizer
+   InvokeExpr           invoke-symbolizer
+   NewExpr              new-symbolizer
+   VarExpr              var-symbolizer
+   TheVarExpr           var-symbolizer
+   StaticMethodExpr     static-method-symbolizer
+   InstanceMethodExpr   instance-method-symbolizer
+   StaticPropertyExpr   static-property-symbolizer
+   InstancePropertyExpr instance-property-symbolizer
+   InstanceFieldExpr    instance-field-symbolizer
+   FnExpr               fn-symbolizer
+   FnMethod             fn-method-symbolizer
+   IfExpr               if-symbolizer
+   BodyExpr             body-symbolizer
+   LocalBindingExpr     local-binding-symbolizer 
+   LetExpr              let-symbolizer
+   MonitorEnterExpr     monitor-enter-symbolizer
+   MonitorExitExpr      monitor-exit-symbolizer
    })
 
 (defn ast->symbolizer [ast symbolizers]
