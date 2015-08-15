@@ -100,51 +100,79 @@
 
 (def load-constant)
 
-(defn box-if-value-type-value [a]
-  (if (.IsValueType (type a))
-    (il/box (type a))))
-
-(defn box-if-value-type-expr [a]
-  (if (and (.HasClrType a)
-           (.IsValueType (.ClrType a)))
-    (il/box (.ClrType a))))
-
-(defn box-if-value-type [a]
-  (cond
-    (isa? (type a) Expr) (box-if-value-type-expr a)
-    :else (box-if-value-type-value a)))
-
 ;; TODO overflows?
 ;; can overflow opcodes replace e.g. RT.intCast?
-(def conv
-  {Int32  (il/conv-i4)
+(def intrinsic-conv
+  {Char   (il/conv-u2)
+   SByte  (il/conv-i1)
+   Byte   (il/conv-u1)
+   Int16  (il/conv-i2)
+   Int32  (il/conv-i4)
    Int64  (il/conv-i8)
+   Double (il/conv-r8)
    Single (il/conv-r4)
-   Double (il/conv-r8)})
+   UInt16 (il/conv-u2)
+   UInt32 (il/conv-u4)
+   UInt64 (il/conv-u8)})
 
-(defn cast-if-different [obj dest-typ]
-  (let [src-typ (if (and (isa? (type obj) Expr)
-                          (.HasClrType obj))
-                   (.ClrType obj)
-                   (type obj))]
-    (if (not (isa? src-typ dest-typ))
-      (cond
-        (and (.IsValueType src-typ)
-             (.IsValueType dest-typ))
-        (conv dest-typ)
-        
-        (and (.IsValueType src-typ) 
-             (not (.IsValueType dest-typ)))
-        [(il/box src-typ)
-         (il/castclass dest-typ)]
-         
-        (and (not (.IsValueType src-typ))
-             (.IsValueType dest-typ))
-        (il/unbox-any dest-typ)
-        
-        (and (not (.IsValueType src-typ))
-             (not (.IsValueType dest-typ)))
-        (il/castclass dest-typ)))))
+(defn convert [from to]
+  (let [from-type (cond
+                    (nil? from)             Object
+                    (isa? (type from) Type) from
+                    (isa? (type from) Expr) (clr-type from)
+                    :else                   (type from))]
+    (cond
+      ;; do nothing if the types are the same 
+      (= from-type to)
+      nil
+      
+      ;; cannot convert nil to value type
+      (and (nil? from) (.IsValueType to))
+      (throw (Exception. (str "Cannot convert nil to value type " to)))
+      
+      ;; do nothing for nil to non value type 
+      (nil? from)
+      nil
+      
+      ;; convert void to nil
+      ;; TODO is this a terrible idea?
+      (and (= System.Void from-type) (not (.IsValueType to)))
+      (il/ldnull)
+      
+      (and (= System.Void from-type) (.IsValueType to))
+      (throw (Exception. (str "Cannot convert void to value type " to)))
+      
+      ;; use user defined implicit conversion if it exists
+      (find-method from-type "op_Implicit" to)
+      (il/call (find-method from-type "op_Implicit" to))
+      
+      ;; use user defined explicit conversion if it exists
+      (find-method from-type "op_Explicit" to)
+      (il/call (find-method from-type "op_Explicit" to))
+      
+      ;; use intrinsic conv opcodes from primitive to primitive
+      (and (.IsPrimitive from-type) (.IsPrimitive to))
+      (intrinsic-conv to)
+      
+      ;; box valuetypes to objects
+      (and (.IsValueType from-type) (= to Object))
+      (il/box from-type)
+      
+      ;; unbox objects to valuetypes
+      (and (= from-type Object) (.IsValueType to))
+      (il/unbox-any to)
+      
+      ;; castclass if to is a subclass of from
+      (.IsSubclassOf to from-type)
+      (il/castclass to)
+      
+      ;; do nothing if converting to super class
+      (.IsSubclassOf from-type to)
+      nil
+      
+      :else
+      (throw (Exception. (str "Cannot convert " from-type " to " to))))))
+
 
 (defn load-vector
   ([v] (load-vector v load-constant))
@@ -155,7 +183,7 @@
            [(il/dup)
             (load-constant (int i))
             (f c)
-            (box-if-value-type c)
+            (convert c Object)
             (il/stelem-ref)])
          (range)
          v)
@@ -170,7 +198,7 @@
            [(il/dup)
             (load-constant (int i))
             (f c)
-            (box-if-value-type c)
+            (convert c Object)
             (il/stelem-ref)])
          (range)
          v)
@@ -370,7 +398,7 @@
             [(il/dup)
              (load-constant (int i))
              (symbolize kv symbolizers)
-             (box-if-value-type kv)
+             (convert kv Object)
              (il/stelem-ref)])
           (range)
           (interleave ks vs))
@@ -389,7 +417,7 @@
      (il/castclass IFn)
      (map (fn [a]
             [(symbolize a symbolizers)
-             (box-if-value-type a)])
+             (convert a Object)])
           args)
      (il/callvirt (apply find-method IFn "invoke" (repeat arity Object)))
      (cleanup-stack pcon)]))
@@ -406,7 +434,7 @@
         [(interleave
            (map #(symbolize % symbolizers)
                 arg-exprs)
-           (map #(cast-if-different %1 %2)
+           (map #(convert %1 %2)
                 arg-exprs
                 ctor-param-types))
          (il/newobj _ctor)])
@@ -426,6 +454,15 @@
      (get-var v)
      (cleanup-stack pcon)]))
 
+(defn converted-args [args param-types symbolizers]
+  (interleave
+    (->> args
+         (map :ArgExpr)
+         (map #(symbolize % symbolizers)))
+    (map #(convert %1 %2)
+         (map :ArgExpr args)
+         param-types)))
+
 ;; interop
 
 ;; (+ 1 2)
@@ -439,9 +476,7 @@
         method-parameter-types (->> method
                                     .GetParameters
                                     (map #(.ParameterType %)))]
-    [(->> args
-          (map :ArgExpr)
-          (map #(symbolize % symbolizers))) 
+    [(converted-args args method-parameter-types symbolizers)
      (if-let [intrinsic-bytecode (intrinsics method)]
        intrinsic-bytecode
        (il/call method))
@@ -454,14 +489,15 @@
         target (:_target data)
         target-type (-> target .ClrType)
         args (map data-map (:_args data))
-        method (:_method data)]
+        method (:_method data)
+        method-parameter-types (->> method
+                                    .GetParameters
+                                    (map #(.ParameterType %)))]
     
     [(symbolize target symbolizers)
      (if (.IsValueType target-type)
        (to-address target-type))
-     (->> args
-          (map :ArgExpr)
-          (map #(symbolize % symbolizers))) 
+     (converted-args args method-parameter-types symbolizers) 
      (if (.IsValueType target-type)
        (il/call method)
        (il/callvirt method))
@@ -484,7 +520,7 @@
         target (:_target data)
         getter (-> data :_tinfo .GetGetMethod)]
     [(symbolize target symbolizers)
-     (box-if-value-type target)
+     (convert target Object)
      (il/callvirt getter)
      (cleanup-stack return-type pcon)]))
 
@@ -553,7 +589,7 @@
                         MethodAttributes/Virtual)
                _retType (mapv (constantly Object) _reqParms)
                [(symbolize _body symbolizers)
-                (box-if-value-type (.LastExpr _body))
+                (convert (.LastExpr _body) Object)
                 (il/ret)]
                )))
 
