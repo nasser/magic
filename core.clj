@@ -311,12 +311,22 @@
    (il/conv-i4)
    
    (find-method clojure.lang.RT "uncheckedIntCast" Int32)
-   []
+   nil
    
    (find-method clojure.lang.Numbers "unchecked_add" Double Int64)
    [(il/conv-r8)
     (il/add)]
+   
+   ;; TODO replace Numbers.add with ovf intrinsics when possible? ~40% faster
+   (find-method clojure.lang.Numbers "add" Int64 Int64)
+   (il/add-ovf)
+   
+   (find-method clojure.lang.Numbers "add" Int64 Double)
+   (il/add-ovf)
       
+   (find-method clojure.lang.Numbers "add" Double Double)
+   (il/add-ovf)
+   
    (find-method clojure.lang.Numbers "unchecked_add" Double Double)
    (il/add)
    
@@ -332,7 +342,7 @@
    (find-method clojure.lang.Numbers "unchecked_multiply" Double Int64)
    [(il/conv-r8)
     (il/mul)]
-    
+   
    (find-method clojure.lang.Numbers "unchecked_multiply" Int64 Double)
    [(let [loc (il/local Double)]
       [(il/stloc loc)
