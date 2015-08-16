@@ -698,6 +698,7 @@
    BodyExpr             body-symbolizer
    LocalBindingExpr     local-binding-symbolizer 
    LetExpr              let-symbolizer
+   ; CaseExpr             case-symbolizer
    MonitorEnterExpr     monitor-enter-symbolizer
    MonitorExitExpr      monitor-exit-symbolizer
    })
@@ -716,43 +717,37 @@
   (if-let [symbolizer (ast->symbolizer ast symbolizers)]
     (symbolizer ast symbolizers)))
 
-
-(comment 
-  (use 'clojure.pprint)
-  (in-ns 'mage.core)
+(comment
+  (defn case-shift-mask [shift mask]
+    (if-not (zero? mask)
+      [(load-constant shift)
+       (il/shr)
+       (load-constant mask)
+       (il/and)]))
   
-  ;; nested fns need mage work
-  (-> (data-map (analyze '(fn [] (fn [a] (+ 1)))))
-      :_methods
-      first
-      data-map
-      :_body
-      data-map
-      :_exprs
-      first
-      data-map
-      )
-  
-  (fn [] (fn [a] (+ a 1)))
-  
-  (fn []
-    ((if (< 0.5 (rand)) #'+ #'-) 4 5))
-  
-  (-> (analyze '(if false #'+ #'-))
-      data-map
-      :_elseExpr)
-  
-    (->
-      (il/assembly "magicTest"
-                   (il/module "magicTest.dll"
-                              (symbolize (analyze '(fn []
-    ((if (< 0.5 (rand)) #'+ #'-) 4 5)))
-                                         base-symbolizers)
-                              ))
-      il/emit!
-      ; pprint
-      )
+  (defn case-int-expr [ast default-label symbolizers]
+    (let [{:keys [_expr _shift _mask]} (data-map ast)]
+      [(symbolize expr symbolizers)
+       (il/call (find-method clojure.lang.Util "IsNonCharNumeric" Object))
+       (il/brfalse default-label)
+       (symbolize expr symbolizers)
+       (il/call (find-method clojure.lang.Util "ConvertToInt" Object))
+       (case-shift-mask _shift _mask)
+       ])
     
-  ((magic.core$prancer.))
+    )
   
-  )
+  (defn case-symbolizer
+    [ast symbolizers]
+    (let [{:keys [_expr _shift _mask _low _high
+                  _defaultExpr _tests _thens
+                  _switchType _testType _skipCheck]} (data-map ast)]
+      (if (= _testType :int)
+        case-int-expr
+        case-hash-expr
+        )
+      ; (map (fn [a] (il/label)) (.Keys _tests))
+      (apply str (.Values _tests))
+      ; (str (count _tests))
+      )
+    ))
