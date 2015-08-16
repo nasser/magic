@@ -28,7 +28,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>ConstantExpr</td>
   <td><code>(quote a)</code>, <code>Type</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>DefExpr</td>
@@ -38,7 +38,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>EmptyExpr</td>
   <td><code>[]</code>, <code>()</code>, <code>{}</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>FnExpr</td>
@@ -58,7 +58,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>ImportExpr</td>
   <td><code>(import Type)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>InstanceFieldExpr</td>
@@ -136,11 +136,6 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><center>  </center></td>
 </tr>
 <tr>
-  <td>MethodParamExpr</td>
-  <td>    </td>
-  <td><center>  </center></td>
-</tr>
-<tr>
   <td>MonitorEnterExpr</td>
   <td><code>(monitor-enter x)</code></td>
   <td><center> ✔︎ </center></td>
@@ -183,7 +178,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>SetExpr</td>
   <td><code>#{:a :b :c}</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>StaticFieldExpr</td>
@@ -223,7 +218,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>UnresolvedVarExpr</td>
   <td>    </td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>VarExpr</td>

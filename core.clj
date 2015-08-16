@@ -143,6 +143,9 @@
                     (isa? (type from) Expr) (clr-type from)
                     :else                   (type from))]
     (cond
+      (or (nil? from) (nil? from-type))
+      nil
+      
       ;; do nothing if the types are the same 
       (= from-type to)
       nil
