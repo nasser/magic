@@ -196,6 +196,11 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><center> ✔︎ </center></td>
 </tr>
 <tr>
+  <td>StaticPropertyExpr</td>
+  <td><code>Time/time</code></td>
+  <td><center> ✔︎ </center></td>
+</tr>
+<tr>
   <td>StringExpr</td>
   <td><code>"foo"</code></td>
   <td><center> ✔︎ </center></td>
