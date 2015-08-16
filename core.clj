@@ -709,7 +709,8 @@
            bases
            (map symbolizers)
            (remove nil?)
-           first)))
+           first)
+      (throw (Exception. (str "No symbolizer for " ast)))))
 
 (defn symbolize [ast symbolizers]
   (if-let [symbolizer (ast->symbolizer ast symbolizers)]
