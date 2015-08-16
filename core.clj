@@ -637,7 +637,7 @@
         var-fields (->> vars
                         (map #(il/field (type %)
                                         protected-static
-                                        (gensym (str (.. % Symbol Name) "_"))))
+                                        (gensym (.. % Symbol Name))))
                         (interleave vars)
                         (apply hash-map))
         var-symbolizer (fn fn-specialized-var-symbolizer [this symbolizers]
