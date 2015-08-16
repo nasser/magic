@@ -618,7 +618,6 @@
   [ast symbolizers]
   (let [{:keys [_testExpr _thenExpr _elseExpr] :as data} (data-map ast)
         false-label (il/label)
-        true-label (il/label)
         end-label (il/label)]
     [(symbolize _testExpr symbolizers)
      (il/brfalse false-label)
