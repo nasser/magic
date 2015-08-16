@@ -317,8 +317,9 @@
 
 (defn cleanup-stack
   ([pcon]
-   (if (.IsStatementContext pcon)
-     (il/pop)))
+   (if-not (nil? pcon)
+     (if (.IsStatementContext pcon)
+       (il/pop))))
   ([lasttype pcon]
    (if (and (not= System.Void lasttype)
             (.IsStatementContext pcon))
@@ -403,8 +404,8 @@
 (defn literal-symbolizer
   [ast symbolizers]
   (let [data (data-map ast)]
-    (if-not (.IsStatementContext (data :ParsedContext))
-      (load-constant (data :Val)))))
+    [(load-constant (data :Val))
+     (cleanup-stack (data :ParsedContext))]))
 
 (defn vector-symbolizer
   [ast symbolizers]
@@ -535,7 +536,7 @@
         return-type (.ClrType ast)
         getter (-> ast data-map :_tinfo .GetGetMethod)]
     [(il/call getter)
-     (cleanup-stack return-type pcon)]))
+     (cleanup-stack pcon)]))
 
 (defn static-field-symbolizer
   [ast symbolizers]
@@ -545,8 +546,7 @@
     [(if (.IsLiteral _tinfo)
        (load-constant (.GetRawConstantValue _tinfo))
        (il/ldsfld _tinfo) )
-     ; (cleanup-stack return-type pcon)
-     ]))
+     (cleanup-stack pcon)]))
 
 (defn instance-property-symbolizer
   [ast symbolizers]
@@ -558,7 +558,7 @@
     [(symbolize target symbolizers)
      (convert target Object)
      (il/callvirt getter)
-     (cleanup-stack return-type pcon)]))
+     (cleanup-stack pcon)]))
 
 (defn instance-field-symbolizer
   [ast symbolizers]
@@ -569,7 +569,7 @@
         return-type (.FieldType field)]
     [(symbolize target symbolizers)
      (il/ldfld field)
-     (cleanup-stack return-type pcon)]))
+     (cleanup-stack pcon)]))
 
 (defn fn-symbolizer
   [ast symbolizers]
@@ -632,19 +632,24 @@
 (defn if-symbolizer
   [ast symbolizers]
   (let [{:keys [_testExpr _thenExpr _elseExpr] :as data} (data-map ast)
+        pcon (.ParsedContext ast)
         false-label (il/label)
         end-label (il/label)]
     [(symbolize _testExpr symbolizers)
      (il/brfalse false-label)
      (symbolize _thenExpr symbolizers)
+     (cleanup-stack (.ParsedContext _thenExpr))
      (il/br end-label)
      false-label
      (symbolize _elseExpr symbolizers)
-     end-label]))
+     (cleanup-stack (.ParsedContext _elseExpr))
+     end-label
+     ]))
 
 (defn body-symbolizer
   [ast symbolizers]
-  (map #(symbolize % symbolizers) (-> ast data-map :_exprs)))
+  [(map #(symbolize % symbolizers) (-> ast data-map :_exprs))
+   (cleanup-stack (if-not (nil? ast) (.ParsedContext ast)))])
 
 ;; TODO is this nonsensical? throw an error?
 (defn local-binding-symbolizer
