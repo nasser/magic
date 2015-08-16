@@ -98,6 +98,26 @@
     (= i 3) (il/ldarg-3)
     :else (il/ldarg i)))
 
+;; bah! super gross because ClrType is not safe to call AST nodes... 
+(defn clr-type [e]
+  (cond
+    ;; BUG in TryExpr analysis. ClrType always reported as type of try expession
+    ;; but this is not accurate
+    (= (type e) TryExpr)
+    (let [{:keys [_tryExpr _catchExprs]} (data-map e)
+          try-expr-type (clr-type _tryExpr)
+          catch-handler-types (map #(clr-type (-> % data-map :_handler)) _catchExprs)]
+      (if (= 1 (count (into #{try-expr-type} catch-handler-types)))
+        try-expr-type
+        Object))
+    
+    (isa? (type e) Expr)
+    (try
+      (.ClrType e)
+      (catch System.Exception e
+        Object))
+    :else (type e)))
+
 (def load-constant)
 
 ;; TODO overflows?
@@ -368,15 +388,6 @@
        ret-true
        (il/ldc-i4-1)
        (il/ret)])))
-
-;; bah! super gross because ClrType is not safe to call AST nodes... 
-(defn clr-type [e]
-  (if (isa? (type e) Expr)
-    (try
-      (.ClrType e)
-      (catch System.Exception e
-        Object))
-    (type e)))
 
 ;; ast -symbolize-> symbolics -emit-> bytecode
 ;;        M&GIC                M&GE
