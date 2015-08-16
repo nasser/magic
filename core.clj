@@ -4,13 +4,15 @@
   (:require [mage.core :as il]
             [clojure.string :as string])
   (:import [clojure.lang RT Numbers Compiler LineNumberingTextReader
-            Symbol Namespace IFn Var Keyword Symbol]
+            Symbol Namespace IFn Var Keyword Symbol
+            IPersistentList LazySeq IPersistentVector IPersistentMap IPersistentSet
+            PersistentArrayMap PersistentHashSet PersistentList PersistentVector]
            [clojure.lang.CljCompiler.Ast RHC ParserContext
             Expr LiteralExpr StaticMethodExpr InstanceMethodExpr StaticPropertyExpr NumberExpr
             InstancePropertyExpr InstanceFieldExpr MapExpr VarExpr TheVarExpr InvokeExpr HostExpr
             FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr CaseExpr
             MonitorEnterExpr MonitorExitExpr InstanceZeroArityCallExpr StaticFieldExpr InstanceOfExpr
-            ThrowExpr TryExpr TryExpr+CatchClause]
+            ThrowExpr TryExpr TryExpr+CatchClause UnresolvedVarExpr EmptyExpr SetExpr ImportExpr RecurExpr]
            [System.IO FileInfo Path]
            [System.Threading Monitor]
            [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
@@ -213,6 +215,21 @@
          v)
     (il/call (find-method clojure.lang.RT "vector" |System.Object[]|))]))
 
+(defn load-set
+  ([v] (load-set v load-constant))
+  ([v f]
+   [(load-constant (int (count v)))
+    (il/newarr Object)
+    (map (fn [i c]
+           [(il/dup)
+            (load-constant (int i))
+            (f c)
+            (convert c Object)
+            (il/stelem-ref)])
+         (range)
+         v)
+    (il/call (find-method clojure.lang.RT "set" |System.Object[]|))]))
+
 (defn load-list
   ([v] (load-list v load-constant))
   ([v f]
@@ -307,6 +324,7 @@
     (instance? clojure.lang.Keyword k)                  (load-keyword k)
     (instance? clojure.lang.Var k)                      (load-var k)
     (instance? clojure.lang.PersistentList k)           (load-list k)
+    (instance? clojure.lang.APersistentSet k)           (load-set k)
     (instance? clojure.lang.APersistentVector k)        (load-vector k)
     (instance? clojure.lang.APersistentMap k)           (load-map (seq k))))
 
@@ -411,6 +429,11 @@
   [ast symbolizers]
   (load-vector (-> ast data-map :_args)
                #(symbolize % symbolizers)))
+
+(defn set-symbolizer
+  [ast symbolizers]
+  (load-set (-> ast data-map :_keys)
+            #(symbolize % symbolizers)))
 
 ;; {:foo bar}
 (defn map-symbolizer
@@ -750,10 +773,34 @@
             (il/finally (symbolize _finallyExpr symbolizers)))])
        (il/ldloc ret)])))
 
+(defn unresolved-var-symbolizer
+  [ast symbolizers]
+  nil)
+
+(defn empty-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_coll]} (data-map ast)]
+    (cond
+      (instance? IPersistentList _coll)   (il/ldsfld (.GetField PersistentList "EMPTY"))
+      (instance? LazySeq _coll)           (il/ldsfld (.GetField PersistentList "EMPTY"))
+      (instance? IPersistentVector _coll) (il/ldsfld (.GetField PersistentVector "EMPTY"))
+      (instance? IPersistentMap _coll)    (il/ldsfld (.GetField PersistentArrayMap "EMPTY"))
+      (instance? IPersistentSet _coll)    (il/ldsfld (.GetField PersistentHashSet "EMPTY"))
+      :else                               (throw (InvalidOperationException. "Unknown collection type.")))))
+
+(defn import-symbolizer
+  [ast symbolizers]
+  (let [cls (-> ast data-map :_c)]
+    [(il/call (property-getter clojure.lang.Compiler "CurrentNamespace"))
+     (load-constant cls)
+     (il/call (find-method clojure.lang.RT "classForName" String))
+     (il/call (find-method clojure.lang.Namespace "importClass" Type))]))
+
 (def base-symbolizers
   {LiteralExpr          literal-symbolizer
    VectorExpr           vector-symbolizer
    MapExpr              map-symbolizer
+   SetExpr              set-symbolizer
    InvokeExpr           invoke-symbolizer
    NewExpr              new-symbolizer
    VarExpr              var-symbolizer
@@ -776,6 +823,9 @@
    InstanceOfExpr       instance-of-symbolizer
    ThrowExpr            throw-symbolizer
    TryExpr              try-symbolizer
+   UnresolvedVarExpr    unresolved-var-symbolizer
+   EmptyExpr            empty-symbolizer
+   ImportExpr           import-symbolizer
    })
 
 (defn ast->symbolizer [ast symbolizers]
