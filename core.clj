@@ -374,7 +374,7 @@
   (if (isa? (type e) Expr)
     (try
       (.ClrType e)
-      (catch System.ArgumentException e
+      (catch System.Exception e
         Object))
     (type e)))
 
