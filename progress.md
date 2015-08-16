@@ -4,7 +4,7 @@ MAGIC Progress
 The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, it must provide symbolizers and tests for every Clojure AST node. This list will be kept in sync with progress on the library.
 
 <table>
-<tr><th>Node</th><th>Example</th><th>Symbolizer + Tests</th></tr>
+<tr><th>Node</th><th>Example</th><th>Symbolizer</th></tr>
 <tr>
   <td>AssignExpr</td>
   <td><code>(set! a b)</code></td>
@@ -13,12 +13,12 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>BodyExpr</td>
   <td><code>(do a b c)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>BooleanExpr</td>
   <td><code>false</code>, <code>true</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>CaseExpr</td>
@@ -43,12 +43,17 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>FnExpr</td>
   <td><code>(fn [a] a)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
+</tr>
+<tr>
+  <td>FnMethodExpr</td>
+  <td><code>([a b] (+ a b))</code></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>IfExpr</td>
   <td><code>(if a b c)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>ImportExpr</td>
@@ -58,12 +63,17 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>InstanceFieldExpr</td>
   <td><code>(.field obj)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
+</tr>
+<tr>
+  <td>InstancePropertyExpr</td>
+  <td><code>(.prop obj)</code></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>InstanceMethodExpr</td>
   <td><code>(.method obj a b)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>InstanceOfExpr</td>
@@ -73,17 +83,17 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>InstanceZeroArityCallExpr</td>
   <td><code>(.method obj)</code></td>
-  <td><center>  </center></td>
+  <td><center>   </center></td>
 </tr>
 <tr>
   <td>InvokeExpr</td>
   <td><code>(a b)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>KeywordExpr</td>
   <td><code>:foo</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>KeywordInvokeExpr</td>
@@ -93,7 +103,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>LetExpr</td>
   <td><code>(let [a 1] a)</code>,<br><code>(loop [a 1] (recur a))</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>LetFnExpr</td>
@@ -103,17 +113,17 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>LiteralExpr</td>
   <td><code>54</code>, <code>"foo"</code>, <code>nil</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>LocalBindingExpr</td>
   <td><code>(let [a 1] a)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>MapExpr</td>
   <td><code>{:a 1 :b 2}</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>MetaExpr</td>
@@ -133,12 +143,12 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>MonitorEnterExpr</td>
   <td><code>(monitor-enter x)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>MonitorExitExpr</td>
   <td><code>(monitor-exit x)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>NewClassInstanceExpr</td>
@@ -158,12 +168,12 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>NilExpr</td>
   <td><code>nil</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>NumberExpr</td>
   <td><code>15</code>, <code>4.5</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>RecurExpr</td>
@@ -178,22 +188,22 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>StaticFieldExpr</td>
   <td><code>Math/PI</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>StaticMethodExpr</td>
   <td><code>(Foo/Bar)</code>, <code>(Foo/Bar a)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>StringExpr</td>
   <td><code>"foo"</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>TheVarExpr</td>
   <td><code>(var +)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>ThrowExpr</td>
@@ -213,11 +223,11 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>VarExpr</td>
   <td><code>+</code>, <code>magic.core/analyze</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>VectorExpr</td>
   <td><code>[1 2 3]</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 </table>
