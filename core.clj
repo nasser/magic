@@ -716,13 +716,26 @@
 (defn let-symbolizer
   [ast symbolizers]
   (let [{:keys [_bindingInits _body]} (-> ast data-map)
+        pcon (.ParsedContext ast)
         bindings (map #(.Binding %) _bindingInits)
         binding-map (->> (interleave bindings
                                      (map #(il/local (clr-type (.Init %))) bindings))
                          (apply hash-map))
-        
+        recur-target (il/label)
         specialized-symbolizers
-        (assoc symbolizers LocalBindingExpr
+        (assoc symbolizers
+          RecurExpr
+          (fn let-recur-symbolizer
+            [ast symbolizers]
+            (let [{:keys [_args _loopLocals]} (data-map ast)]
+              [(interleave
+                 (map #(symbolize % symbolizers) _args)
+                 (map #(if (.IsArg %)
+                         (il/starg (.Index %)) ;; TODO is this starg right?
+                         (il/stloc (binding-map %)))
+                      _loopLocals))
+               (il/br recur-target)]))
+          LocalBindingExpr
           (fn let-body-symbolizer [ast syms]
             (if-let [loc (-> ast data-map :Binding binding-map)]
               (il/ldloc loc)
@@ -734,9 +747,13 @@
              (il/stloc loc)])
           bindings
           (map binding-map bindings))
+    
+    ;; mark recur target
+     recur-target
      
      ;; emit body with specialized symbolizers
-     (symbolize _body specialized-symbolizers)]))
+     (symbolize _body specialized-symbolizers)
+     (cleanup-stack pcon)]))
 
 (defn monitor-enter-symbolizer
   [ast symbolizers]
