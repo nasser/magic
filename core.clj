@@ -9,7 +9,8 @@
             Expr LiteralExpr StaticMethodExpr InstanceMethodExpr StaticPropertyExpr NumberExpr
             InstancePropertyExpr InstanceFieldExpr MapExpr VarExpr TheVarExpr InvokeExpr HostExpr
             FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr CaseExpr
-            MonitorEnterExpr MonitorExitExpr InstanceZeroArityCallExpr StaticFieldExpr InstanceOfExpr]
+            MonitorEnterExpr MonitorExitExpr InstanceZeroArityCallExpr StaticFieldExpr InstanceOfExpr
+            ThrowExpr TryExpr TryExpr+CatchClause]
            [System.IO FileInfo Path]
            [System.Threading Monitor]
            [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
@@ -698,6 +699,49 @@
      (il/ldnull)
      (il/cgt-un)]))
 
+(defn throw-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_excExpr]} (data-map ast)]
+    [(symbolize _excExpr symbolizers)
+     (convert _excExpr Exception)
+     (il/throw)]))
+
+(defn try-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_tryExpr _finallyExpr _catchExprs]} (data-map ast)
+        expr-type (clr-type ast)
+        ret (il/local expr-type)
+        catch-symbolizer
+        (fn catch-symbolizer
+          [ast symbolizers]
+          (let [{:keys [_type _lb _handler]} (data-map ast)
+                exception-local (il/local _type)
+                catch-binding-symbolizers
+                (assoc symbolizers LocalBindingExpr
+                  (fn catch-body-symbolizer [ast syms]
+                    (if (= _lb (-> ast data-map :Binding))
+                      (il/ldloc exception-local)
+                      (symbolize ast syms))))]
+            (il/catch _type
+                      [(il/stloc exception-local)
+                       (symbolize _handler catch-binding-symbolizers)
+                       (convert _handler expr-type)
+                       (il/stloc ret)])))
+        catch-symbolizers (assoc symbolizers
+                            TryExpr+CatchClause
+                            catch-symbolizer)]
+    (if (and (empty? _catchExprs)
+             (nil? _finallyExpr))
+      (symbolize _tryExpr symbolizers)
+      [(il/exception
+         [(symbolize _tryExpr symbolizers)
+          (convert _tryExpr expr-type)
+          (il/stloc ret)
+          (map #(catch-symbolizer % catch-symbolizers) _catchExprs)
+          (if _finallyExpr
+            (il/finally (symbolize _finallyExpr symbolizers)))])
+       (il/ldloc ret)])))
+
 (def base-symbolizers
   {LiteralExpr          literal-symbolizer
    VectorExpr           vector-symbolizer
@@ -722,6 +766,8 @@
    MonitorEnterExpr     monitor-enter-symbolizer
    MonitorExitExpr      monitor-exit-symbolizer
    InstanceOfExpr       instance-of-symbolizer
+   ThrowExpr            throw-symbolizer
+   TryExpr              try-symbolizer
    })
 
 (defn ast->symbolizer [ast symbolizers]
