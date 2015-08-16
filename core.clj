@@ -339,7 +339,8 @@
      (if (.IsStatementContext pcon)
        (il/pop))))
   ([lasttype pcon]
-   (if (and (not= System.Void lasttype)
+   (if (and (some? pcon)
+            (not= System.Void lasttype)
             (.IsStatementContext pcon))
      (il/pop))))
 
