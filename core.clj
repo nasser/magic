@@ -365,6 +365,12 @@
    (find-method clojure.lang.Numbers "lt" Int64 Int64)
    (il/clt)
    
+   (find-method clojure.lang.Numbers "lt" Double Double)
+   (il/clt)
+   
+   (find-method clojure.lang.Numbers "lt" Double Int64)
+   (il/clt)
+   
    (find-method clojure.lang.Numbers "gt" Int64 Int64)
    (il/cgt)
    
