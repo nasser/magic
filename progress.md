@@ -213,12 +213,12 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>ThrowExpr</td>
   <td><code>(throw (Exception. "foo"))</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>TryExpr</td>
   <td><code>(try<br>&nbsp;&nbsp;(foo) (catch Exception e))</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>UnresolvedVarExpr</td>
