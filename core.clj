@@ -8,8 +8,8 @@
            [clojure.lang.CljCompiler.Ast RHC ParserContext
             Expr LiteralExpr StaticMethodExpr InstanceMethodExpr StaticPropertyExpr NumberExpr
             InstancePropertyExpr InstanceFieldExpr MapExpr VarExpr TheVarExpr InvokeExpr HostExpr
-            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr
-            MonitorEnterExpr MonitorExitExpr]
+            FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr CaseExpr
+            MonitorEnterExpr MonitorExitExpr InstanceZeroArityCallExpr StaticFieldExpr]
            [System.IO FileInfo Path]
            [System.Threading Monitor]
            [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
@@ -522,6 +522,17 @@
     [(il/call getter)
      (cleanup-stack return-type pcon)]))
 
+(defn static-field-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_tinfo] :as data} (data-map ast)
+        pcon (.ParsedContext ast)
+        return-type (clr-type ast)]
+    [(if (.IsLiteral _tinfo)
+       (load-constant (.GetRawConstantValue _tinfo))
+       (il/ldsfld _tinfo) )
+     ; (cleanup-stack return-type pcon)
+     ]))
+
 (defn instance-property-symbolizer
   [ast symbolizers]
   (let [data (data-map ast)
@@ -679,6 +690,7 @@
    StaticMethodExpr     static-method-symbolizer
    InstanceMethodExpr   instance-method-symbolizer
    StaticPropertyExpr   static-property-symbolizer
+   StaticFieldExpr      static-field-symbolizer
    InstancePropertyExpr instance-property-symbolizer
    InstanceFieldExpr    instance-field-symbolizer
    FnExpr               fn-symbolizer
