@@ -361,14 +361,38 @@
     (il/add)]
    
    ;; TODO replace Numbers.add with ovf intrinsics when possible? ~40% faster
+   (find-method clojure.lang.Numbers "lt" Int64 Int64)
+   (il/clt)
+   
+   (find-method clojure.lang.Numbers "gt" Int64 Int64)
+   (il/cgt)
+   
+   (find-method clojure.lang.Util "equiv" Int64 Int64)
+   (il/ceq)
+   
+   (find-method clojure.lang.Util "equiv" Double Double)
+   (il/ceq)
+   
+   (find-method clojure.lang.Util "equiv" Object Object)
+   (il/ceq)
+    
+   (find-method clojure.lang.Numbers "inc" Int64)
+   [(il/ldc-i8 1)
+    (il/add-ovf)]
+    
+   (find-method clojure.lang.Numbers "unchecked_inc" Int64)
+   [(il/ldc-i8 1)
+    (il/add)]
+   
    (find-method clojure.lang.Numbers "add" Int64 Int64)
    (il/add-ovf)
-   
-   (find-method clojure.lang.Numbers "add" Int64 Double)
-   (il/add-ovf)
+    
+   (find-method clojure.lang.Numbers "add" Double Int64)
+   [(il/conv-r8)
+    (il/add-ovf)]
       
    (find-method clojure.lang.Numbers "add" Double Double)
-   (il/add-ovf)
+   (il/add)
    
    (find-method clojure.lang.Numbers "unchecked_add" Double Double)
    (il/add)
