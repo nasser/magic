@@ -9,7 +9,7 @@
             Expr LiteralExpr StaticMethodExpr InstanceMethodExpr StaticPropertyExpr NumberExpr
             InstancePropertyExpr InstanceFieldExpr MapExpr VarExpr TheVarExpr InvokeExpr HostExpr
             FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr CaseExpr
-            MonitorEnterExpr MonitorExitExpr InstanceZeroArityCallExpr StaticFieldExpr]
+            MonitorEnterExpr MonitorExitExpr InstanceZeroArityCallExpr StaticFieldExpr InstanceOfExpr]
            [System.IO FileInfo Path]
            [System.Threading Monitor]
            [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
@@ -678,6 +678,15 @@
      (il/call (find-method Monitor "Exit" Object))
      (il/ldnull)]))
 
+(defn instance-of-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_expr _t]} (data-map ast)]
+    [(symbolize _expr symbolizers)
+     (convert _expr Object)
+     (il/isinst _t)
+     (il/ldnull)
+     (il/cgt-un)]))
+
 (def base-symbolizers
   {LiteralExpr          literal-symbolizer
    VectorExpr           vector-symbolizer
@@ -701,6 +710,7 @@
    ; CaseExpr             case-symbolizer
    MonitorEnterExpr     monitor-enter-symbolizer
    MonitorExitExpr      monitor-exit-symbolizer
+   InstanceOfExpr       instance-of-symbolizer
    })
 
 (defn ast->symbolizer [ast symbolizers]

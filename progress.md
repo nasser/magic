@@ -78,7 +78,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td>InstanceOfExpr</td>
   <td><code>(instance? Type foo)</code></td>
-  <td><center>  </center></td>
+  <td><center> ✔︎ </center></td>
 </tr>
 <tr>
   <td>InstanceZeroArityCallExpr</td>
