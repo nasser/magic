@@ -12,7 +12,8 @@
             InstancePropertyExpr InstanceFieldExpr MapExpr VarExpr TheVarExpr InvokeExpr HostExpr
             FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr CaseExpr
             MonitorEnterExpr MonitorExitExpr InstanceZeroArityCallExpr StaticFieldExpr InstanceOfExpr
-            ThrowExpr TryExpr TryExpr+CatchClause UnresolvedVarExpr EmptyExpr SetExpr ImportExpr RecurExpr]
+            ThrowExpr TryExpr TryExpr+CatchClause UnresolvedVarExpr EmptyExpr SetExpr ImportExpr RecurExpr
+            KeywordInvokeExpr KeywordExpr]
            [System.IO FileInfo Path]
            [System.Threading Monitor]
            [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
@@ -637,19 +638,38 @@
         var-fields (->> vars
                         (map #(il/field (type %)
                                         protected-static
-                                        (gensym (.. % Symbol Name))))
+                                        (gensym (str "var_" (.. % Symbol Name) "_"))))
                         (interleave vars)
                         (apply hash-map))
-        var-symbolizer (fn fn-specialized-var-symbolizer [this symbolizers]
+        var-symbolizer (fn fn-specialized-var-symbolizer
+                         [this syms]
                          (let [pcon (.ParsedContext this)
                                v (or (-> this data-map :_var)
                                      (.. this Var))]
-                           [(il/ldsfld (var-fields v))
-                            (get-var v)
-                            (cleanup-stack pcon)]))
+                           (if-let [cached-var (var-fields v)]
+                             [(il/ldsfld cached-var)
+                              (get-var v)
+                              (cleanup-stack pcon)]
+                             (symbolize this symbolizers))))
+        keywords (keys Keywords)
+        keyword-fields (->> keywords
+                            (map #(il/field (type %)
+                                            protected-static
+                                            (gensym (str "kw_" (name %) "_"))))
+                            (interleave keywords)
+                            (apply hash-map))
+        keyword-symbolizer (fn fn-specialized-keyword-symbolizer
+                             [this symbolizers]
+                             (let [pcon (.ParsedContext this)
+                                   k (-> this data-map :_kw)]
+                               (if-let [cached-kw (keyword-fields k)]
+                                 [(il/ldsfld cached-kw)
+                                  (cleanup-stack pcon)]
+                                 (symbolize this symbolizers))))
         symbolizers (assoc symbolizers
                       VarExpr var-symbolizer
-                      TheVarExpr var-symbolizer)]
+                      TheVarExpr var-symbolizer
+                      KeywordExpr keyword-symbolizer)]
     (mage.core/type
       Name
       TypeAttributes/Public []
@@ -665,11 +685,11 @@
          [;; populate var fields
           (map (fn [[v fld]] [(load-var v) (il/stsfld fld)])
                var-fields)
+          (map (fn [[k fld]] [(load-keyword k) (il/stsfld fld)])
+               keyword-fields)
           (il/ret)])
        (has-arity-method arities)
-       (map #(symbolize % symbolizers) _methods)])
-    ; data
-    ))
+       (map #(symbolize % symbolizers) _methods)])))
 
 (defn fn-method-symbolizer
   [ast symbolizers]
@@ -844,6 +864,17 @@
      (il/call (find-method clojure.lang.RT "classForName" String))
      (il/call (find-method clojure.lang.Namespace "importClass" Type))]))
 
+(defn keyword-invoke-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_kw _target]} (data-map ast)
+        pcon (.ParsedContext ast)]
+    [(symbolize _kw symbolizers)
+    (il/castclass IFn)
+    (symbolize _target symbolizers)
+    (convert _target Object)
+    (il/callvirt (find-method IFn "invoke" Object))
+    (cleanup-stack pcon)]))
+
 (def base-symbolizers
   {LiteralExpr          literal-symbolizer
    VectorExpr           vector-symbolizer
@@ -874,6 +905,7 @@
    UnresolvedVarExpr    unresolved-var-symbolizer
    EmptyExpr            empty-symbolizer
    ImportExpr           import-symbolizer
+   KeywordInvokeExpr    keyword-invoke-symbolizer
    })
 
 (defn ast->symbolizer [ast symbolizers]
