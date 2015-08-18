@@ -651,25 +651,41 @@
                               (get-var v)
                               (cleanup-stack pcon)]
                              (symbolize this symbolizers))))
-        keywords (keys Keywords)
-        keyword-fields (->> keywords
-                            (map #(il/field (type %)
-                                            protected-static
-                                            (gensym (str "kw_" (name %) "_"))))
-                            (interleave keywords)
-                            (apply hash-map))
-        keyword-symbolizer (fn fn-specialized-keyword-symbolizer
-                             [this symbolizers]
-                             (let [pcon (.ParsedContext this)
-                                   k (-> this data-map :_kw)]
-                               (if-let [cached-kw (keyword-fields k)]
-                                 [(il/ldsfld cached-kw)
-                                  (cleanup-stack pcon)]
-                                 (symbolize this symbolizers))))
+        
+        ;; constants hack
+        constant-revealing-symbolizers
+        (assoc symbolizers
+          LiteralExpr
+          (fn fn-constant-revealing-symbolizer
+            [this symbolizers]
+            {::constant (.Val this)}))
+        
+        constants 
+        (->> _methods
+             (mapcat #(symbolize % constant-revealing-symbolizers))
+             flatten
+             (keep ::constant)
+             (into #{}))
+        
+        constant-fields (->> constants
+                             (map #(il/field (type %)
+                                             protected-static
+                                             (gensym (str "const_" (type %) "_"))))
+                             (interleave constants)
+                             (apply hash-map))
+        constant-symbolizer (fn fn-specialized-constant-symbolizer
+                              [this symbolizers]
+                              (let [pcon (.ParsedContext this)
+                                    k (.Val this)]
+                                (if-let [cached-const (constant-fields k)]
+                                  [(il/ldsfld cached-const)
+                                   (cleanup-stack pcon)]
+                                  (symbolize this symbolizers))))
         symbolizers (assoc symbolizers
                       VarExpr var-symbolizer
                       TheVarExpr var-symbolizer
-                      KeywordExpr keyword-symbolizer)]
+                      LiteralExpr constant-symbolizer)]
+    
     (mage.core/type
       Name
       TypeAttributes/Public []
@@ -685,8 +701,8 @@
          [;; populate var fields
           (map (fn [[v fld]] [(load-var v) (il/stsfld fld)])
                var-fields)
-          (map (fn [[k fld]] [(load-keyword k) (il/stsfld fld)])
-               keyword-fields)
+          (map (fn [[k fld]] [(load-constant k) (il/stsfld fld)])
+               constant-fields)
           (il/ret)])
        (has-arity-method arities)
        (map #(symbolize % symbolizers) _methods)])))
