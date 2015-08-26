@@ -355,8 +355,14 @@
    (find-method clojure.lang.RT "uncheckedIntCast" Single)
    (il/conv-i4)
    
+   (find-method clojure.lang.RT "longCast" Int64)
+   []
+   
+   (find-method clojure.lang.RT "longCast" Int32)
+   []
+   
    (find-method clojure.lang.RT "uncheckedIntCast" Int32)
-   nil
+   []
    
    (find-method clojure.lang.Numbers "unchecked_add" Double Int64)
    [(il/conv-r8)
