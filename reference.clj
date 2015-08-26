@@ -61,3 +61,89 @@
     2 "bar"
     :pant :never
     "else"))
+
+(defn letfn-test [z]
+  (letfn [(a [x] (b x)) (b [y] (+ y 1))]
+    (a z)
+    ))
+
+(defn cast-test-1 [x]
+  (UnityEngine.Mathf/Sin x))
+
+(defn cast-test-2 [^long x]
+  (UnityEngine.Mathf/Sin x))
+
+(defn cast-test-3 [^double x]
+  (UnityEngine.Mathf/Sin x))
+
+(defn reflective [x]
+  (.FlimFlam x))
+
+(defn bad-types [a b c]
+  (Vector3/Distance Vector3/one
+                    (.AddForce (UnityEngine.Rigidbody.) a b c)))
+
+(defn interopy [a b]
+  (let [dist (Vector3/Distance a b)]
+    (.AddForce (UnityEngine.Rigidbody.) dist dist dist)))
+
+(defn get-literal-static-prop []
+  Int32/MaxValue)
+
+(defn get-nonliteral-static-prop []
+  TimeSpan/Zero)
+
+(defn non-overflow-add []
+  (+ Int32/MaxValue 1))
+
+(defn try-test []
+  (try
+    (+ 4 8)
+    (catch Exception e (str "got" e))
+    ; (finally (Console/WriteLine "OK"))
+    ))
+
+(defn keyword-get [a]
+  (:foo a))
+
+(defn ifaa [a] (if a a))
+
+(defn nested-loops []
+  (loop [a 2]
+    (loop [b 0]
+      (Console/WriteLine (str a b))
+      (if (< b 100) (recur (inc b))))
+    (if (< a 100) (recur (+ a 2)))))
+
+(defn for-loop []
+  (for [x (range 19)] x))
+
+(defn infinite-loop []
+  (loop [a 0] (recur (inc a))))
+
+(defn vector-loop [^UnityEngine.Vector3 x]
+  (loop [a x]
+    (if (< (Vector3/Distance a Vector3/zero) 100)
+      (recur (UnityEngine.Vector3/op_Addition a Vector3/right))
+      a)))
+
+(deftype AType [a b c])
+
+(defn kw-invoke [a]
+  (:foo a))
+
+(defn empty-vec []
+  [])
+
+(defn small-vec []
+  (dotimes [_ 10]
+    (time
+      (dotimes [_ 1e7]
+        [:this 0
+         :is 1 
+         :a 2
+         :small 3
+         :map 4]))))
+
+(defn nested-fns [a]
+  (fn [b] (+ a b)))
