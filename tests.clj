@@ -5,7 +5,61 @@
   (:use clojure.pprint
         clojure.test))
 
+(compile-fn '(fn [a] (:foo a)))
+
+(->> (analyze '(fn [a] (fn [b] (+ a b))))
+     data-map
+     :_methods
+     last
+     data-map
+     :_body
+     data-map
+     :LastExpr
+     data-map
+     :_methods
+     last
+     data-map
+     )
+
+(macroexpand
+  '(dotimes [_ 100] (println _)))
+
+(use 'clojure.pprint)
+(compile-fn
+  '(fn []))
+
+(il/emit!
+  (symbolize-raw
+    (il/type 
+      "Switch"
+      [(il/method
+         "DoSwitch"
+         Object [UInt32]
+         [
+          (let [strs ["hello" "world" "mage" "is" "here" "my" "friends"]
+                labels (repeatedly (count strs) il/label)]
+            [(load-argument 1)
+             
+             (il/switch labels)
+             (load-constant "failed")
+             (il/ret)
+             (interleave
+               labels
+               (map #(vector (load-constant %) (il/ret)) strs))]
+            
+            )]
+         )])))
+
 ;; this will change when the magic api settles down
+(defn symbolize-raw [bytecode]
+  (let [asm-name "magic.tests"]
+    (il/assembly
+      asm-name
+      (il/module
+        (str asm-name ".dll")
+        bytecode
+        ))))
+
 (defn symbolize-fn [expr]
   (let [asm-name "magic.tests"]
     (il/assembly
@@ -22,12 +76,15 @@
             (str asm-name ".dll")
             (symbolize (analyze expr) base-symbolizers)))
         il/emit!
-        :mage.core/assembly-builder
-        .GetTypes
-        first)))
+        ; :mage.core/assembly-builder
+        ; .GetTypes
+        ; first
+        )))
 
 (defn magic-compile [expr]
   (compile-fn (list 'fn '[] expr)))
+
+
 
 (defn magic-eval [expr]
   (let [^Type fn-type (magic-compile expr)
@@ -70,10 +127,6 @@
 ;; types
 (test-same types-1 clojure.lang.Symbol)
 (test-same types-2 System.Text.RegularExpressions.Regex)
-
-(compile-fn '(fn [] clojure.lang.Symbol))
-(compile-fn '(fn [] System.Text.RegularExpressions.Regex))
-(compile-fn '(fn [] System.Int32))
 
 ;; lists
 (test-same lists-1 '(1 2 3))
@@ -165,6 +218,12 @@
                  a (map inc a)
                  a (mapv str a)]
              a))
+(test-same let-as-expr
+           (map inc (let [a 8]
+              (range a (let [b (long (count "Hello"))]
+                         (+ a b))))))
+
+
 (test-same let-vector-destructure (let [[a b c] [1 2 3]] (+ a b c)))
 (test-same let-map-destructure (let [{:keys [a b c]} {:a 1 :b 2 :c 3}] (+ a b c)))
 

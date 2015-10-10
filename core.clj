@@ -13,10 +13,10 @@
             FnExpr FnMethod BodyExpr LocalBindingExpr IfExpr VectorExpr NewExpr LetExpr CaseExpr
             MonitorEnterExpr MonitorExitExpr InstanceZeroArityCallExpr StaticFieldExpr InstanceOfExpr
             ThrowExpr TryExpr TryExpr+CatchClause UnresolvedVarExpr EmptyExpr SetExpr ImportExpr RecurExpr
-            KeywordInvokeExpr KeywordExpr]
+            KeywordInvokeExpr KeywordExpr NilExpr StringExpr]
            [System.IO FileInfo Path]
            [System.Threading Monitor]
-           [System.Reflection TypeAttributes MethodAttributes FieldAttributes]
+           [System.Reflection TypeAttributes MethodAttributes FieldAttributes FieldInfo MethodInfo PropertyInfo]
            AppDomain
            System.Reflection.Emit.OpCodes
            AssemblyName
@@ -102,6 +102,20 @@
     (= i 3) (il/ldarg-3)
     :else (il/ldarg i)))
 
+(declare clr-type)
+
+;; TODO repeated shape between instance-zero-arity-call-type instance-zero-arity-call-symbolizer
+(defn instance-zero-arity-call-type [izac]
+  (let [{:keys [_target _memberName]} (data-map izac)
+        typ (clr-type _target)]
+    (if-let [info (.GetField typ _memberName)]
+      (.FieldType info)
+      (if-let [info (.GetProperty typ _memberName)]
+        (.PropertyType info)
+        (if-let [info (find-method typ _memberName)]
+          (.ReturnType info)
+          (throw (Exception. (str "hell " typ _memberName)))))))) ;; TODO throw exception here? what does it even mean?!
+
 ;; bah! super gross because ClrType is not safe to call AST nodes... 
 (defn clr-type [e]
   (cond
@@ -114,6 +128,10 @@
       (if (= 1 (count (into #{try-expr-type} catch-handler-types)))
         try-expr-type
         Object))
+    
+    ;; BUG in InstanceZeroArityCallExpr analysis.
+    (= (type e) InstanceZeroArityCallExpr)
+    (instance-zero-arity-call-type e)
     
     (isa? (type e) Expr)
     (try
@@ -364,6 +382,12 @@
    (find-method clojure.lang.RT "uncheckedIntCast" Int32)
    []
    
+   (find-method clojure.lang.RT "intCast" Int32)
+   []
+   
+   (find-method clojure.lang.RT "intCast" Int64)
+   [(il/conv-ovf-i4)]
+   
    (find-method clojure.lang.Numbers "unchecked_add" Double Int64)
    [(il/conv-r8)
     (il/add)]
@@ -557,9 +581,15 @@
 (defn static-method-symbolizer
   [ast symbolizers]
   (let [data (data-map ast)
+        typ (:_type data)
+        mname (:_methodName data)
         pcon (.ParsedContext ast)
         args (map data-map (:_args data))
-        method (:_method data)
+        arg-exprs (map :ArgExpr args)
+        method (or (:_method data)
+                   (apply find-method typ mname (map clr-type arg-exprs)))
+        _ (if-not method
+            (throw (Exception. (str typ mname (apply str (map clr-type arg-exprs)) ))))
         method-parameter-types (->> method
                                     .GetParameters
                                     (map #(.ParameterType %)))]
@@ -569,25 +599,29 @@
        (il/call method))
      (cleanup-stack (.ReturnType method) pcon)]))
 
-(defn instance-method-symbolizer
-  [ast symbolizers]
-  (let [data (data-map ast)
-        pcon (.ParsedContext ast)
-        target (:_target data)
-        target-type (-> target .ClrType)
-        args (map data-map (:_args data))
-        method (:_method data)
+(defn call-instance-method
+  [target method args symbolizers]
+  (let [target-type (.ClrType target)
         method-parameter-types (->> method
                                     .GetParameters
-                                    (map #(.ParameterType %)))]
-    
+                                    (map #(.ParameterType %))) ]
     [(symbolize target symbolizers)
      (if (.IsValueType target-type)
        (to-address target-type))
      (converted-args args method-parameter-types symbolizers) 
      (if (.IsValueType target-type)
        (il/call method)
-       (il/callvirt method))
+       (il/callvirt method))]))
+
+(defn instance-method-symbolizer
+  [ast symbolizers]
+  (let [data (data-map ast)
+        pcon (.ParsedContext ast)
+        target (:_target data)
+        args (map data-map (:_args data))
+        method (:_method data)]
+    
+    [(call-instance-method target method args symbolizers)
      (cleanup-stack (.ReturnType method)
                     pcon)]))
 
@@ -609,33 +643,40 @@
        (il/ldsfld _tinfo) )
      (cleanup-stack pcon)]))
 
+(defn get-instance-property
+  [target property symbolizers]
+  (let [getter (.GetGetMethod property)]
+    [(symbolize target symbolizers)
+     (convert target Object)
+     (il/callvirt getter)]))
+
 (defn instance-property-symbolizer
   [ast symbolizers]
   (let [data (data-map ast)
         pcon (.ParsedContext ast)
-        return-type (.ClrType ast)
         target (:_target data)
-        getter (-> data :_tinfo .GetGetMethod)]
-    [(symbolize target symbolizers)
-     (convert target Object)
-     (il/callvirt getter)
+        property (-> data :_tinfo)]
+    [(get-instance-property target property symbolizers)
      (cleanup-stack pcon)]))
+
+(defn get-instance-field
+  [target field symbolizers]
+  [(symbolize target symbolizers)
+   (il/ldfld field)])
 
 (defn instance-field-symbolizer
   [ast symbolizers]
   (let [data (data-map ast)
         pcon (.ParsedContext ast)
         target (:_target data)
-        field (:_tinfo data)
-        return-type (.FieldType field)]
-    [(symbolize target symbolizers)
-     (il/ldfld field)
+        field (:_tinfo data)]
+    [(get-instance-field target field symbolizers)
      (cleanup-stack pcon)]))
 
 (defn fn-symbolizer
   [ast symbolizers]
   (let [{:keys [Name Constants Vars ProtocolCallsites VarCallsites Keywords _methods] :as data} (data-map ast)
-        protected-static (enum-or FieldAttributes/Static FieldAttributes/FamORAssem)
+        protected-static (enum-or FieldAttributes/Static FieldAttributes/Public)
         arities (->> _methods
                      (map data-map)
                      (map :NumParams))
@@ -676,7 +717,7 @@
         constant-fields (->> constants
                              (map #(il/field (type %)
                                              protected-static
-                                             (gensym (str "const_" (type %) "_"))))
+                                             (gensym (str "const_" ))))
                              (interleave constants)
                              (apply hash-map))
         constant-symbolizer (fn fn-specialized-constant-symbolizer
@@ -688,8 +729,11 @@
                                    (cleanup-stack pcon)]
                                   (symbolize this symbolizers))))
         symbolizers (assoc symbolizers
-                      VarExpr var-symbolizer
-                      TheVarExpr var-symbolizer
+                      VarExpr     var-symbolizer
+                      TheVarExpr  var-symbolizer
+                      NilExpr     literal-symbolizer
+                      StringExpr  literal-symbolizer
+                      NumberExpr  literal-symbolizer
                       LiteralExpr constant-symbolizer)]
     
     (mage.core/type
@@ -734,18 +778,14 @@
     [(symbolize _testExpr symbolizers)
      (il/brfalse false-label)
      (symbolize _thenExpr symbolizers)
-     (cleanup-stack (.ParsedContext _thenExpr))
      (il/br end-label)
      false-label
      (symbolize _elseExpr symbolizers)
-     (cleanup-stack (.ParsedContext _elseExpr))
-     end-label
-     ]))
+     end-label]))
 
 (defn body-symbolizer
   [ast symbolizers]
-  [(map #(symbolize % symbolizers) (-> ast data-map :_exprs))
-   (cleanup-stack (if-not (nil? ast) (.ParsedContext ast)))])
+  [(map #(symbolize % symbolizers) (-> ast data-map :_exprs))])
 
 ;; TODO is this nonsensical? throw an error?
 (defn local-binding-symbolizer
@@ -795,7 +835,8 @@
      
      ;; emit body with specialized symbolizers
      (symbolize _body specialized-symbolizers)
-     (cleanup-stack pcon)]))
+     ; (cleanup-stack pcon)
+     ]))
 
 (defn monitor-enter-symbolizer
   [ast symbolizers]
@@ -897,37 +938,154 @@
     (il/callvirt (find-method IFn "invoke" Object))
     (cleanup-stack pcon)]))
 
+(defn case-shift-mask [shift mask]
+  (if-not (zero? mask)
+    [(load-constant shift)
+     (il/shr)
+     (load-constant mask)
+     (il/and)]))
+
+(defn case-int-expr [ast default-label symbolizers]
+  (let [{:keys [_expr _shift _mask]} (data-map ast)]
+    [(symbolize _expr symbolizers)
+     (il/call (find-method clojure.lang.Util "IsNonCharNumeric" Object))
+     (il/brfalse default-label)
+     (symbolize _expr symbolizers)
+     (convert _expr Int32)
+     (case-shift-mask _shift _mask)]))
+
+(defn case-hash-expr [ast default-label symbolizers]
+  (let [{:keys [_expr _shift _mask]} (data-map ast)]
+    [(symbolize _expr symbolizers)
+     (il/call (find-method clojure.lang.Util "hash" Object))
+     (case-shift-mask _shift _mask)]))
+
+(defn case-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_expr _shift _mask _low _high
+                _defaultExpr _tests _thens
+                _switchType _testType _skipCheck]} (data-map ast)
+        default-label (il/label)
+        labels (repeatedly (count (.Keys _tests)) il/label) ;; TODO too simplistic?
+        ]
+    [(if (= _testType :int)
+      (case-int-expr ast default-label symbolizers)
+      (case-hash-expr ast default-label symbolizers))
+     (if (= _switchType :sparse)
+       [(il/switch labels)
+        (il/br default-label)]
+       (map (fn [i]
+              )
+            (range _low _high))
+       
+       )
+     ]
+    ))
+
+(defn reflective-instance-zero-arity-call-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_target _memberName]} (data-map ast)
+        target (il/local)
+        target-type (il/local Type)
+        property-branch (il/label)
+        arity-zero-branch (il/label)
+        failed-branch (il/label)
+        end (il/label)]
+    [(symbolize _target symbolizers)
+     (il/stloc target)
+     (il/ldloc target)
+     (il/callvirt (find-method Object "GetType"))
+     (il/stloc target-type)
+     
+     (il/ldloc target-type)
+     (load-constant _memberName)
+     (il/ldc-i4-0)
+     (il/call (find-method clojure.lang.Reflector "GetField" Type String Boolean))
+     (il/dup)
+     (il/brfalse property-branch)
+     (il/castclass FieldInfo)
+     (il/ldloc target)
+     (il/callvirt (find-method FieldInfo "GetValue" Object))
+     (il/br end)
+     
+     property-branch
+     (il/pop)
+     (il/ldloc target-type)
+     (load-constant _memberName)
+     (il/ldc-i4-0)
+     (il/call (find-method clojure.lang.Reflector "GetProperty" Type String Boolean))
+     (il/dup)
+     (il/brfalse arity-zero-branch)
+     (il/castclass PropertyInfo)
+     (il/ldloc target)
+     (il/ldnull)
+     (il/callvirt (find-method PropertyInfo "GetValue" Object |System.Object[]|))
+     (il/br end)
+     
+     arity-zero-branch
+     (il/pop)
+     (il/ldloc target-type)
+     (load-constant _memberName)
+     (il/ldc-i4-0)
+     (il/call (find-method clojure.lang.Reflector "GetArityZeroMethod" Type String Boolean))
+     (il/dup)
+     (il/brfalse failed-branch)
+     (il/castclass MethodInfo)
+     (il/ldloc target)
+     (il/ldnull)
+     (il/callvirt (find-method MethodInfo "Invoke" Object |System.Object[]|))
+     (il/br end)
+     
+     failed-branch
+     (il/ldstr (str "Reflective call to " _memberName " falied!"))
+     (il/newobj (find-constructor Exception String))
+     (il/throw)
+     end]))
+
+(defn instance-zero-arity-call-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_target _memberName]} (data-map ast)
+        typ (clr-type _target)]
+    (if-let [info (.GetField typ _memberName)]
+      (get-instance-field _target info symbolizers)
+      (if-let [info (.GetProperty typ _memberName)]
+        (get-instance-property _target info symbolizers)
+        (if-let [info (find-method typ _memberName)]
+          (call-instance-method _target info [] symbolizers)
+          (reflective-instance-zero-arity-call-symbolizer ast symbolizers))))))
+
 (def base-symbolizers
-  {LiteralExpr          literal-symbolizer
-   VectorExpr           vector-symbolizer
-   MapExpr              map-symbolizer
-   SetExpr              set-symbolizer
-   InvokeExpr           invoke-symbolizer
-   NewExpr              new-symbolizer
-   VarExpr              var-symbolizer
-   TheVarExpr           var-symbolizer
-   StaticMethodExpr     static-method-symbolizer
-   InstanceMethodExpr   instance-method-symbolizer
-   StaticPropertyExpr   static-property-symbolizer
-   StaticFieldExpr      static-field-symbolizer
-   InstancePropertyExpr instance-property-symbolizer
-   InstanceFieldExpr    instance-field-symbolizer
-   FnExpr               fn-symbolizer
-   FnMethod             fn-method-symbolizer
-   IfExpr               if-symbolizer
-   BodyExpr             body-symbolizer
-   LocalBindingExpr     local-binding-symbolizer 
-   LetExpr              let-symbolizer
-   ; CaseExpr             case-symbolizer
-   MonitorEnterExpr     monitor-enter-symbolizer
-   MonitorExitExpr      monitor-exit-symbolizer
-   InstanceOfExpr       instance-of-symbolizer
-   ThrowExpr            throw-symbolizer
-   TryExpr              try-symbolizer
-   UnresolvedVarExpr    unresolved-var-symbolizer
-   EmptyExpr            empty-symbolizer
-   ImportExpr           import-symbolizer
-   KeywordInvokeExpr    keyword-invoke-symbolizer
+  {LiteralExpr               literal-symbolizer
+   VectorExpr                vector-symbolizer
+   MapExpr                   map-symbolizer
+   SetExpr                   set-symbolizer
+   InvokeExpr                invoke-symbolizer
+   NewExpr                   new-symbolizer
+   VarExpr                   var-symbolizer
+   TheVarExpr                var-symbolizer
+   StaticMethodExpr          static-method-symbolizer
+   InstanceMethodExpr        instance-method-symbolizer
+   StaticPropertyExpr        static-property-symbolizer
+   StaticFieldExpr           static-field-symbolizer
+   InstancePropertyExpr      instance-property-symbolizer
+   InstanceFieldExpr         instance-field-symbolizer
+   FnExpr                    fn-symbolizer
+   FnMethod                  fn-method-symbolizer
+   IfExpr                    if-symbolizer
+   BodyExpr                  body-symbolizer
+   LocalBindingExpr          local-binding-symbolizer 
+   LetExpr                   let-symbolizer
+   CaseExpr                  case-symbolizer
+   MonitorEnterExpr          monitor-enter-symbolizer
+   MonitorExitExpr           monitor-exit-symbolizer
+   InstanceOfExpr            instance-of-symbolizer
+   ThrowExpr                 throw-symbolizer
+   TryExpr                   try-symbolizer
+   UnresolvedVarExpr         unresolved-var-symbolizer
+   EmptyExpr                 empty-symbolizer
+   ImportExpr                import-symbolizer
+   KeywordInvokeExpr         keyword-invoke-symbolizer
+   InstanceZeroArityCallExpr instance-zero-arity-call-symbolizer
    })
 
 (defn ast->symbolizer [ast symbolizers]
@@ -945,36 +1103,158 @@
     (symbolizer ast symbolizers)))
 
 (comment
-  (defn case-shift-mask [shift mask]
-    (if-not (zero? mask)
-      [(load-constant shift)
-       (il/shr)
-       (load-constant mask)
-       (il/and)]))
-  
-  (defn case-int-expr [ast default-label symbolizers]
-    (let [{:keys [_expr _shift _mask]} (data-map ast)]
-      [(symbolize expr symbolizers)
-       (il/call (find-method clojure.lang.Util "IsNonCharNumeric" Object))
-       (il/brfalse default-label)
-       (symbolize expr symbolizers)
-       (il/call (find-method clojure.lang.Util "ConvertToInt" Object))
-       (case-shift-mask _shift _mask)
-       ])
-    
-    )
-  
-  (defn case-symbolizer
-    [ast symbolizers]
-    (let [{:keys [_expr _shift _mask _low _high
-                  _defaultExpr _tests _thens
-                  _switchType _testType _skipCheck]} (data-map ast)]
-      (if (= _testType :int)
-        case-int-expr
-        case-hash-expr
-        )
-      ; (map (fn [a] (il/label)) (.Keys _tests))
-      (apply str (.Values _tests))
-      ; (str (count _tests))
-      )
-    ))
+(defn cached-instance-zero-arity-call-symbolizer
+  [ast symbolizers]
+  (let [{:keys [_target _memberName]} (data-map ast)
+        private-static (enum-or FieldAttributes/Private FieldAttributes/Static)
+        cached-target-type (il/field Type
+                                     private-static
+                                     (gensym (str "cached_" _memberName "_target_type")))
+        cached-info (il/field Object
+                              private-static
+                              (gensym (str "cached_" _memberName "_info")))
+        cached-info-type (il/field Type
+                                   private-static
+                                   (gensym (str "cached_" _memberName "_info_type")))
+        target (il/local)
+        target-type (il/local Type)
+        property-branch (il/label)
+        arity-zero-branch (il/label)
+        failed-branch (il/label)
+        missed-branch (il/label)
+        end (il/label)
+        ]
+    [;; symbolize and store target and its type
+     (symbolize _target symbolizers)
+     (il/stloc target)
+     (il/ldloc target)
+     (il/callvirt (find-method Object "GetType"))
+     (il/stloc target-type)
+     
+     ;; is the incoming target's type the same as the cached type?
+     (il/ldloc target-type)
+     (il/ldsfld cached-target-type)
+     (il/ceq)
+     (il/brfalse missed-branch)
+     
+     ;; if so, cast the cached info and invoke it
+     (let [try-prop (il/label)
+           try-meth (il/label)]
+       [(il/ldsfld cached-info-type)
+        (load-constant FieldInfo)
+        (il/ceq)
+        (il/brfalse try-prop)
+        (il/ldsfld cached-info)
+        (il/castclass FieldInfo)
+        (il/ldloc target)
+        (il/callvirt (find-method FieldInfo "GetValue" Object))
+        (il/br end)
+        
+        try-prop
+        (il/ldsfld cached-info-type)
+        (load-constant PropertyInfo)
+        (il/ceq)
+        (il/brfalse try-meth)
+        (il/ldsfld cached-info)
+        (il/castclass PropertyInfo)
+        (il/ldloc target)
+        (il/ldnull)
+        (il/callvirt (find-method PropertyInfo "GetValue" Object |System.Object[]|))
+        (il/br end)
+        
+        try-meth
+        (il/ldsfld cached-info-type)
+        (load-constant MethodInfo)
+        (il/ceq)
+        (il/brfalse missed-branch)
+        (il/ldsfld cached-info)
+        (il/castclass MethodInfo)
+        (il/ldloc target)
+        (il/ldnull)
+        (il/callvirt (find-method MethodInfo "Invoke" Object |System.Object[]|))
+        (il/br end)])
+
+     missed-branch
+     ;; cache target type for next time
+     (il/ldloc target-type)
+     (il/stsfld cached-target-type)
+     
+     ;; try and get field
+     (il/ldloc target-type)
+     (load-constant _memberName)
+     (il/ldc-i4-0)
+     (il/call (find-method clojure.lang.Reflector "GetField" Type String Boolean))
+     (il/dup)
+     (il/brfalse property-branch)
+     ;; FieldInfo found! save in cache and call GetValue
+     (load-constant FieldInfo)
+     (il/stsfld cached-info-type)
+     (il/castclass FieldInfo)
+     (il/dup)
+     (il/stsfld cached-info)
+     (il/ldloc target)
+     (il/callvirt (find-method FieldInfo "GetValue" Object))
+     (il/br end)
+     
+     ;; try and get property
+     property-branch
+     (il/pop)
+     (il/ldloc target-type)
+     (load-constant _memberName)
+     (il/ldc-i4-0)
+     (il/call (find-method clojure.lang.Reflector "GetProperty" Type String Boolean))
+     (il/dup)
+     (il/brfalse arity-zero-branch)
+     ;; PropertyInfo found! save in cache and call GetValue  
+     (load-constant PropertyInfo)
+     (il/stsfld cached-info-type)
+     (il/castclass PropertyInfo)
+     (il/dup)
+     (il/stsfld cached-info)
+     (il/ldloc target)
+     (il/ldnull)
+     (il/callvirt (find-method PropertyInfo "GetValue" Object |System.Object[]|))
+     (il/br end)
+     
+     ;; try and get arity zero method
+     arity-zero-branch
+     (il/pop)
+     (il/ldloc target-type)
+     (load-constant _memberName)
+     (il/ldc-i4-0)
+     (il/call (find-method clojure.lang.Reflector "GetArityZeroMethod" Type String Boolean))
+     (il/dup)
+     (il/brfalse failed-branch)
+     ;; MethodInfo found! save in cache and call GetValue  
+     (load-constant MethodInfo)
+     (il/stsfld cached-info-type)
+     (il/castclass MethodInfo)
+     (il/dup)
+     (il/stsfld cached-info)
+     (il/ldloc target)
+     (il/ldnull)
+     (il/callvirt (find-method MethodInfo "Invoke" Object |System.Object[]|))
+     (il/br end)
+     
+     failed-branch
+     (il/ldstr (str "Reflective call to " _memberName " falied!"))
+     (il/newobj (find-constructor Exception String))
+     (il/throw)
+     end])))
+
+(defn compile-fn [expr]
+  (let [asm-name "magic.tests"]
+    (-> (il/assembly
+          asm-name
+          (il/module
+            (str asm-name ".dll")
+            (symbolize (analyze expr) base-symbolizers)))
+        il/emit!
+        :mage.core/assembly-builder
+        .GetTypes
+        first
+        Activator/CreateInstance
+        )))
+
+(defmacro magic-defn [name args & body]
+  `(def ~name (magic-compile-fn '(fn ~name ~args ~@body))))
