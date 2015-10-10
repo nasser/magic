@@ -2,6 +2,7 @@
 (ns magic.core
   (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
+            [magic.analyzer :as ana]
             [clojure.string :as string])
   (:import [clojure.lang RT Numbers Compiler LineNumberingTextReader
             Symbol Namespace IFn Var Keyword Symbol
@@ -116,29 +117,10 @@
           (.ReturnType info)
           (throw (Exception. (str "hell " typ _memberName)))))))) ;; TODO throw exception here? what does it even mean?!
 
-;; bah! super gross because ClrType is not safe to call AST nodes... 
-(defn clr-type [e]
+(defn clr-type [{:keys [op] :as ast}]
   (cond
-    ;; BUG in TryExpr analysis. ClrType always reported as type of try expession
-    ;; but this is not accurate
-    (= (type e) TryExpr)
-    (let [{:keys [_tryExpr _catchExprs]} (data-map e)
-          try-expr-type (clr-type _tryExpr)
-          catch-handler-types (map #(clr-type (-> % data-map :_handler)) _catchExprs)]
-      (if (= 1 (count (into #{try-expr-type} catch-handler-types)))
-        try-expr-type
-        Object))
-    
-    ;; BUG in InstanceZeroArityCallExpr analysis.
-    (= (type e) InstanceZeroArityCallExpr)
-    (instance-zero-arity-call-type e)
-    
-    (isa? (type e) Expr)
-    (try
-      (.ClrType e)
-      (catch System.Exception e
-        Object))
-    :else (type e)))
+    (= op :const) (type (:val ast))
+    :else Object))
 
 (def load-constant)
 
@@ -158,11 +140,7 @@
    UInt64 (il/conv-u8)})
 
 (defn convert [from to]
-  (let [from-type (cond
-                    (nil? from)             Object
-                    (isa? (type from) Type) from
-                    (isa? (type from) Expr) (clr-type from)
-                    :else                   (type from))]
+  (let [from-type (clr-type from)]
     (cond
       (or (nil? from) (nil? from-type))
       nil
@@ -219,21 +197,6 @@
       (throw (Exception. (str "Cannot convert " from-type " to " to))))))
 
 
-(defn load-vector
-  ([v] (load-vector v load-constant))
-  ([v f]
-   [(load-constant (int (count v)))
-    (il/newarr Object)
-    (map (fn [i c]
-           [(il/dup)
-            (load-constant (int i))
-            (f c)
-            (convert c Object)
-            (il/stelem-ref)])
-         (range)
-         v)
-    (il/call (find-method clojure.lang.RT "vector" |System.Object[]|))]))
-
 (defn load-set
   ([v] (load-set v load-constant))
   ([v f]
@@ -263,21 +226,6 @@
          (range)
          v)
     (il/call (find-method clojure.lang.PersistentList "create" |System.Object[]|))]))
-
-(defn load-map [keyvals]
-  (let [ks (take-nth 2 keyvals)
-        vs (take-nth 2 (drop 1 keyvals))]
-    [(load-constant (int (+ (count ks) (count vs))))
-     (il/newarr Object)
-     (map (fn [i kv]
-            [(il/dup)
-             (load-constant (int i))
-             (load-constant kv)
-             ; (cast-if-different kv Object)
-             (il/stelem-ref)])
-          (range)
-          (interleave ks vs))
-     (il/call (find-method clojure.lang.PersistentArrayMap "createWithCheck" |System.Object[]|))]))
 
 (defn load-keyword [k]
   (let [ns  (.. k Namespace)
@@ -343,9 +291,10 @@
     (instance? clojure.lang.Keyword k)                  (load-keyword k)
     (instance? clojure.lang.Var k)                      (load-var k)
     (instance? clojure.lang.PersistentList k)           (load-list k)
-    (instance? clojure.lang.APersistentSet k)           (load-set k)
-    (instance? clojure.lang.APersistentVector k)        (load-vector k)
-    (instance? clojure.lang.APersistentMap k)           (load-map (seq k))))
+    ;; (instance? clojure.lang.APersistentSet k)           (load-set k)
+    ;; (instance? clojure.lang.APersistentVector k)        (load-vector k)
+    ;; (instance? clojure.lang.APersistentMap k)           (load-map (seq k))
+    ))
 
 (defn to-address [t]
   (let [l (il/local t)]
@@ -353,15 +302,12 @@
      (il/ldloca l)]))
 
 (defn cleanup-stack
-  ([pcon]
-   (if-not (nil? pcon)
-     (if (.IsStatementContext pcon)
-       (il/pop))))
-  ([lasttype pcon]
-   (if (and (some? pcon)
-            (not= System.Void lasttype)
-            (.IsStatementContext pcon))
-     (il/pop))))
+  ([{{:keys [context]} :env}]
+   (if (= context :ctx/statement)
+     (il/pop)))
+  ([lasttype {{:keys [context]} :end}]
+   (if-not (= lasttype System.Void)
+     (cleanup-stack context))))
 
 (def intrinsics
   {(find-method clojure.lang.RT "uncheckedIntCast" Double)
@@ -482,56 +428,66 @@
 ;; 42
 ;; "foo"
 (defn literal-symbolizer
-  [ast symbolizers]
-  (let [data (data-map ast)]
-    [(load-constant (data :Val))
-     (cleanup-stack (data :ParsedContext))]))
+  [{:keys [val] :as ast}
+   symbolizers]
+  [(load-constant val)
+   (cleanup-stack ast)])
 
+;; [1 2 3]
 (defn vector-symbolizer
-  [ast symbolizers]
-  (load-vector (-> ast data-map :_args)
-               #(symbolize % symbolizers)))
+  [{:keys [items]} symbolizers]
+  [(load-constant (int (count items)))
+   (il/newarr Object)
+   (map (fn [i c]
+          [(il/dup)
+           (load-constant (int i))
+           (symbolize c symbolizers)
+           (convert c Object)
+           (il/stelem-ref)])
+        (range)
+        items)
+   (il/call (find-method clojure.lang.RT "vector" |System.Object[]|))])
 
+;; #{1 2 3}
 (defn set-symbolizer
-  [ast symbolizers]
-  (load-set (-> ast data-map :_keys)
-            #(symbolize % symbolizers)))
+  [{:keys [items]} symbolizers]
+  [(load-constant (int (count items)))
+   (il/newarr Object)
+   (map (fn [i c]
+          [(il/dup)
+           (load-constant (int i))
+           (symbolize c symbolizers)
+           (convert c Object)
+           (il/stelem-ref)])
+        (range)
+        items)
+   (il/call (find-method clojure.lang.RT "set" |System.Object[]|))])
 
 ;; {:foo bar}
 (defn map-symbolizer
-  [ast symbolizers]
-  (let [pcon (.ParsedContext ast)
-        ks (take-nth 2 (.KeyVals ast))
-        vs (take-nth 2 (drop 1 (.KeyVals ast)))]
-    [(load-constant (int (+ (count ks) (count vs))))
-     (il/newarr Object)
-     (map (fn [i kv]
-            [(il/dup)
-             (load-constant (int i))
-             (symbolize kv symbolizers)
-             (convert kv Object)
-             (il/stelem-ref)])
-          (range)
-          (interleave ks vs))
-     (il/call (find-method RT "mapUniqueKeys" |System.Object[]|))
-     (cleanup-stack pcon)]))
+  [{:keys [keys vals]} symbolizers]
+  [(load-constant (int (+ (count keys) (count vals))))
+   (il/newarr Object)
+   (map (fn [i kv]
+          [(il/dup)
+           (load-constant (int i))
+           (symbolize kv symbolizers)
+           (convert kv Object)
+           (il/stelem-ref)])
+        (range)
+        (interleave keys vals))
+   (il/call (find-method clojure.lang.PersistentArrayMap "createWithCheck" |System.Object[]|))])
 
 ;; (f a b)
 (defn invoke-symbolizer
-  [ast symbolizers]
-  (let [data (data-map ast)
-        pcon (.ParsedContext ast)
-        fexpr (:_fexpr data)
-        args (:_args data)
-        arity (count args)]
-    [(symbolize fexpr symbolizers)
-     (il/castclass IFn)
-     (map (fn [a]
-            [(symbolize a symbolizers)
-             (convert a Object)])
-          args)
-     (il/callvirt (apply find-method IFn "invoke" (repeat arity Object)))
-     (cleanup-stack pcon)]))
+  [{:keys [fn args] :as ast} symbolizers]
+  [(symbolize fn symbolizers)
+   (il/castclass IFn)
+   (map #(vector (symbolize % symbolizers)
+                 (convert % Object))
+        args)
+   (il/callvirt (apply find-method IFn "invoke" (repeat (count args) Object)))
+   (cleanup-stack ast)])
 
 ;; (new Foo)
 (defn new-symbolizer
@@ -558,12 +514,10 @@
         (throw (Exception. (str "No constructor for non-valuetype " _type)))))))
 
 (defn var-symbolizer
-  [ast symbolizers]
-  (let [pcon (.ParsedContext ast)
-        v (.. ast Var)]
-    [(load-var v)
-     (get-var v)
-     (cleanup-stack pcon)]))
+  [{:keys [var] :as ast} symbolizers]
+  [(load-var var)
+   (get-var var)
+   (cleanup-stack ast)])
 
 (defn converted-args [args param-types symbolizers]
   (interleave
@@ -674,73 +628,13 @@
      (cleanup-stack pcon)]))
 
 (defn fn-symbolizer
-  [ast symbolizers]
-  (let [{:keys [Name Constants Vars ProtocolCallsites VarCallsites Keywords _methods] :as data} (data-map ast)
-        protected-static (enum-or FieldAttributes/Static FieldAttributes/Public)
-        arities (->> _methods
-                     (map data-map)
-                     (map :NumParams))
-        ;; set up var fields
-        vars (keys Vars)
-        var-fields (->> vars
-                        (map #(il/field (type %)
-                                        protected-static
-                                        (gensym (str "var_" (.. % Symbol Name) "_"))))
-                        (interleave vars)
-                        (apply hash-map))
-        var-symbolizer (fn fn-specialized-var-symbolizer
-                         [this syms]
-                         (let [pcon (.ParsedContext this)
-                               v (or (-> this data-map :_var)
-                                     (.. this Var))]
-                           (if-let [cached-var (var-fields v)]
-                             [(il/ldsfld cached-var)
-                              (get-var v)
-                              (cleanup-stack pcon)]
-                             (symbolize this symbolizers))))
-        
-        ;; constants hack
-        constant-revealing-symbolizers
-        (assoc symbolizers
-          LiteralExpr
-          (fn fn-constant-revealing-symbolizer
-            [this symbolizers]
-            {::constant (.Val this)}))
-        
-        constants 
-        (->> _methods
-             (mapcat #(symbolize % constant-revealing-symbolizers))
-             flatten
-             (keep ::constant)
-             (into #{}))
-        
-        constant-fields (->> constants
-                             (map #(il/field (type %)
-                                             protected-static
-                                             (gensym (str "const_" ))))
-                             (interleave constants)
-                             (apply hash-map))
-        constant-symbolizer (fn fn-specialized-constant-symbolizer
-                              [this symbolizers]
-                              (let [pcon (.ParsedContext this)
-                                    k (.Val this)]
-                                (if-let [cached-const (constant-fields k)]
-                                  [(il/ldsfld cached-const)
-                                   (cleanup-stack pcon)]
-                                  (symbolize this symbolizers))))
-        symbolizers (assoc symbolizers
-                      VarExpr     var-symbolizer
-                      TheVarExpr  var-symbolizer
-                      NilExpr     literal-symbolizer
-                      StringExpr  literal-symbolizer
-                      NumberExpr  literal-symbolizer
-                      LiteralExpr constant-symbolizer)]
-    
+  [{:keys [methods] :as ast} symbolizers]
+  (let [name (str (gensym "fn"))
+        arities (map :fixed-arity methods)]
     (mage.core/type
-      Name
+      name
       TypeAttributes/Public []
       clojure.lang.AFn
-      
       [(il/constructor
          MethodAttributes/Public
          CallingConventions/Standard []
@@ -748,26 +642,24 @@
        (il/constructor
          (enum-or MethodAttributes/Static)
          CallingConventions/Standard []
-         [;; populate var fields
-          (map (fn [[v fld]] [(load-var v) (il/stsfld fld)])
-               var-fields)
-          (map (fn [[k fld]] [(load-constant k) (il/stsfld fld)])
-               constant-fields)
+         [#_ (map (fn [[v fld]] [(load-var v) (il/stsfld fld)])
+                  var-fields)
+          #_ (map (fn [[k fld]] [(load-constant k) (il/stsfld fld)])
+                  constant-fields)
           (il/ret)])
        (has-arity-method arities)
-       (map #(symbolize % symbolizers) _methods)])))
+       (map #(symbolize % symbolizers) methods)])))
 
 (defn fn-method-symbolizer
-  [ast symbolizers]
-  (let [{:keys [_retType _reqParms _body] :as data} (data-map ast)]
-    (il/method "invoke"
-               (enum-or MethodAttributes/Public
-                        MethodAttributes/Virtual)
-               _retType (mapv (constantly Object) _reqParms)
-               [(symbolize _body symbolizers)
-                (convert (.LastExpr _body) Object)
-                (il/ret)]
-               )))
+  [{:keys [body params] {:keys [ret statements]} :body} symbolizers]
+  (il/method "invoke"
+             (enum-or MethodAttributes/Public
+                      MethodAttributes/Virtual)
+             (clr-type ret) (mapv (constantly Object) params)
+             [(symbolize body symbolizers)
+              (symbolize ret symbolizers)
+              (convert ret Object)
+              (il/ret)]))
 
 (defn if-symbolizer
   [ast symbolizers]
@@ -1054,49 +946,25 @@
           (call-instance-method _target info [] symbolizers)
           (reflective-instance-zero-arity-call-symbolizer ast symbolizers))))))
 
+(defn do-symbolizer
+  [{:keys [statements]} symbolizers]
+  (map #(symbolize % symbolizers) statements))
+
 (def base-symbolizers
-  {LiteralExpr               literal-symbolizer
-   VectorExpr                vector-symbolizer
-   MapExpr                   map-symbolizer
-   SetExpr                   set-symbolizer
-   InvokeExpr                invoke-symbolizer
-   NewExpr                   new-symbolizer
-   VarExpr                   var-symbolizer
-   TheVarExpr                var-symbolizer
-   StaticMethodExpr          static-method-symbolizer
-   InstanceMethodExpr        instance-method-symbolizer
-   StaticPropertyExpr        static-property-symbolizer
-   StaticFieldExpr           static-field-symbolizer
-   InstancePropertyExpr      instance-property-symbolizer
-   InstanceFieldExpr         instance-field-symbolizer
-   FnExpr                    fn-symbolizer
-   FnMethod                  fn-method-symbolizer
-   IfExpr                    if-symbolizer
-   BodyExpr                  body-symbolizer
-   LocalBindingExpr          local-binding-symbolizer 
-   LetExpr                   let-symbolizer
-   CaseExpr                  case-symbolizer
-   MonitorEnterExpr          monitor-enter-symbolizer
-   MonitorExitExpr           monitor-exit-symbolizer
-   InstanceOfExpr            instance-of-symbolizer
-   ThrowExpr                 throw-symbolizer
-   TryExpr                   try-symbolizer
-   UnresolvedVarExpr         unresolved-var-symbolizer
-   EmptyExpr                 empty-symbolizer
-   ImportExpr                import-symbolizer
-   KeywordInvokeExpr         keyword-invoke-symbolizer
-   InstanceZeroArityCallExpr instance-zero-arity-call-symbolizer
-   })
+  {:const      literal-symbolizer
+   :vector     vector-symbolizer
+   :set        set-symbolizer
+   :map        map-symbolizer
+   :invoke     invoke-symbolizer
+   :var        var-symbolizer
+   :do         do-symbolizer
+   :fn         fn-symbolizer
+   :fn-method  fn-method-symbolizer})
 
 (defn ast->symbolizer [ast symbolizers]
-  (or (->> ast type symbolizers)
-      (->> ast
-           type
-           bases
-           (map symbolizers)
-           (remove nil?)
-           first)
-      (throw (Exception. (str "No symbolizer for " ast)))))
+  (or (-> ast :op symbolizers)
+      (throw (Exception. (str "No symbolizer for " (or (:op ast)
+                                                       ast))))))
 
 (defn symbolize [ast symbolizers]
   (if-let [symbolizer (ast->symbolizer ast symbolizers)]
@@ -1248,7 +1116,7 @@
           asm-name
           (il/module
             (str asm-name ".dll")
-            (symbolize (analyze expr) base-symbolizers)))
+            (symbolize (ana/ast expr) base-symbolizers)))
         il/emit!
         :mage.core/assembly-builder
         .GetTypes

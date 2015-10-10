@@ -8,18 +8,10 @@ Experimental, unfinished, way pre-alpha. Here be dragons.
 
 Strategy
 --------
-MAGIC consumes AST nodes from the stock ClojureCLR compiler. It turns those AST nodes into MAGE bytecode to be compiled into executable MSIL. By using the existing ClojureCLR reader and analyzer, we avoid rewriting most of what is already a high performance, high quality compiler. By using MAGE bytecode, we are granted the full power of Clojure to reason about generating bytecode from Clojure forms.
+MAGIC consumes AST nodes from the `clojure.tools.analyzer`. It turns those AST nodes into MAGE bytecode to be compiled into executable MSIL. By using the existing ClojureCLR reader and `clojure.tools.analyzer`, we avoid rewriting most of what is already a high performance, high quality code. By using MAGE bytecode, we are granted the full power of Clojure to reason about generating bytecode from Clojure forms.
 
 ### Symbolizers
-Clojure forms are turned into MAGE bytecode using *symbolizers*. Symbolizers are stored as a map of AST node type to `fn`s taking an AST node and a symbolizer map, and returning symbolic MAGE bytecode (hence the name symbolizer).
-
-```clojure
-{ BooleanExpr (fn boolean-symbolizer [this symbolizers]
-                (let [v (:_val (data-map this))]
-                  (if v
-                    (il/ldc-i4-1)
-                    (il/ldc-i4-0)))) }
-```
+Clojure forms are turned into MAGE bytecode using *symbolizers*. Symbolizers are stored as a map of keywords to `fn`s taking an AST node and a symbolizer map, and returning symbolic MAGE bytecode (hence the name symbolizer).
 
 Rationale and History
 ---------------------
