@@ -13,7 +13,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:fn</code></td>
   <td><code>(fn [a] a)</code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:host-field</code></td>
@@ -23,7 +23,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:do</code></td>
   <td><code>(do a b c)</code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:maybe-host-form</code></td>
@@ -43,7 +43,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:fn-method</code></td>
   <td><code> </code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:new</code></td>
@@ -70,7 +70,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:vector</code></td>
   <td><code>[1 2 3]</code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:loop</code></td>
@@ -87,7 +87,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>:const</code></td>
   <td><code>12</code>,
       <code>"hello"</code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:set!</code></td>
@@ -97,7 +97,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:var</code></td>
   <td><code> </code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:quote</code></td>
@@ -117,7 +117,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:invoke</code></td>
   <td><code>(a b)</code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:throw</code></td>
@@ -137,7 +137,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:set</code></td>
   <td><code>#{1 2 3}</code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:host-call</code></td>
@@ -157,6 +157,6 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:map</code></td>
   <td><code>{:foo 'bar}</code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 </table>
