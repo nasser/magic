@@ -106,7 +106,7 @@
     (= i 3) (il/ldarg-3)
     :else (il/ldarg i)))
 
-(declare clr-type)
+(defmulti clr-type :op)
 
 ;; TODO repeated shape between instance-zero-arity-call-type instance-zero-arity-call-symbolizer
 (defn instance-zero-arity-call-type [izac]
@@ -141,57 +141,58 @@
    (or (clojure.core/resolve t)
        (throw! "Could not resolve " t " as  type in " (:form ast)))))
 
-(defn clr-type [{:keys [op] :as ast}]
+(defmethod clr-type :const [ast]
+  (-> ast :val type))
+
+(defmethod clr-type :host-interop
+  [{:keys [m-or-f target] :as ast}]
+  (let [target-type (clr-type target)]
+    (or (zero-arity-type target-type (str m-or-f))
+        (throw! "Host interop type " (:form ast) " not supported"))))
+
+(defmethod clr-type :maybe-host-form
+  [{:keys [class field] :as ast}]
+  (let [class (resolve class)]
+    (or (zero-arity-type class (str field))
+        (throw! "Maybe host form type " (:form ast) " not supported"))))
+
+(defmethod clr-type :maybe-class
+  [{:keys [class] :as ast}]
+  (resolve class ast))
+
+(defmethod clr-type :invoke
+  [{:keys [fn args] {:keys [op]} :fn}]
   (condp = op
-    :const
-    (type (:val ast))
-    
-    :host-interop
-    (let [{:keys [m-or-f target]} ast
-          target-type (clr-type target)]
-      (or (zero-arity-type target-type (str m-or-f))
-          (throw! "Host interop type " (:form ast) " not supported")))
-    
+    ;; (Foo/bar 1 2)
     :maybe-host-form
-    (let [{:keys [class field]} ast
-          class (resolve class)]
-      (or (zero-arity-type class (str field))
-          (throw! "Maybe host form type " (:form ast) " not supported")))
+    (let [{:keys [class field]} fn
+          method (or (.GetMethod (resolve class)
+                                 (str field)
+                                 (into-array (map clr-type args)))
+                     (throw! "Could not find method " class "/" field " matching types"))]
+      (.ReturnType method))
     
-    :maybe-class
-    (let [{:keys [class]} ast]
-      (resolve class ast))
-    
-    :invoke
-    (let [{:keys [fn args] {:keys [op]} :fn} ast]
-      (condp = op
-        :maybe-host-form
-        (let [{:keys [class field]} fn
-              method (or (.GetMethod (resolve class)
-                                     (str field)
-                                     (into-array (map clr-type args)))
-                         (throw! "Could not find method " class "/" field " matching types"))]
-          (.ReturnType method))
-        
-        :var
-        (->> fn
-             :meta
-             :arglists
-             (filter #(= (count %) (count args)))
-             first
-             meta
-             :tag
-             resolve)
-        
-        (throw! "Invoking " op " not supported")))
-    
+    ;; (+ 1 2)
     :var
-    Object
+    (->> fn
+         :meta
+         :arglists
+         (filter #(= (count %) (count args)))
+         first
+         meta
+         :tag
+         resolve)
     
-    :new
-    (-> ast :class :class resolve)
-    
-    (throw! "clr-type not implemented for " ast)))
+    (throw! "Invoking " op " not supported")))
+
+(defmethod clr-type :var [ast]
+  Object)
+
+(defmethod clr-type :new [ast]
+  (-> ast :class :class resolve))
+
+(defmethod clr-type :default [ast]
+  (throw! "clr-type not implemented for " ast))
 
 (def load-constant)
 
