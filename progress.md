@@ -28,7 +28,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:maybe-host-form</code></td>
   <td><code> </code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:maybe-class</code></td>
@@ -49,7 +49,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>:new</code></td>
   <td><code>(new Type a b)</code>,
       <code>(Type. a b)</code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:recur</code></td>
@@ -107,7 +107,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:host-interop</code></td>
   <td><code> </code></td>
-  <td>   </td>
+  <td> ✔︎ </td>
 </tr>
 <tr>
   <td><code>:catch</code></td>
