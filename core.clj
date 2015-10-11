@@ -1,6 +1,6 @@
 ;; this is magic
 (ns magic.core
-  (:refer-clojure :exclude [compile])
+  (:refer-clojure :exclude [compile resolve])
   (:require [mage.core :as il]
             [magic.analyzer :as ana]
             [clojure.string :as string])
@@ -95,6 +95,9 @@
 (defn append [a col]
   (concat col [a]))
 
+(defmacro throw! [& e]
+  `(throw (Exception. (str ~@e))))
+
 (defn load-argument [i]
   (cond
     (= i 0) (il/ldarg-0)
@@ -117,10 +120,78 @@
           (.ReturnType info)
           (throw (Exception. (str "hell " typ _memberName)))))))) ;; TODO throw exception here? what does it even mean?!
 
+(defn zero-arity-type [class name]
+  (or (if-let [info (.GetField class name)]
+        (.FieldType info))
+      (if-let [info (.GetProperty class name)]
+        (.PropertyType info))
+      (if-let [info (.GetMethod class name Type/EmptyTypes)]
+        (.ReturnType info))))
+
+(defn zero-arity-info [class name]
+  (or (.GetField class name)
+      (.GetProperty class name)
+      (.GetMethod class name Type/EmptyTypes)))
+
+(defn resolve
+  ([t]
+   (or (clojure.core/resolve t)
+       (throw! "Could not resolve " t " as  type.")))
+  ([t ast]
+   (or (clojure.core/resolve t)
+       (throw! "Could not resolve " t " as  type in " (:form ast)))))
+
 (defn clr-type [{:keys [op] :as ast}]
-  (cond
-    (= op :const) (type (:val ast))
-    :else Object))
+  (condp = op
+    :const
+    (type (:val ast))
+    
+    :host-interop
+    (let [{:keys [m-or-f target]} ast
+          target-type (clr-type target)]
+      (or (zero-arity-type target-type (str m-or-f))
+          (throw! "Host interop type " (:form ast) " not supported")))
+    
+    :maybe-host-form
+    (let [{:keys [class field]} ast
+          class (resolve class)]
+      (or (zero-arity-type class (str field))
+          (throw! "Maybe host form type " (:form ast) " not supported")))
+    
+    :maybe-class
+    (let [{:keys [class]} ast]
+      (resolve class ast))
+    
+    :invoke
+    (let [{:keys [fn args] {:keys [op]} :fn} ast]
+      (condp = op
+        :maybe-host-form
+        (let [{:keys [class field]} fn
+              method (or (.GetMethod (resolve class)
+                                     (str field)
+                                     (into-array (map clr-type args)))
+                         (throw! "Could not find method " class "/" field " matching types"))]
+          (.ReturnType method))
+        
+        :var
+        (->> fn
+             :meta
+             :arglists
+             (filter #(= (count %) (count args)))
+             first
+             meta
+             :tag
+             resolve)
+        
+        (throw! "Invoking " op " not supported")))
+    
+    :var
+    Object
+    
+    :new
+    (-> ast :class :class resolve)
+    
+    (throw! "clr-type not implemented for " ast)))
 
 (def load-constant)
 
@@ -481,37 +552,62 @@
 ;; (f a b)
 (defn invoke-symbolizer
   [{:keys [fn args] :as ast} symbolizers]
-  [(symbolize fn symbolizers)
-   (il/castclass IFn)
-   (map #(vector (symbolize % symbolizers)
-                 (convert % Object))
-        args)
-   (il/callvirt (apply find-method IFn "invoke" (repeat (count args) Object)))
-   (cleanup-stack ast)])
+  (condp = (:op fn)
+    :maybe-host-form
+    (let [{:keys [class field]} fn
+          method (or (.GetMethod (resolve class)
+                                 (str field)
+                                 (into-array (map clr-type args)))
+                     (throw! "Could not find method "
+                             class "." field
+                             "(" (string/join ","
+                                              (map clr-type args)) ")"))
+          method-argument-types (->> method
+                                     .GetParameters
+                                     (map #(.ParameterType %)))]
+      [(map #(vector (symbolize %1 symbolizers)
+                     (convert %1 %2))
+            args
+            method-argument-types)
+       (il/call method)
+       (cleanup-stack ast)])
+    
+    [(symbolize fn symbolizers)
+     (il/castclass IFn)
+     (map #(vector (symbolize % symbolizers)
+                   (convert % Object))
+          args)
+     (il/callvirt (apply find-method IFn "invoke" (repeat (count args) Object)))
+     (cleanup-stack ast)]))
 
 ;; (new Foo)
 (defn new-symbolizer
-  [ast symbolizers]
-  (let [{:keys [_args _type _ctor] :as data} (data-map ast)]
-    (if _ctor
-      ;; have constructor, normal newobj path 
-      (let [arg-exprs (map #(.ArgExpr %) _args)
-            ctor-param-types (->> _ctor .GetParameters (map #(.ParameterType %)))]
+  [{:keys [args class] :as ast} symbolizers]
+  (let [type (clr-type class)
+        arg-types (map clr-type args)
+        ctor (.GetConstructor type (into-array arg-types))]
+    (cond
+      ;; have constructor, normal newobj path
+      ctor 
+      (let [ctor-param-types (->> ctor .GetParameters (map #(.ParameterType %)))]
         ;; TODO what about LocalBindings?
         [(interleave
            (map #(symbolize % symbolizers)
-                arg-exprs)
+                args)
            (map #(convert %1 %2)
-                arg-exprs
+                args
                 ctor-param-types))
-         (il/newobj _ctor)])
+         (il/newobj ctor)])
+      
       ;; no constructor, might be initobj path
-      (if (.IsValueType _type)
-        (let [loc (il/local _type)]
-          [(il/ldloca-s loc)
-           (il/initobj _type)
-           (il/ldloc loc)])
-        (throw (Exception. (str "No constructor for non-valuetype " _type)))))))
+      (.IsValueType type) 
+      (let [loc (il/local type)]
+        [(il/ldloca-s loc)
+         (il/initobj type)
+         (il/ldloc loc)])
+      
+      :else
+      (throw! "No constructor for non-valuetype " type))))
 
 (defn var-symbolizer
   [{:keys [var] :as ast} symbolizers]
@@ -587,15 +683,15 @@
     [(il/call getter)
      (cleanup-stack pcon)]))
 
-(defn static-field-symbolizer
-  [ast symbolizers]
-  (let [{:keys [_tinfo] :as data} (data-map ast)
-        pcon (.ParsedContext ast)
-        return-type (clr-type ast)]
-    [(if (.IsLiteral _tinfo)
-       (load-constant (.GetRawConstantValue _tinfo))
-       (il/ldsfld _tinfo) )
-     (cleanup-stack pcon)]))
+; (defn static-field-symbolizer
+;   [ast symbolizers]
+;   (let [{:keys [_tinfo] :as data} (data-map ast)
+;         pcon (.ParsedContext ast)
+;         return-type (clr-type ast)]
+;     [(if (.IsLiteral _tinfo)
+;        (load-constant (.GetRawConstantValue _tinfo))
+;        (il/ldsfld _tinfo) )
+;      (cleanup-stack pcon)]))
 
 (defn get-instance-property
   [target property symbolizers]
@@ -652,10 +748,11 @@
 
 (defn fn-method-symbolizer
   [{:keys [body params] {:keys [ret statements]} :body} symbolizers]
+  
   (il/method "invoke"
              (enum-or MethodAttributes/Public
                       MethodAttributes/Virtual)
-             (clr-type ret) (mapv (constantly Object) params)
+             Object (mapv (constantly Object) params)
              [(symbolize body symbolizers)
               (symbolize ret symbolizers)
               (convert ret Object)
@@ -950,21 +1047,54 @@
   [{:keys [statements]} symbolizers]
   (map #(symbolize % symbolizers) statements))
 
+(defn load-static-field [field-info]
+  (if (.IsLiteral field-info)
+    (load-constant (.GetRawConstantValue field-info))
+    (il/ldsfld field-info)))
+
+;; Foo/Bar
+(defn host-form-symbolizer
+  [{:keys [class field] :as ast} symbolizers]
+  [(or (if-let [info (.GetField (resolve class) (str field))]
+         (load-static-field info))
+       (if-let [info (.GetProperty (resolve class) (str field))]
+         (il/call (.GetGetMethod info)))
+       (if-let [info (.GetMethod (resolve class) (str field) Type/EmptyTypes)]
+         (il/call info))
+       (throw (Exception. (str field " in " (:form ast) " not a field, property, or method."))))
+   (cleanup-stack ast)])
+
+(defn host-interop-symbolizer
+  [{:keys [m-or-f target] :as ast} symbolizers]
+  (let [target-type (clr-type target)
+        morf (str m-or-f)]
+    [(symbolize target symbolizers)
+     (or (if-let [info (.GetField target-type morf)]
+           (il/ldfld info))
+         (if-let [info (.GetProperty target-type morf)]
+           (il/callvirt (.GetGetMethod info)))
+         (if-let [info (.GetMethod target-type morf Type/EmptyTypes)]
+           (il/callvirt info)))
+     (cleanup-stack ast)]))
+
 (def base-symbolizers
-  {:const      literal-symbolizer
-   :vector     vector-symbolizer
-   :set        set-symbolizer
-   :map        map-symbolizer
-   :invoke     invoke-symbolizer
-   :var        var-symbolizer
-   :do         do-symbolizer
-   :fn         fn-symbolizer
-   :fn-method  fn-method-symbolizer})
+  {:const           literal-symbolizer
+   :vector          vector-symbolizer
+   :set             set-symbolizer
+   :map             map-symbolizer
+   :invoke          invoke-symbolizer
+   :var             var-symbolizer
+   :do              do-symbolizer
+   :fn              fn-symbolizer
+   :fn-method       fn-method-symbolizer
+   :maybe-host-form host-form-symbolizer
+   :host-interop    host-interop-symbolizer
+   :new             new-symbolizer})
 
 (defn ast->symbolizer [ast symbolizers]
   (or (-> ast :op symbolizers)
-      (throw (Exception. (str "No symbolizer for " (or (:op ast)
-                                                       ast))))))
+      (throw (Exception. (str "No symbolizer for " (pr-str (or  (:op ast)
+                                                               ast)))))))
 
 (defn symbolize [ast symbolizers]
   (if-let [symbolizer (ast->symbolizer ast symbolizers)]
