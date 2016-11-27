@@ -4,159 +4,216 @@ MAGIC Progress
 The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, it must provide symbolizers and tests for every Clojure AST node. This list will be kept in sync with progress on the library.
 
 <table>
-<tr><th>Node</th><th>Example</th><th>Symbolizer</th></tr>
+<tr><th>Node</th><th>Example</th><th>Impl.</th><th>Tests</th></tr>
 <tr>
-  <td><code>:let</code></td>
-  <td><code>(let [a] a)</code></td>
+  <td><code>:static-method</code></td>
+  <td><code>(Foo/Bar a b c)</code></td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
-  <td><code>:fn</code></td>
-  <td><code>(fn [a] a)</code></td>
-  <td> ✔︎ </td>
-</tr>
-<tr>
-  <td><code>:host-field</code></td>
-  <td><code> </code></td>
+  <td><code>:instance-method</code></td>
+  <td><code>(.Bar foo a b c)</code></td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
-  <td><code>:do</code></td>
-  <td><code>(do a b c)</code></td>
-  <td> ✔︎ </td>
-</tr>
-<tr>
-  <td><code>:maybe-host-form</code></td>
-  <td><code> </code></td>
-  <td> ✔︎ </td>
-</tr>
-<tr>
-  <td><code>:maybe-class</code></td>
-  <td><code> </code></td>
+  <td><code>:static-field</code></td>
+  <td><code>Foo/Baz</code></td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
-  <td><code>:if</code></td>
-  <td><code>(if test then else)</code></td>
+  <td><code>:instance-field</code></td>
+  <td><code>(.baz foo)</code> &nbsp;
+      <code>(.-baz foo)</code>
+  </td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
-  <td><code>:fn-method</code></td>
-  <td><code> </code></td>
-  <td> ✔︎ </td>
+  <td><code>:static-property</code></td>
+  <td><code>Foo/Qux</code></td>
+  <td>   </td>
+  <td>   </td>
 </tr>
 <tr>
-  <td><code>:new</code></td>
-  <td><code>(new Type a b)</code>,
-      <code>(Type. a b)</code></td>
-  <td> ✔︎ </td>
+  <td><code>:instance-property</code></td>
+  <td><code>(.qux foo)</code> &nbsp;
+      <code>(.-qux foo)</code>
+  </td>
+  <td>   </td>
+  <td>   </td>
 </tr>
 <tr>
-  <td><code>:recur</code></td>
-  <td><code>(loop [a] (recur a))</code>,
-      <code>(fn [a] (recur a))</code></td>
+  <td><code>:runtime-dispatch-call</code></td>
+  <td><code>(.quz x a b c)</code> &nbsp;
+      <code>(.quz x)</code>
+  </td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:with-meta</code></td>
-  <td><code> </code></td>
+  <td><code>^{:meta "data"} [1 2 3]</code></td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
-  <td><code>:letfn</code></td>
-  <td><code> </code></td>
+  <td><code>:const</code></td>
+  <td><code>7</code> &nbsp;
+      <code>"7"</code>
+  </td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:vector</code></td>
   <td><code>[1 2 3]</code></td>
-  <td> ✔︎ </td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:map</code></td>
+  <td><code>{:foo "bar"}</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:set</code></td>
+  <td><code>#{1 2 3 4}</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:local</code></td>
+  <td><code>(let [a 5] <strong>a</strong>)</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:var</code></td>
+  <td><code>(<strong>str</strong> 5)</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:do</code></td>
+  <td><code>(do a b c)</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:if</code></td>
+  <td><code>(if true then else)</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:new</code></td>
+  <td><code>(Type.)</code> &nbsp;
+      <code>(Type. 1 2)</code> &nbsp;
+      <code>(ValueType. 1 2)</code>
+  </td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:initobj</code></td>
+  <td><code>(ValueType.)</code> &nbsp;
+      <code>(new ValueType)</code>
+  </td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:quote</code></td>
+  <td><code>(quote (+ 6 7))</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:set!</code></td>
+  <td><code>(set! (.foo bar) 5)</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:try</code></td>
+  <td><code>(try (foo) (catch System.Exception e e))</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:catch</code></td>
+  <td><code>(try (foo) <strong>(catch System.Exception e e)</strong>)</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:throw</code></td>
+  <td><code>(throw (System.Exception. "foo"))</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:letfn</code></td>
+  <td><code>(letfn [(foo [a] a)] (foo 2))</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:let</code></td>
+  <td><code>(let [a 5] a)</code></td>
+  <td>   </td>
+  <td>   </td>
 </tr>
 <tr>
   <td><code>:loop</code></td>
-  <td><code>(loop [a] (recur a))</code>,
-      <code>(fn [a] (recur a))</code></td>
+  <td><code>(loop [a 1] (recur (inc a)))</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:recur</code></td>
+  <td><code>(loop [a 1] <strong>(recur (inc a)</strong>))</code></td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:binding</code></td>
   <td><code> </code></td>
   <td>   </td>
-</tr>
-<tr>
-  <td><code>:const</code></td>
-  <td><code>12</code>,
-      <code>"hello"</code></td>
-  <td> ✔︎ </td>
-</tr>
-<tr>
-  <td><code>:set!</code></td>
-  <td><code>(set! (.a b) c)</code></td>
   <td>   </td>
 </tr>
 <tr>
-  <td><code>:var</code></td>
-  <td><code> </code></td>
-  <td> ✔︎ </td>
-</tr>
-<tr>
-  <td><code>:quote</code></td>
-  <td><code> </code></td>
+  <td><code>:fn</code></td>
+  <td><code>(fn [x] x)</code></td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
-  <td><code>:host-interop</code></td>
-  <td><code> </code></td>
-  <td> ✔︎ </td>
-</tr>
-<tr>
-  <td><code>:catch</code></td>
-  <td><code> </code></td>
+  <td><code>:fn-method</code></td>
+  <td><code>(fn ([x] x))</code></td>
   <td>   </td>
-</tr>
-<tr>
-  <td><code>:invoke</code></td>
-  <td><code>(a b)</code></td>
-  <td> ✔︎ </td>
-</tr>
-<tr>
-  <td><code>:throw</code></td>
-  <td><code>(throw (Exception. "foo"))</code></td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:def</code></td>
-  <td><code>(defn sym val)</code></td>
+  <td><code>(def a 1)</code></td>
+  <td>   </td>
   <td>   </td>
 </tr>
 <tr>
-  <td><code>:try</code></td>
-  <td><code> </code></td>
+  <td><code>:invoke</code></td>
+  <td><code>(str 1 2)</code></td>
   <td>   </td>
-</tr>
-<tr>
-  <td><code>:set</code></td>
-  <td><code>#{1 2 3}</code></td>
-  <td> ✔︎ </td>
-</tr>
-<tr>
-  <td><code>:host-call</code></td>
-  <td><code> </code></td>
-  <td>   </td>
-</tr>
-<tr>
-  <td><code>:local</code></td>
-  <td><code> </code></td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:the-var</code></td>
-  <td><code> </code></td>
+  <td><code>(var clojure.core/str)</code></td>
   <td>   </td>
-</tr>
-<tr>
-  <td><code>:map</code></td>
-  <td><code>{:foo 'bar}</code></td>
-  <td> ✔︎ </td>
+  <td>   </td>
 </tr>
 </table>
