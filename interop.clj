@@ -3,6 +3,13 @@
 (defn method
   ([type name & params] (.GetMethod type name (into-array Type params))))
 
+(defn parameters
+  [method] (.GetParameters method))
+
+(defn parameter-types
+  [method] (map #(.ParameterType %)
+                (parameters method)))
+
 (defn field
   ([type name] (.GetField type name)))
 
