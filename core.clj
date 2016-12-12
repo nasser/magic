@@ -86,7 +86,6 @@
    UInt64 (il/conv-u8)})
 
 (defn convert [from to]
-  (swap! debug (str "Converting " from " -> " to))
   (cond
     (nil? from)
     nil
