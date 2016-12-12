@@ -8,17 +8,17 @@ Experimental, unfinished, way pre-alpha. Here be dragons.
 
 Overview
 --------
-MAGIC is a compiler for Clojure written in Clojure targetting the Common Language Runtime. Its goals are to:
+MAGIC is a compiler for Clojure written in Clojure targeting the Common Language Runtime. Its goals are to:
 
-1. Take full advantage of the CLR's features to produce better bytecode
-2. Leverage Clojure's functional programming and data structures to be more tunable, composable, and maintainable
+1. Take full advantage of the CLR's features to produce better byte code
+2. Leverage Clojure's functional programming and data structures to be more tunable, composeable, and maintainable
 
 Strategy
 --------
-MAGIC consumes AST nodes from the [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr). It turns those AST nodes into [MAGE](https://github.com/nasser/mage) bytecode to be compiled into executable MSIL. By using the existing ClojureCLR reader and `clojure.tools.analyzer`, we avoid rewriting most of what is already a high performance, high quality code. By using MAGE bytecode, we are granted the full power of Clojure to reason about generating bytecode from Clojure forms.
+MAGIC consumes AST nodes from the [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr). It turns those AST nodes into [MAGE](https://github.com/nasser/mage) byte code to be compiled into executable MSIL. By using the existing ClojureCLR reader and `clojure.tools.analyzer`, we avoid rewriting most of what is already a high performance, high quality code. By using MAGE byte code, we are granted the full power of Clojure to reason about generating byte code from Clojure forms.
 
 ### Symbolizers
-Clojure forms are turned into MAGE bytecode using *symbolizers*. A symbolizer is a function that transforms a single AST node into MAGE bytecode. For example, a static property like [`DateTime/Now`](https://msdn.microsoft.com/en-us/library/system.datetime.now(v=vs.110).aspx) would be analyzed by [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr) into a hashmap with a `:property` containing the correct [`PropertyInfo`](https://msdn.microsoft.com/en-us/library/system.reflection.propertyinfo(v=vs.110).aspx) object. The symbolizer looks like this:
+Clojure forms are turned into MAGE byte code using *symbolizers*. A symbolizer is a function that transforms a single AST node into MAGE byte code. For example, a static property like [`DateTime/Now`](https://msdn.microsoft.com/en-us/library/system.datetime.now(v=vs.110).aspx) would be analyzed by [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr) into a hash map with a `:property` containing the correct [`PropertyInfo`](https://msdn.microsoft.com/en-us/library/system.reflection.propertyinfo(v=vs.110).aspx) object. The symbolizer looks like this:
 
 ```clojure
 (defn static-property-symbolizer
@@ -27,9 +27,9 @@ Clojure forms are turned into MAGE bytecode using *symbolizers*. A symbolizer is
   (il/call (.GetGetMethod property)))
 ```
 
-It extracts the `PropertyInfo` from the `:property` key in the AST, computes the [getter method](https://msdn.microsoft.com/en-us/library/e17dw503(v=vs.110).aspx), and returns the [MAGE bytecode for a method invocation](https://msdn.microsoft.com/en-us/library/system.reflection.emit.opcodes.call(v=vs.110).aspx) of that method.
+It extracts the `PropertyInfo` from the `:property` key in the AST, computes the [getter method](https://msdn.microsoft.com/en-us/library/e17dw503(v=vs.110).aspx), and returns the [MAGE byte code for a method invocation](https://msdn.microsoft.com/en-us/library/system.reflection.emit.opcodes.call(v=vs.110).aspx) of that method.
 
-Note that this is not a side-effecting funciton, i.e. it does no actual byte code emission. It merely returns the *symbolic bytecode* to implement the semantics of static property retieval as pure Clojure data, and MAGE will perform the actual generation of runnable code as a final step. This makes symbolizers easier to write and test interactively in a REPL.
+Note that this is not a side-effecting function, i.e. it does no actual byte code emission. It merely returns the *symbolic byte code* to implement the semantics of static property retrieval as pure Clojure data, and MAGE will perform the actual generation of runnable code as a final step. This makes symbolizers easier to write and test interactively in a REPL.
 
 Note also that the symbolizer takes an additional argument `symbolizers`, though it makes no use of it. `symbolizers` is a map of keywords identifying AST node types (the `:op` key in the map `tools.analyzer` produces) to symbolizer functions. The basic one built into MAGIC looks like 
 
@@ -54,9 +54,9 @@ Every symbolizer is passed such a map, and is expected it pass it down when recu
    (symbolize ret symbolizers)])
 ```
 
-`do` expressions analyze to hashmaps containing `:statements` and `:ret` keys refering to all expressions except the last, and the last expression respectively. The `do` symbolizer recursively symbolizes all of these expression, passing its `symbolizers` argument to them.
+`do` expressions analyze to hash maps containing `:statements` and `:ret` keys referring to all expressions except the last, and the last expression respectively. The `do` symbolizer recursively symbolizes all of these expression, passing its `symbolizers` argument to them.
 
-Early versions of MAGIC used a multimethod in place of this symbolizer map, but the map has several advantages. Emission can be controlled from the top level by passing in a different map. For example, symbolizers can be replaces (this API does not exist yet):
+Early versions of MAGIC used a multi method in place of this symbolizer map, but the map has several advantages. Emission can be controlled from the top level by passing in a different map. For example, symbolizers can be replaces (this API does not exist yet):
 
 ```clojure
 (magic/compile '(fn [a] (map inc a))
@@ -80,7 +80,7 @@ Additionally, symbolizers can change this map *before they pass it to their chil
 
 Rationale and History
 ---------------------
-During the development of [Arcadia](https://github.com/arcadia-unity/Arcadia), it was found that binaries produced by the ClojureCLR compiler did not survive Unity's AOT compilation process to its more restrictive export targets, particularly iOS, WebGL, and the PlayStation. While it is understood that certain more 'dynamic' features of C# are generally not supported on these platforms, the exact cause of the failures is difficult to pinpoint. Additionally, the bytecode the standard compiler generates is not as good as it can be in situations where the JVM and CLR semantics do not match up, namely value types and generics. MAGIC was built primarily to support better control over bytecode, and a well reasoned approach to Arcadia export.
+During the development of [Arcadia](https://github.com/arcadia-unity/Arcadia), it was found that binaries produced by the ClojureCLR compiler did not survive Unity's AOT compilation process to its more restrictive export targets, particularly iOS, WebGL, and the PlayStation. While it is understood that certain more 'dynamic' features of C# are generally not supported on these platforms, the exact cause of the failures is difficult to pinpoint. Additionally, the byte code the standard compiler generates is not as good as it can be in situations where the JVM and CLR semantics do not match up, namely value types and generics. MAGIC was built primarily to support better control over byte code, and a well reasoned approach to Arcadia export.
 
 Name
 ----
