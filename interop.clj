@@ -21,3 +21,9 @@
 
 (defn setter [type name]
   (method type (str "set_" name)))
+
+(defn generic-type [name params]
+  (RT/classForName
+    (str name "`"
+         (count params)
+         "[" (clojure.string/join "," params) "]")))
