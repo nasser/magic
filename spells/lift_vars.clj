@@ -1,7 +1,8 @@
 (ns magic.spells.lift-vars
   (:require [magic.core :as magic]
             [magic.interop :as interop]
-            [mage.core :as il]))
+            [mage.core :as il])
+  (:import [System.Reflection FieldAttributes BindingFlags MethodAttributes]))
 
 (defn var-name [v]
   (.Replace

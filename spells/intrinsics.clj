@@ -118,8 +118,9 @@
    (interop/method Numbers "divide" Double Double)
    (il/div)
    
-   (interop/method Numbers "multiply" Int32 Int32)
-   (il/mul)
+   ;; broken in unity
+   ; (interop/method Numbers "multiply" Int32 Int32)
+   ; (il/mul)
    
    (interop/method Numbers "unchecked_multiply" Double Double)
    (il/mul)
