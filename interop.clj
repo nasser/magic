@@ -23,7 +23,7 @@
   (method type (str "set_" name)))
 
 (defn generic-type [name params]
-  (RT/classForName
+  (clojure.lang.RT/classForName
     (str name "`"
          (count params)
          "[" (clojure.string/join "," params) "]")))
