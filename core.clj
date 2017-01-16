@@ -722,7 +722,7 @@
                                                                ast)))))))
 (defn symbolize
   "Generate symbolic bytecode for AST node"
-  ([ast] (symbolize ast (or *initial-symbolizers* base-symbolizers)))
+  ([ast] (symbolize ast (or @#'*initial-symbolizers* base-symbolizers)))
   ([ast symbolizers]
    (if-let [symbolizer (ast->symbolizer ast symbolizers)]
      (symbolizer ast symbolizers))))

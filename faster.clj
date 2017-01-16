@@ -3,7 +3,8 @@
             [clojure.tools.analyzer.clr.types :refer [clr-type best-match]]
             [magic.core :as magic]
             [mage.core :as il])
-  (:import [System.Reflection
+  (:import [clojure.lang RT]
+           [System.Reflection
             TypeAttributes
             MethodAttributes
             FieldAttributes
@@ -82,7 +83,7 @@
         body-ast (ana/analyze wrapped-body)
         body-expr (-> body-ast :methods first :body)
         static-arg-symbolizers
-        (assoc (or magic/*initial-symbolizers* magic/base-symbolizers) ;; TODO this should be in core
+        (assoc (or @#'magic/*initial-symbolizers* magic/base-symbolizers) ;; TODO this should be in core
           :local
           (fn [{:keys [name arg-id local] :as ast} symbolizers]
             (if (= local :arg)
