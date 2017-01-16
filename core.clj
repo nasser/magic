@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
             [clojure.tools.analyzer.clr :as ana]
+            [clojure.tools.analyzer.clr.util :refer [var-interfaces]]
             [clojure.tools.analyzer.clr.types :refer [clr-type non-void-clr-type best-match]]
             [magic.interop :as interop]
             [clojure.string :as string])
@@ -543,7 +544,7 @@
 (defn invoke-symbolizer
   [{:keys [fn args] :as ast} symbolizers]
   (let [arg-types (map clr-type args)
-        target-interfaces (-> fn :var deref type .GetInterfaces)
+        target-interfaces (var-interfaces fn)
         exact-match (->> target-interfaces
                          (filter #(= (drop 1 (.GetGenericArguments %))
                                      arg-types))
