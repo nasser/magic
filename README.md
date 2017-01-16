@@ -2,7 +2,7 @@ MAGIC
 =====
 Morgan And Grand Iron Clojure
 
-A functional Clojure compiler for Clojure and the start of a standalone Clojure implementation for the CLr.
+A functional Clojure compiler for Clojure and the start of a standalone Clojure implementation for the CLR.
 
 Status
 ------
