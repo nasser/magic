@@ -58,24 +58,26 @@ Every symbolizer is passed such a map, and is expected it pass it down when recu
 
 `do` expressions analyze to hash maps containing `:statements` and `:ret` keys referring to all expressions except the last, and the last expression respectively. The `do` symbolizer recursively symbolizes all of these expression, passing its `symbolizers` argument to them.
 
-Early versions of MAGIC used a multi method in place of this symbolizer map, but the map has several advantages. Emission can be controlled from the top level by passing in a different map. For example, symbolizers can be replaces (this API does not exist yet):
+Early versions of MAGIC used a multi method in place of this symbolizer map, but the map has several advantages. Emission can be controlled from the top level by passing in a different map. For example, symbolizers can be replaced:
 
 ```clojure
-(magic/compile '(fn [a] (map inc a))
-               (merge magic/base-symbolizers
-                  :let #'my-namespace/other-let-symbolizer))
+(binding [magic/*initial-symbolizers*
+          (merge magic/base-symbolizers
+                :let #'my-namespace/other-let-symbolizer)]
+(magic/compile-fn '(fn [a] (map inc a))))
 ```
 
 or updated
 
 ```clojure
-(let [old-let-symbolizer (:let magic/base-symbolizers)
-      new-symbolizers (merge magic/base-symbolizers
-                             :let (fn [ast symbolizers]
-                                    (if-not (condition? ast)
-                                      (old-let-symbolizer ast symbolizers)
-                                      (my-namespace/other-let-symbolizer ast symbolizers))))]
-  (magic/compile '(fn [a] (map inc a)) new-symbolizers))
+(binding [magic/*initial-symbolizers*
+          (update magic/base-symbolizers
+                :let (fn [old-let-symbolizer]
+                       (fn [ast symbolizers]
+                         (if-not (condition? ast)
+                           (old-let-symbolizer ast symbolizers)
+                           (my-namespace/other-let-symbolizer ast symbolizers)))))]
+(magic/compile-fn '(fn [a] (map inc a))))
 ```
 
 Additionally, symbolizers can change this map *before they pass it to their children* if they need to. This can be used to tersely implement optimizations, and some Clojure semantics depend on it. `magic.core/let-symbolizer` implements symbol binding using this mechanism.
