@@ -17,6 +17,9 @@
    (interop/method RT "uncheckedIntCast" Single)
    (il/conv-i4)
    
+   (interop/method RT "floatCast" Int64)
+   (il/conv-r4)
+   
    (interop/method RT "longCast" Int64)
    []
    
