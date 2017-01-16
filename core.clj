@@ -3,7 +3,7 @@
   (:require [mage.core :as il]
             [clojure.tools.analyzer.clr :as ana]
             [clojure.tools.analyzer.clr.util :refer [var-interfaces]]
-            [clojure.tools.analyzer.clr.types :refer [clr-type non-void-clr-type best-match]]
+            [clojure.tools.analyzer.clr.types :as types :refer [clr-type non-void-clr-type best-match]]
             [magic.interop :as interop]
             [clojure.string :as string])
   (:import [clojure.lang Var RT IFn Keyword]
@@ -514,21 +514,33 @@
 
 (defn if-symbolizer
   [{:keys [test then else] :as ast} symbolizers]
+  
   (let [if-expr-type (clr-type ast)
         then-label (il/label)
-        end-label (il/label)]
-    [(symbolize test symbolizers)
-     (convert (clr-type test) Boolean)
-     (il/brtrue then-label)
-     (symbolize else symbolizers)
-     (when-not (= :recur (:op else))
-       (convert (clr-type else) if-expr-type))
-     (il/br end-label)
-     then-label
-     (symbolize then symbolizers)
-     (when-not (= :recur (:op then))
-       (convert (clr-type then) if-expr-type))
-     end-label]))
+        ; then-branch
+        ; [(symbolize then symbolizers)
+        ;  (when-not (= :recur (:op then))
+        ;    (convert (clr-type then) if-expr-type))]
+        end-label (il/label)
+        ; else-branch
+        ; [(symbolize else symbolizers)
+        ;  (when-not (= :recur (:op else))
+        ;    (convert (clr-type else) if-expr-type))]
+        ]
+    (cond (types/always-then? ast) (symbolize then symbolizers)
+          (types/always-else? ast) (symbolize else symbolizers)
+          :else [(symbolize test symbolizers)
+                 (convert (clr-type test) Boolean)
+                 (il/brtrue then-label)
+                 [(symbolize else symbolizers)
+                  (when-not (= :recur (:op else))
+                    (convert (clr-type else) if-expr-type))]
+                 (il/br end-label)
+                 then-label
+                 [(symbolize then symbolizers)
+                  (when-not (= :recur (:op then))
+                    (convert (clr-type then) if-expr-type))]
+                 end-label])))
 
 (defn binding-symbolizer
   [{:keys [init] :as ast} symbolizers]
