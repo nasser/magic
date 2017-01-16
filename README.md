@@ -1,6 +1,8 @@
 MAGIC
 =====
-Functional compiler for Clojure on the CLR
+Morgan And Grand Iron Clojure
+
+A functional Clojure compiler for Clojure and the start of a standalone Clojure implementation for the CLr.
 
 Status
 ------
@@ -15,7 +17,7 @@ MAGIC is a compiler for Clojure written in Clojure targeting the Common Language
 
 Strategy
 --------
-MAGIC consumes AST nodes from the [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr). It turns those AST nodes into [MAGE](https://github.com/nasser/mage) byte code to be compiled into executable MSIL. By using the existing ClojureCLR reader and `clojure.tools.analyzer`, we avoid rewriting most of what is already a high performance, high quality code. By using MAGE byte code, we are granted the full power of Clojure to reason about generating byte code from Clojure forms.
+MAGIC consumes AST nodes from [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr). It turns those AST nodes into [MAGE](https://github.com/nasser/mage) byte code to be compiled into executable MSIL. By using the existing ClojureCLR reader and building on [`clojure.tools.analyzer`](https://github.com/clojure/tools.analyzer), we avoid rewriting most of what is already a high performance, high quality code. By using MAGE, we are granted the full power of Clojure to reason about generating byte code without withholding any functionality of the CLR.
 
 ### Symbolizers
 Clojure forms are turned into MAGE byte code using *symbolizers*. A symbolizer is a function that transforms a single AST node into MAGE byte code. For example, a static property like [`DateTime/Now`](https://msdn.microsoft.com/en-us/library/system.datetime.now(v=vs.110).aspx) would be analyzed by [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr) into a hash map with a `:property` containing the correct [`PropertyInfo`](https://msdn.microsoft.com/en-us/library/system.reflection.propertyinfo(v=vs.110).aspx) object. The symbolizer looks like this:
@@ -84,11 +86,11 @@ During the development of [Arcadia](https://github.com/arcadia-unity/Arcadia), i
 
 Name
 ----
-MAGIC stands for Morgan And Grand IL Compiler. It is named after the [Morgan Avenue and Grand Street intersection](https://www.google.com/maps/place/Grand+St+%26+Morgan+Ave,+Brooklyn,+NY+11237/@40.7133714,-73.9348001,17z/data=!3m1!4b1!4m2!3m1!1s0x89c25eab5ea3b021:0x77aaab63f0e3d135) in Brooklyn, the location of the [Kitchen Table Coders](http://kitchentablecoders.com/) studio where the library was developed.
+MAGIC stands for "Morgan And Grand Iron Clojure" (originally "Morgan And Grand IL Compiler"). It is named after the [Morgan Avenue and Grand Street intersection](https://www.google.com/maps/place/Grand+St+%26+Morgan+Ave,+Brooklyn,+NY+11237/@40.7133714,-73.9348001,17z/data=!3m1!4b1!4m2!3m1!1s0x89c25eab5ea3b021:0x77aaab63f0e3d135) in Brooklyn, the location of the [Kitchen Table Coders](http://kitchentablecoders.com/) studio where the library was developed. "Iron" is the prefix used for dynamic languages ported to the CLR (e.g. [IronPython](https://en.wikipedia.org/wiki/IronPython), [IronRuby](https://en.wikipedia.org/wiki/IronRuby)).
 
 Legal
 -----
-Copyright © 2015-2016 Ramsey Nasser
+Copyright © 2015-2017 Ramsey Nasser and contributers
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
 
