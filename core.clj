@@ -720,17 +720,25 @@
   [ast symbolizers]
   (or (-> ast :op symbolizers)
       (throw (Exception. (str "No symbolizer for " (pr-str (or  (:op ast)
-                                                               ast)))))))
+                                                                ast)))))))
+
+(defn get-symbolizers []
+  ;; (merge base-symbolizers *initial-symbolizers*) might be better
+  (or *initial-symbolizers* base-symbolizers))
+
 (defn symbolize
   "Generate symbolic bytecode for AST node"
-  ([ast] (symbolize ast (or @#'*initial-symbolizers* base-symbolizers)))
+  ([ast]
+   (symbolize ast (get-symbolizers)))
   ([ast symbolizers]
    (if-let [symbolizer (ast->symbolizer ast symbolizers)]
      (symbolizer ast symbolizers))))
 
 (defn compile-fn
   "Compile fn form using base-symbolizers, emit binary to current directory, return fn"
-  ([expr] (compile-fn expr base-symbolizers "magic.compile"))
+  ([expr] (compile-fn expr
+            (get-symbolizers)
+            "magic.compile"))
   ([expr symbolizers] (compile-fn expr symbolizers "magic.compile"))
   ([expr symbolizers asm-name]
    (->> (-> expr
