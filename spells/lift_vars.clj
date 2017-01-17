@@ -10,18 +10,6 @@
     "."
     "_"))
 
-(defn private-constructor [t]
-  (first (.GetConstructors t (enum-or BindingFlags/NonPublic BindingFlags/Instance))))
-
-(def default-constructor
-  (il/constructor
-    (enum-or MethodAttributes/Public)
-    CallingConventions/Standard
-    []
-    [(il/ldarg-0)
-     (il/call (private-constructor clojure.lang.AFunction))
-     (il/ret)]))
-
 (def field-attrs
   (enum-or FieldAttributes/InitOnly
            FieldAttributes/Private
@@ -61,8 +49,7 @@
                 (-> ast
                     (old-fn-symbolizer specialized-symbolizers)
                     (update ::il/body concat
-                            [default-constructor
-                             (il/constructor
+                            [(il/constructor
                                (enum-or MethodAttributes/Public MethodAttributes/Static)
                                CallingConventions/Standard
                                []

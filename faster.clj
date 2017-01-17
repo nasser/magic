@@ -1,117 +1,68 @@
 (ns magic.faster
   (:require [clojure.tools.analyzer.clr :as ana]
-            [clojure.tools.analyzer.clr.types :refer [clr-type best-match]]
+            [clojure.tools.analyzer.clr.types :refer [clr-type non-void-clr-type]]
             [magic.core :as magic]
             [mage.core :as il])
   (:import [clojure.lang RT]
            [System.Reflection
-            TypeAttributes
-            MethodAttributes
-            FieldAttributes
-            FieldInfo
-            MethodInfo
-            PropertyInfo]))
+            MethodAttributes]))
 
-(defn generic-params [n]
-  (->> (range \A (+ \A n))
-       (map (comp symbol str char))))
+(defn static-type-fn
+  "Symbolize :fn to a simple static type without interfaces,
+  HasArity methods, or constructors"
+  [{:keys [local methods] :as ast} symbolizers]
+  (il/type
+    (magic/gen-fn-name (:form local))
+    (map #(magic/symbolize % symbolizers) methods)))
 
-(defn generic-method [n]
-  (let [params (generic-params n)
-        ret (first params)
-        args (vec (rest params))]
+(defn typed-static-invoke-fn-method
+  "Symbolize :fn-method to a single, well typed static method"
+  [{:keys [body params] {:keys [ret]} :body} symbolizers]
+  (let [param-types (mapv clr-type params)
+        return-type (non-void-clr-type ret)]
     (il/method
       "invoke"
-      (enum-or MethodAttributes/Public
-               MethodAttributes/Abstract
-               MethodAttributes/Virtual)
-      ret args [])))
+      (enum-or MethodAttributes/Public MethodAttributes/Static)
+      return-type param-types
+      [(magic/symbolize body symbolizers)
+       (magic/convert (clr-type ret) return-type)
+       (il/ret)])))
 
-(defn generic-interface [name n]
-  (let [params (generic-params n)
-        ret (first params)
-        args (vec (rest params))]
-    (il/type
-      (str name "`" n)
-      (enum-or TypeAttributes/Interface
-               TypeAttributes/Abstract
-               TypeAttributes/Public)
-      []
-      nil
-      params
-      [(generic-method n)])))
+(defn static-argument-local
+  "Symbolize :local arguments to static arguments"
+  [{:keys [name arg-id local] :as ast} symbolizers]
+  (if (= local :arg)
+    (magic/load-argument arg-id)
+    (magic/throw! "Local " name " not an argument and could not be symbolized")))
 
-(comment
-  
-  ;; 1. helpers
-  ;; emits class with well typed static methods
-  (defstatic Helpers
-    (add [^Int32 a ^Int32 b]
-         (+ a b))
-    (distance [^Vector3 from ^Vector3 to]
-              (Vector3/Distance from to)))
-  
-  ;; usage from magic or clojure
-  (Helpers/add 1 2)
-  
-  
-  ;; 2. magic functions
-  ;; defined var bound to magic function
-  (defmagic foo [^int a ^float b]
-    (Vector3/* (Vector3. a a a) b))
-  
-  ;; usage from clojure cast to IFn and box, usage form magic wont
-  (foo 4 5)
-  
-  
-  ;; 3. faster macro
-  ;; faster macro is usable from normal clojure and will emit good bytecode
-  (defn normal-clojure [a b]
-    (let [pos-a (.. (GameObject/Find a) transform position)
-          pos-b (.. (GameObject/Find b) transform position)]
-      (faster
-        (Vector3/Lerp pos-a pos-b 0.5)))))
-
+;; TODO ::il/type is kind of lame, use ::il/name maybe?
 (defn faster-type [args-names args-types body]
-  (let [name (gensym "Faster")
+  (let [faster-symbolizers
+        (merge magic/base-symbolizers
+               {:fn static-type-fn
+                :fn-method typed-static-invoke-fn-method
+                :local static-argument-local})
+        name (symbol (str "--" (gensym "faster--body") "--"))
         wrapped-body `(clojure.core/fn
+                        ~name
                         ~(->> args-names
                               (map #(vary-meta %2 assoc :tag %1)
                                    args-types)
                               vec)
                         ~body)
-        body-ast (ana/analyze wrapped-body)
-        body-expr (-> body-ast :methods first :body)
-        static-arg-symbolizers
-        (assoc (or @#'magic/*initial-symbolizers* magic/base-symbolizers) ;; TODO this should be in core
-          :local
-          (fn [{:keys [name arg-id local] :as ast} symbolizers]
-            (if (= local :arg)
-              (magic/load-argument arg-id)
-              (magic/throw! "Local " name " not an argument and could not be symbolized"))))
-        body-il (magic/symbolize body-expr static-arg-symbolizers)
-        type-il
-        (il/type
-          (str name)
-          (il/method
-            "Invoke"
-            (enum-or MethodAttributes/Public
-                     MethodAttributes/Static)
-            (clr-type (body-expr :ret))
-            (vec args-types)
-            [body-il
-             (il/ret)]))]
-    (il/emit! type-il)
-    name))
+        body-il (-> wrapped-body
+                    ana/analyze
+                    (magic/symbolize (magic/get-symbolizers faster-symbolizers)))]
+    (il/emit! body-il)
+    (::il/type body-il)))
 
 (defmacro faster [& body]
   (let [ks (keys &env)
         vs (vals &env)
         types (map #(or (if-let [t (-> %1 meta :tag)] (resolve t))
-                        (and (.HasClrType %2)
-                             (.ClrType %2))
+                        (and (.HasClrType %2) (.ClrType %2))
                         Object)
                    ks vs)
-        ftype (faster-type ks types (list* 'do body))]
-     (.importClass *ns* (RT/classForName (str ftype)))
-    `(. ~ftype ~'Invoke ~@ks)))
+        ftype (symbol (faster-type ks types (list* 'do body)))]
+    (.importClass *ns* (RT/classForName (str ftype)))
+    `(. ~ftype ~'invoke ~@ks)))

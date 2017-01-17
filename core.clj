@@ -631,15 +631,27 @@
        (il/ldc-i4-1)
        (il/ret)])))
 
+(defn private-constructor [t]
+  (first (.GetConstructors t (enum-or BindingFlags/NonPublic BindingFlags/Instance))))
+
+(def default-constructor
+  (il/constructor
+    (enum-or MethodAttributes/Public)
+    CallingConventions/Standard
+    []
+    [(il/ldarg-0)
+     (il/call (private-constructor clojure.lang.AFunction))
+     (il/ret)]))
+
+(defn gen-fn-name [n]
+  (str (gensym
+         (str *ns* "$"
+              (or n "magic_fn_")
+              "$"))))
+
 (defn fn-symbolizer
   [{:keys [local methods raw-forms] :as ast} symbolizers]
-  (let [name (str (gensym
-                    (str *ns*
-                         "$"
-                         (or (-> local :form)
-                             "magic_fn_")
-                         "$")))
-        arities (map :fixed-arity methods)
+  (let [arities (map :fixed-arity methods)
         param-types (->> methods
                          (map :params)
                          (mapcat #(vector (map non-void-clr-type %)
@@ -653,11 +665,12 @@
                         param-types
                         return-types)]
     (il/type
-      name
+      (gen-fn-name (:form local))
       TypeAttributes/Public
       interfaces
       clojure.lang.AFunction
-      [(has-arity-method arities)
+      [default-constructor
+       (has-arity-method arities)
        (map #(symbolize % symbolizers) methods)])))
 
 (defn fn-method-symbolizer
@@ -727,7 +740,7 @@
    :new                 #'new-symbolizer
    })
 
-(def ^:dynamic *initial-symbolizers* nil)
+(def ^:dynamic *spells* [])
 
 (defn ast->symbolizer
   "Look up symbolizer for AST node. Throws exception if not found."
@@ -736,9 +749,15 @@
       (throw (Exception. (str "No symbolizer for " (pr-str (or  (:op ast)
                                                                 ast)))))))
 
-(defn get-symbolizers []
-  ;; (merge base-symbolizers *initial-symbolizers*) might be better
-  (or *initial-symbolizers* base-symbolizers))
+;; (merge base-symbolizers *initial-symbolizers*) might be better
+(defn get-symbolizers
+  ([] (get-symbolizers base-symbolizers))
+  ([symbolizers] (get-symbolizers symbolizers *spells*))
+  ([symbolizers spells]
+   (reduce
+     (fn [symbolizers* spell] (spell symbolizers*))
+     symbolizers
+     spells)))
 
 (defn symbolize
   "Generate symbolic bytecode for AST node"
