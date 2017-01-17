@@ -32,7 +32,9 @@
          (interleave
            (->> vars (map :var))
            (->> vars (map :var)
-                (map #(il/field clojure.lang.Var
+                (map #(il/field (if (-> % meta :static)
+                                  Object ; (-> % deref type)
+                                  clojure.lang.Var)
                                 (var-name %)
                                 field-attrs))))))
 
@@ -51,9 +53,11 @@
                       :var
                       (fn lifted-var-symbolizer
                         [{:keys [var] :as ast} symbolizers]
-                        [(il/ldsfld (var-map var))
-                         (magic/get-var var)
-                         (magic/cleanup-stack ast)]))]
+                        (let [{:keys [static]} (meta var)]
+                          [(il/ldsfld (var-map var))
+                           (when-not static
+                             (magic/get-var var))
+                           (magic/cleanup-stack ast)])))]
                 (-> ast
                     (old-fn-symbolizer specialized-symbolizers)
                     (update ::il/body concat
@@ -63,6 +67,8 @@
                                CallingConventions/Standard
                                []
                                [(interleave
-                                  (->> vars (map :var) (map magic.core/load-var))
+                                  (->> vars (map :var) (map magic/load-var))
+                                  (->> vars (map :var) (map #(if (-> % meta :static)
+                                                               (magic/get-var %))))
                                   (->> vars (map :var) (map #(il/stsfld (var-map %)))))
                                 (il/ret)])])))))))
