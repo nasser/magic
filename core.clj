@@ -634,7 +634,9 @@
 (defn fn-symbolizer
   [{:keys [local methods raw-forms] :as ast} symbolizers]
   (let [name (str (gensym
-                    (str (or (-> local :form)
+                    (str *ns*
+                         "$"
+                         (or (-> local :form)
                              "magic_fn_")
                          "$")))
         arities (map :fixed-arity methods)
@@ -773,6 +775,6 @@
       ))
 
 (defmacro define [name args & body]
-  (let [form (list* 'fn args body)]
+  (let [form (list* 'fn name args body)]
     `(def ~name
        ~(compile-fn form))))
