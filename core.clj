@@ -651,8 +651,9 @@
 
 (defn gen-fn-name [n]
   (str (gensym
-         (str *ns* "$"
-              (or n "magic_fn_")
+         (str "magic$"
+              *ns* "$"
+              (or n "--anonymous--")
               "$"))))
 
 (defn fn-symbolizer
