@@ -576,7 +576,9 @@
         (interleave
           (map #(symbolize % symbolizers) args)
           (map #(convert (clr-type %) Object) args))
-        (il/callvirt (apply interop/method IFn "invoke" (repeat (count args) Object)))])]))
+        (il/callvirt (apply interop/method IFn "invoke" (repeat (count args) Object)))
+        (when fn-tag
+          (convert Object fn-tag))])]))
 
 (defn var-symbolizer
   [{:keys [var] :as ast} symbolizers]
@@ -678,10 +680,12 @@
        (map #(symbolize % symbolizers) methods)])))
 
 (defn fn-method-symbolizer
-  [{:keys [body params] {:keys [ret statements]} :body} symbolizers]
-  (let [param-types (mapv clr-type params)
+  [{:keys [body params form] {:keys [ret statements]} :body} symbolizers]
+  (let [param-hint (-> form first tag)
+        param-types (mapv clr-type params)
         obj-params (mapv (constantly Object) params)
-        return-type (non-void-clr-type ret)
+        return-type (or param-hint
+                        (non-void-clr-type ret))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         unhinted-method
         (il/method
