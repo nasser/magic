@@ -219,8 +219,9 @@
 (defn cleanup-stack
   "il/pop if in a non-void statement context.
   Required to keep the stack balanced."
-  [ast]
-  (if (and (statement? ast)
+  [{:keys [op] :as ast}]
+  (if (and (not= :if op) ;; if cleans up its own stack
+           (statement? ast)
            (not= System.Void (clr-type ast)))
     (il/pop)))
 
@@ -514,31 +515,27 @@
 
 (defn if-symbolizer
   [{:keys [test then else] :as ast} symbolizers]
-  
   (let [if-expr-type (clr-type ast)
         then-label (il/label)
-        ; then-branch
-        ; [(symbolize then symbolizers)
-        ;  (when-not (= :recur (:op then))
-        ;    (convert (clr-type then) if-expr-type))]
-        end-label (il/label)
-        ; else-branch
-        ; [(symbolize else symbolizers)
-        ;  (when-not (= :recur (:op else))
-        ;    (convert (clr-type else) if-expr-type))]
-        ]
+        end-label (il/label)]
     (cond (types/always-then? ast) (symbolize then symbolizers)
           (types/always-else? ast) (symbolize else symbolizers)
           :else [(symbolize test symbolizers)
                  (convert (clr-type test) Boolean)
                  (il/brtrue then-label)
                  [(symbolize else symbolizers)
-                  (when-not (= :recur (:op else))
+                  (cond
+                    (statement? ast) 
+                    (cleanup-stack else)
+                    (not= :recur (:op else))
                     (convert (clr-type else) if-expr-type))]
                  (il/br end-label)
                  then-label
                  [(symbolize then symbolizers)
-                  (when-not (= :recur (:op then))
+                  (cond
+                    (statement? ast) 
+                    (cleanup-stack then)
+                    (not= :recur (:op then))
                     (convert (clr-type then) if-expr-type))]
                  end-label])))
 
