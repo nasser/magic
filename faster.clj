@@ -1,6 +1,6 @@
 (ns magic.faster
   (:require [clojure.tools.analyzer.clr :as ana]
-            [clojure.tools.analyzer.clr.types :refer [clr-type non-void-clr-type]]
+            [clojure.tools.analyzer.clr.types :refer [clr-type non-void-clr-type tag]]
             [magic.core :as magic]
             [mage.core :as il])
   (:import [clojure.lang RT]
@@ -59,7 +59,7 @@
 (defmacro faster [& body]
   (let [ks (keys &env)
         vs (vals &env)
-        types (map #(or (if-let [t (-> %1 meta :tag)] (resolve t))
+        types (map #(or (tag %1)
                         (and (.HasClrType %2) (.ClrType %2))
                         Object)
                    ks vs)
