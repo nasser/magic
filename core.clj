@@ -3,7 +3,7 @@
   (:require [mage.core :as il]
             [clojure.tools.analyzer.clr :as ana]
             [clojure.tools.analyzer.clr.util :refer [var-interfaces]]
-            [clojure.tools.analyzer.clr.types :as types :refer [clr-type non-void-clr-type best-match]]
+            [clojure.tools.analyzer.clr.types :as types :refer [tag clr-type non-void-clr-type best-match]]
             [magic.interop :as interop]
             [clojure.string :as string])
   (:import [clojure.lang Var RT IFn Keyword]
