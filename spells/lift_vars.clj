@@ -6,9 +6,9 @@
 
 (defn var-name [v]
   (.Replace
-    (str (.Namespace v) "_" (.Symbol v))
+    (str (.Namespace v) "/" (.Symbol v))
     "."
-    "_"))
+    "$"))
 
 (def field-attrs
   (enum-or FieldAttributes/InitOnly
