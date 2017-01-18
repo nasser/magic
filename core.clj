@@ -157,12 +157,12 @@
     (throw (Exception. (str "Cannot convert void to value type " to)))
 
     ;; use user defined implicit conversion if it exists
-    (interop/method from "op_Implicit" to)
-    (il/call (interop/method from "op_Implicit" to))
+    (interop/method to "op_Implicit" from)
+    (il/call (interop/method to "op_Implicit" from))
 
     ;; use user defined explicit conversion if it exists
-    (interop/method from "op_Explicit" to)
-    (il/call (interop/method from "op_Explicit" to))
+    (interop/method to "op_Explicit" from)
+    (il/call (interop/method to "op_Explicit" from))
 
     ;; use intrinsic conv opcodes from primitive to primitive
     (and (.IsPrimitive from) (.IsPrimitive to))
