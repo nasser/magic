@@ -555,8 +555,13 @@
 
 (defn invoke-symbolizer
   [{:keys [fn args] :as ast} symbolizers]
-  (let [arg-types (map clr-type args)
-        target-interfaces (var-interfaces fn)
+  (let [fn-tag (-> fn :var tag)
+        arg-types (map clr-type args)
+        ;; TODO magic's Function interfaces should be in their own namespace
+        ;; e.g. Magic.Function. Check for that instead of nil? here 
+        target-interfaces (->> fn
+                               var-interfaces
+                               (filter #(nil? (.Namespace %)))) 
         exact-match (->> target-interfaces
                          (filter #(= (drop 1 (.GetGenericArguments %))
                                      arg-types))
