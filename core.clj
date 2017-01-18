@@ -478,9 +478,11 @@
         (merge symbolizers
                {:local
                 (fn let-local-symbolizer
-                  [{:keys [name] {:keys [locals]} :env :as ast} syms]
+                  [{:keys [name by-ref?] {:keys [locals]} :env :as ast} syms]
                   (if-let [loc (-> name binding-map)]
-                    (il/ldloc loc)
+                    (if by-ref?
+                      (il/ldloca loc)
+                      (il/ldloc loc))
                     (symbolize ast symbolizers)))}
                (when loop-id
                  {:recur
