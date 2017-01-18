@@ -109,36 +109,53 @@
    (compare-and-return Int64 (il/cgt))
    
    ;; TODO why does this work? copied from C# disasm
-   (interop/method clojure.lang.Numbers "shiftLeft" Int64 Int32)
+   (interop/method Numbers "shiftLeft" Int64 Int32)
    [(il/ldc-i4-s (byte 63)) 
     (il/and)
     (il/shl)]
     
-   (interop/method clojure.lang.Numbers "shiftLeft" Int64 Int64)
+   (interop/method Numbers "shiftLeft" Int64 Int64)
    [(il/conv-i4)
     (il/ldc-i4-s (byte 63)) 
     (il/and)
     (il/shl)]
     
-   (interop/method clojure.lang.Numbers "shiftRight" Int64 Int32)
+   (interop/method Numbers "shiftRight" Int64 Int32)
    [(il/ldc-i4-s (byte 63)) 
     (il/and)
     (il/shr)]
     
-   (interop/method clojure.lang.Numbers "shiftRight" Int64 Int64)
+   (interop/method Numbers "shiftRight" Int64 Int64)
    [(il/conv-i4)
     (il/ldc-i4-s (byte 63)) 
     (il/and)
     (il/shr)]
     
-   (interop/method clojure.lang.Numbers "isZero" Int64)
+   (interop/method Numbers "isZero" Int64)
    [(il/ldc-i8 0) 
     (il/ceq)]
     
-   (interop/method clojure.lang.Numbers "isZero" Double)
+   (interop/method Numbers "isZero" Double)
    [(il/ldc-r8 0.0)
     (il/ceq)]
+   
+   (interop/method Numbers "and" Int64 Int64)
+   (il/and)
     
+    ;;;
+    
+   (interop/method Numbers "unchecked_minus" Int64 Double)
+   (pop-convert Double (il/sub))
+   
+   (interop/method Numbers "unchecked_minus" Double Int64)
+   [(il/conv-r8) (il/sub)]
+   
+   (interop/method Numbers "divide" Double Int64)
+   [(il/conv-r8) (il/div)]
+   
+   (interop/method Numbers "divide" Int64 Double)
+   (pop-convert Double (il/div))
+   
    (interop/method RT "uncheckedIntCast" Double)
    (il/conv-i4)
    
@@ -147,6 +164,12 @@
    
    (interop/method RT "uncheckedFloatCast" Int64)
    (il/conv-r4)
+   
+   (interop/method RT "uncheckedFloatCast" Double)
+   (il/conv-r4)
+   
+   (interop/method RT "uncheckedFloatCast" Single)
+   nil
    
    (interop/method RT "uncheckedIntCast" Single)
    (il/conv-i4)
@@ -204,10 +227,10 @@
    
    (interop/method Numbers "add" Double Int64)
    [(il/conv-r8)
-    (il/add-ovf)]
+    (il/add)]
    
    (interop/method Numbers "add" Double Double)
-   (il/add-ovf)
+   (il/add)
    
    (interop/method Numbers "unchecked_add" Double Double)
    (il/add)
@@ -252,7 +275,6 @@
 
 (defn intrinsics [symbolizers]
   (update symbolizers
-          
           :static-method
           (fn [old-static-method-symbolizer]
             (fn intrinsic-static-method-symbolizer
