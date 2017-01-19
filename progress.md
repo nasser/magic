@@ -229,4 +229,46 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td> ✔ </td>
   <td>   </td>
 </tr>
+<tr>
+  <td><code>:reify</code></td>
+  <td><code>(reify IInterface (foo [a b] ...)) </code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:deftype</code></td>
+  <td><code>(deftype Foo [a b] IInterface (Bar [this x] ...))</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:proxy</code></td>
+  <td><code>(proxy [Type IInterface] [a b] (Foo [ this x] a ...))</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:case</code></td>
+  <td><code>(case foo 1 :one 2 :two)</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:import</code></td>
+  <td><code>(import Type [Namespace Type])</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:monitor-enter</code></td>
+  <td><code>(monitor-enter lock)</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:monitor-exit</code></td>
+  <td><code>(monitor-exit lock)</code></td>
+  <td>   </td>
+  <td>   </td>
+</tr>
 </table>
