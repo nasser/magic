@@ -8,19 +8,19 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:static-method</code></td>
   <td><code>(Foo/Bar a b c)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:instance-method</code></td>
   <td><code>(.Bar foo a b c)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:static-field</code></td>
   <td><code>Foo/Baz</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
@@ -28,13 +28,13 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>(.baz foo)</code> &nbsp;
       <code>(.-baz foo)</code>
   </td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:static-property</code></td>
   <td><code>Foo/Qux</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
@@ -42,13 +42,26 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>(.qux foo)</code> &nbsp;
       <code>(.-qux foo)</code>
   </td>
+  <td> ✔ </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:dynamic-method</code></td>
+  <td><code>(.quz x a b c)</code>
+  </td>
   <td>   </td>
   <td>   </td>
 </tr>
 <tr>
-  <td><code>:runtime-dispatch-call</code></td>
-  <td><code>(.quz x a b c)</code> &nbsp;
-      <code>(.quz x)</code>
+  <td><code>:dynamic-zero-arity</code></td>
+  <td><code>(.quz x)</code>
+  </td>
+  <td>   </td>
+  <td>   </td>
+</tr>
+<tr>
+  <td><code>:dynamic-field</code></td>
+  <td><code>(.-quz x)</code>
   </td>
   <td>   </td>
   <td>   </td>
@@ -64,49 +77,49 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>7</code> &nbsp;
       <code>"7"</code>
   </td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:vector</code></td>
   <td><code>[1 2 3]</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:map</code></td>
   <td><code>{:foo "bar"}</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:set</code></td>
   <td><code>#{1 2 3 4}</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:local</code></td>
   <td><code>(let [a 5] <strong>a</strong>)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:var</code></td>
   <td><code>(<strong>str</strong> 5)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:do</code></td>
   <td><code>(do a b c)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:if</code></td>
   <td><code>(if true then else)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
@@ -115,7 +128,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
       <code>(Type. 1 2)</code> &nbsp;
       <code>(ValueType. 1 2)</code>
   </td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
@@ -123,7 +136,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>(ValueType.)</code> &nbsp;
       <code>(new ValueType)</code>
   </td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
@@ -135,7 +148,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:set!</code></td>
   <td><code>(set! (.foo bar) 5)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
@@ -165,37 +178,37 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:let</code></td>
   <td><code>(let [a 5] a)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:loop</code></td>
   <td><code>(loop [a 1] (recur (inc a)))</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:recur</code></td>
   <td><code>(loop [a 1] <strong>(recur (inc a)</strong>))</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:binding</code></td>
-  <td><code> </code></td>
-  <td>   </td>
+  <td><code>(let [a <strong>5</strong>] a)</code></td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:fn</code></td>
   <td><code>(fn [x] x)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:fn-method</code></td>
   <td><code>(fn ([x] x))</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
@@ -207,13 +220,13 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
 <tr>
   <td><code>:invoke</code></td>
   <td><code>(str 1 2)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 <tr>
   <td><code>:the-var</code></td>
   <td><code>(var clojure.core/str)</code></td>
-  <td>   </td>
+  <td> ✔ </td>
   <td>   </td>
 </tr>
 </table>
