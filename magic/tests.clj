@@ -1,54 +1,39 @@
 (ns magic.tests
+  (:refer-clojure :exclude [methods])
   (:import Activator IFn)
-  (:require [mage.core :as il] :reload)
-  (:use magic.core :reload)
+  (:require [mage.core :as il])
+  (:use magic.core)
   (:use clojure.pprint
         clojure.test))
 
-(compile-fn '(fn [a] (:foo a)))
+;; test gen
+(defn types [asm]
+  (->> asm
+       assembly-load
+       (.GetTypes)))
 
-(->> (analyze '(fn [a] (fn [b] (+ a b))))
-     data-map
-     :_methods
-     last
-     data-map
-     :_body
-     data-map
-     :LastExpr
-     data-map
-     :_methods
-     last
-     data-map
-     )
+(defn methods [asm flags]
+  (->> asm
+       types
+       (mapcat #(.GetMethods % flags))))
 
-(macroexpand
-  '(dotimes [_ 100] (println _)))
+(defn properties [asm]
+  (->> asm
+       types
+       (mapcat #(.GetProperties %))))
 
-(use 'clojure.pprint)
-(compile-fn
-  '(fn []))
+(defn fields [asm]
+  (->> asm
+       types
+       (mapcat #(.GetFields %))))
 
-(il/emit!
-  (symbolize-raw
-    (il/type 
-      "Switch"
-      [(il/method
-         "DoSwitch"
-         Object [UInt32]
-         [
-          (let [strs ["hello" "world" "mage" "is" "here" "my" "friends"]
-                labels (repeatedly (count strs) il/label)]
-            [(load-argument 1)
-             
-             (il/switch labels)
-             (load-constant "failed")
-             (il/ret)
-             (interleave
-               labels
-               (map #(vector (load-constant %) (il/ret)) strs))]
-            
-            )]
-         )])))
+(defn static-method-expr [method]
+  (let [type (.DeclaringType method)
+        name (.Name method)]
+    (list 
+      (symbol (str type "/" name))
+      )
+    ))
 
 ;; this will change when the magic api settles down
 (defn symbolize-raw [bytecode]
@@ -84,12 +69,8 @@
 (defn magic-compile [expr]
   (compile-fn (list 'fn '[] expr)))
 
-
-
 (defn magic-eval [expr]
-  (let [^Type fn-type (magic-compile expr)
-        ^IFn fn-instance (Activator/CreateInstance fn-type)]
-    (.invoke fn-instance)))
+  (.invoke (magic-compile expr)))
 
 (defmacro test-same [name expr]
   `(deftest ~name
@@ -120,6 +101,7 @@
 (test-same huge-ratios 999999999999999999999999999999999999/99999999999999999999999999999999999)
 (test-same bigints-1 1N)
 (test-same bigints-2 999999999999999999999999999999999999N)
+
 
 ;; chars
 (test-same chars \f)
@@ -226,6 +208,8 @@
 
 (test-same let-vector-destructure (let [[a b c] [1 2 3]] (+ a b c)))
 (test-same let-map-destructure (let [{:keys [a b c]} {:a 1 :b 2 :c 3}] (+ a b c)))
+
+(run-tests)
 
 (comment
   (binding [*compile-path* "."]

@@ -32,7 +32,7 @@
   "Symbolize :local arguments to static arguments"
   [{:keys [name arg-id local] :as ast} symbolizers]
   (if (= local :arg)
-    (magic/load-argument arg-id)
+    (magic/load-argument ast)
     (magic/throw! "Local " name " not an argument and could not be symbolized")))
 
 ;; TODO ::il/type is kind of lame, use ::il/name maybe?

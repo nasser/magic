@@ -1,6 +1,5 @@
 (ns magic.interfaces
-  (:require [clojure.tools.analyzer.clr :as ana]
-            [mage.core :as il])
+  (:require [mage.core :as il])
   (:import [System.Reflection
             TypeAttributes
             MethodAttributes

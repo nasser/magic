@@ -10,6 +10,8 @@
            [System.IO FileInfo Path]
            [System.Reflection.Emit OpCodes]
            [System.Reflection
+            CallingConventions
+            BindingFlags
             TypeAttributes
             MethodAttributes
             FieldAttributes
@@ -21,14 +23,18 @@
 (defmacro throw! [& e]
   `(throw (Exception. (str ~@e))))
 
-(defn load-argument [i]
-  (cond
-    (= i 0) (il/ldarg-0)
-    (= i 1) (il/ldarg-1)
-    (= i 2) (il/ldarg-2)
-    (= i 3) (il/ldarg-3)
-    (< i 16) (il/ldarg-s i) ;; TODO what is the cutoff?
-    :else (il/ldarg-s i)))
+(defn load-argument [{:keys [arg-id by-ref?]}]
+  (if by-ref?
+    (cond
+      (< arg-id 16) (il/ldarga-s arg-id)
+      :else (il/ldarga arg-id))
+    (cond
+      (= arg-id 0) (il/ldarg-0)
+      (= arg-id 1) (il/ldarg-1)
+      (= arg-id 2) (il/ldarg-2)
+      (= arg-id 3) (il/ldarg-3)
+      (< arg-id 16) (il/ldarg-s arg-id) ;; TODO what is the cutoff?
+      :else (il/ldarg arg-id))))
 
 (defmulti load-constant type)
 
@@ -103,19 +109,22 @@
    UInt32 (il/conv-u4)
    UInt64 (il/conv-u8)})
 
+(def ^:static TRUE true)
+(def ^:static FALSE false)
+
 (defn convert [from to]
   (cond
     (nil? from)
     nil
-
+    
     ;; do nothing if the types are the same
     (= from to)
     nil
-
+    
     ;; cannot convert nil to value type
     (and (nil? from) (.IsValueType to))
     (throw (Exception. (str "Cannot convert nil to value type " to)))
-
+    
     ;; TODO truthiness
     (and (.IsValueType from)
          (= to Boolean))
@@ -147,31 +156,41 @@
     [(il/ldnull)
      (il/ceq)]
     
-
+    (and (= from Boolean)
+         (= to Object))
+    (let [istrue (il/label)
+          end (il/label)]
+      [(il/brtrue istrue)
+       (il/ldsfld (interop/field Magic.Constants "False"))
+       (il/br end)
+       istrue
+       (il/ldsfld (interop/field Magic.Constants "True"))
+       end])
+    
     ;; convert void to nil
     ;; TODO is this a terrible idea?
     (and (= System.Void from) (not (.IsValueType to)))
     (il/ldnull)
-
+    
     (and (= System.Void from) (.IsValueType to))
     (throw (Exception. (str "Cannot convert void to value type " to)))
-
+    
     ;; use user defined implicit conversion if it exists
     (interop/method to "op_Implicit" from)
     (il/call (interop/method to "op_Implicit" from))
-
+    
     ;; use user defined explicit conversion if it exists
     (interop/method to "op_Explicit" from)
     (il/call (interop/method to "op_Explicit" from))
-
+    
     ;; use intrinsic conv opcodes from primitive to primitive
     (and (.IsPrimitive from) (.IsPrimitive to))
     (intrinsic-conv to)
-
+    
     ;; box valuetypes to objects
     (and (.IsValueType from) (= to Object))
     (il/box from)
-
+    
     ;; RT casts
     (and (= from Object) (= to Single))
     (il/call (interop/method RT "floatCast" from))
@@ -181,7 +200,7 @@
     (il/call (interop/method RT "intCast" from))
     (and (= from Object) (= to Int64))
     (il/call (interop/method RT "longCast" from))
-
+    
     ;; unbox objects to valuetypes
     (and (= from Object) (.IsValueType to))
     #_
@@ -201,15 +220,15 @@
        (il/throw)
        end])
     (il/unbox-any to)
-
+    
     ;; castclass if to is a subclass of from
     (.IsSubclassOf to from)
     (il/castclass to)
-
+    
     ;; do nothing if converting to super class
     (.IsSubclassOf from to)
     nil
-
+    
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
 
@@ -546,10 +565,9 @@
   (symbolize init symbolizers))
 
 (defn local-symbolizer
-  [{:keys [name arg-id local] :as ast} symbolizers]
+  [{:keys [name local] :as ast} symbolizers]
   (if (= local :arg)
-    ;; TODO only inc arg-id in instance methods, how do we know?
-    (load-argument (inc arg-id))
+    (load-argument (update ast :arg-id inc))
     (throw! "Local " name " not an argument and could not be symbolized")))
 
 (defn invoke-symbolizer
@@ -711,7 +729,7 @@
           Object obj-params
           [(il/ldarg-0)
            (interleave
-             (map (comp load-argument inc) (range))
+             (map (comp il/ldarg inc) (range))
              (map #(convert Object %) param-types))
            (il/callvirt hinted-method)
            (convert return-type Object)
