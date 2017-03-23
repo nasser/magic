@@ -7,7 +7,8 @@
     [clojure.tools.analyzer.clr :as clr]
     [clojure.tools.analyzer.clr.types :refer [clr-type]]
     [magic.core :as magic] :reload
-    ))
+    )
+  (:import [System.Reflection Assembly]))
 
 (in-ns 'clojure.test.check.generators)
 
@@ -23,7 +24,7 @@
             (fn [roses]
               (gen-pure (rose/zip core/list roses)))))
 
-(in-ns 'test)
+(in-ns 'magic.tests-generative)
 
 (def mscorlib (Assembly/Load "mscorlib"))
 
