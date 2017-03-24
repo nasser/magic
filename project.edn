@@ -1,0 +1,8 @@
+{:name "MAGIC Compiler"
+ :description "Morgan And Grand Iron Clojure Compiler"
+ :author "Ramsey Nasser"
+ :references ["references/Constants.dll"
+              "references/Interfaces.dll"]
+ :dependencies [[:github nasser/mage "master"]
+                [:github nasser/test.check "master"]
+                [:maven org.clojure/tools.analyzer "0.6.9"]]}
