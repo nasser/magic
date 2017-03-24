@@ -245,7 +245,8 @@
   "il/pop if in a non-void statement context.
   Required to keep the stack balanced."
   [{:keys [op] :as ast}]
-  (if (and (not= :if op) ;; if cleans up its own stack
+  (if (and (not= :if op)    ;; if cleans up its own stack
+           (not= :set! op)  ;; set! cleans up its own stack
            (statement? ast)
            (not= System.Void (clr-type ast)))
     (il/pop)))
@@ -609,51 +610,59 @@
   [(load-var var)
    (get-var var)])
 
+
 (defn set!-symbolizer
-  [{:keys [target val] {:keys [context]} :env :as ast} symbolizers]
+  [{:keys [target val] :as ast} symbolizers]
   (let [target-op (:op target)
         target' (-> target :target)
         field (-> target :field)
-        property (-> target :property)]
+        property (-> target :property)
+        value-used? (not (statement? ast))]
     (cond
       (= target-op :instance-field)
       (let [v (il/local (clr-type val))]
         [(symbolize target' symbolizers)
          (reference-to target')
          (symbolize val symbolizers)
-         (il/stloc v)
-         (il/ldloc v)
+         (if value-used?
+           [(il/stloc v)
+            (il/ldloc v)])
          (convert (clr-type val) (.FieldType field))
          (il/stfld field)
-         (il/ldloc v)])
+         (if value-used?
+           (il/ldloc v))])
       (= target-op :instance-property)
       (let [v (il/local (clr-type val))]
         [(symbolize target' symbolizers)
          (reference-to target')
          (symbolize val symbolizers)
-         (il/stloc v)
-         (il/ldloc v)
+         (if value-used?
+           [(il/stloc v)
+            (il/ldloc v)])
          (convert (clr-type val) (.PropertyType property))
          (il/callvirt (.GetSetMethod property))
-         (il/ldloc v)])
+         (if value-used?
+           (il/ldloc v))])
       (= target-op :static-field)
-      (let [v (il/local (clr-type val))
-            field (:field target)]
+      (let [v (il/local (clr-type val))]
         [(symbolize val symbolizers)
-         (il/stloc v)
-         (il/ldloc v)
+         (if value-used?
+           [(il/stloc v)
+            (il/ldloc v)])
          (convert (clr-type val) (.FieldType field))
          (il/stsfld field)
-         (il/ldloc v)])
+         (if value-used?
+           (il/ldloc v))])
       (= target-op :static-property)
-      (let [v (il/local (clr-type val))
-            property (:property target)]
+      (let [v (il/local (clr-type val))]
         [(symbolize val symbolizers)
-         (il/stloc v)
-         (il/ldloc v)
+         (if value-used?
+           [(il/stloc v)
+            (il/ldloc v)])
          (convert (clr-type val) (.PropertyType property))
          (il/call (.GetSetMethod property))
-         (il/ldloc v)]))))
+         (if value-used?
+           (il/ldloc v))]))))
 
 (defn has-arity-method
   "Symbolic bytecode for the IFnArity.HasArity method"
