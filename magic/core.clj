@@ -23,18 +23,24 @@
 (defmacro throw! [& e]
   `(throw (Exception. (str ~@e))))
 
+(defn load-argument-byref [arg-id]
+  (cond
+    (< arg-id 16) (il/ldarga-s (short arg-id))
+    :else (il/ldarga arg-id)))
+
+(defn load-argument-standard [arg-id]
+  (cond
+    (= arg-id 0) (il/ldarg-0)
+    (= arg-id 1) (il/ldarg-1)
+    (= arg-id 2) (il/ldarg-2)
+    (= arg-id 3) (il/ldarg-3)
+    (< arg-id 16) (il/ldarg-s (short arg-id)) ;; TODO what is the cutoff?
+    :else (il/ldarg arg-id)))
+
 (defn load-argument [{:keys [arg-id by-ref?]}]
   (if by-ref?
-    (cond
-      (< arg-id 16) (il/ldarga-s arg-id)
-      :else (il/ldarga arg-id))
-    (cond
-      (= arg-id 0) (il/ldarg-0)
-      (= arg-id 1) (il/ldarg-1)
-      (= arg-id 2) (il/ldarg-2)
-      (= arg-id 3) (il/ldarg-3)
-      (< arg-id 16) (il/ldarg-s (short arg-id)) ;; TODO what is the cutoff?
-      :else (il/ldarg arg-id))))
+    (load-argument-byref arg-id)
+    (load-argument-standard arg-id)))
 
 (defmulti load-constant type)
 
@@ -732,7 +738,7 @@
           Object obj-params
           [(il/ldarg-0)
            (interleave
-             (map (comp il/ldarg inc) (range))
+             (map (comp load-argument-standard inc) (range))
              (map #(convert Object %) param-types))
            (il/callvirt hinted-method)
            (convert return-type Object)
