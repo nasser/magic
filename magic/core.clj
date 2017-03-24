@@ -637,9 +637,21 @@
          (il/callvirt (.GetSetMethod property))
          (il/ldloc v)])
       (= target-op :static-field)
-      (throw! "set! static-field not finished")
+      (let [v (il/local (clr-type val))
+            field (:field target)]
+        [(symbolize val symbolizers)
+         (il/stloc v)
+         (il/ldloc v)
+         (il/stsfld field)
+         (il/ldloc v)])
       (= target-op :static-property)
-      (throw! "set! static-property not finished"))))
+      (let [v (il/local (clr-type val))
+            property (:property target)]
+        [(symbolize val symbolizers)
+         (il/stloc v)
+         (il/ldloc v)
+         (il/call (.GetSetMethod property))
+         (il/ldloc v)]))))
 
 (defn has-arity-method
   "Symbolic bytecode for the IFnArity.HasArity method"
