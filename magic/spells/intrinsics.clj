@@ -232,6 +232,10 @@
    (interop/method Numbers "unchecked_inc" Int64)
    [(il/ldc-i8 1)
     (il/add)]
+    
+   (interop/method Numbers "unchecked_inc" Double)
+   [(il/ldc-r8 1.0)
+    (il/add)]
    
    (interop/method Numbers "add" Int64 Int64)
    [(il/add-ovf)
