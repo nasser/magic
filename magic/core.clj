@@ -668,11 +668,14 @@
      (il/ret)]))
 
 (defn gen-fn-name [n]
-  (str (gensym
-         (str "magic$"
-              *ns* "$"
-              (or n "--anonymous--")
-              "$"))))
+  (string/replace
+    (str (gensym
+           (str "magic$$"
+                *ns* "$$"
+                (or n "--anonymous--")
+                "$$")))
+    "."
+    "$"))
 
 (defn fn-symbolizer
   [{:keys [local methods raw-forms] :as ast} symbolizers]
