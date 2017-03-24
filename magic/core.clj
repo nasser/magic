@@ -642,6 +642,7 @@
         [(symbolize val symbolizers)
          (il/stloc v)
          (il/ldloc v)
+         (convert (clr-type val) (.FieldType field))
          (il/stsfld field)
          (il/ldloc v)])
       (= target-op :static-property)
@@ -650,6 +651,7 @@
         [(symbolize val symbolizers)
          (il/stloc v)
          (il/ldloc v)
+         (convert (clr-type val) (.PropertyType property))
          (il/call (.GetSetMethod property))
          (il/ldloc v)]))))
 
