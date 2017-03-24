@@ -1,6 +1,6 @@
 (ns magic.spells.intrinsics
   (:require [magic.core :as magic]
-            [clojure.tools.analyzer.clr.types :refer [clr-type]]
+            [magic.analyzer.types :refer [clr-type]]
             [magic.interop :as interop]
             [mage.core :as il])
   (:import [clojure.lang RT Numbers]))
@@ -143,7 +143,13 @@
    (il/and)
     
     ;;;
-    
+   
+   (interop/method Numbers "unchecked_minus" Double)
+   (il/neg)
+   
+   (interop/method Numbers "unchecked_minus" Int64)
+   (il/neg)
+  
    (interop/method Numbers "unchecked_minus" Int64 Double)
    (pop-convert Double (il/sub))
    
