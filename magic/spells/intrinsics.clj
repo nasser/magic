@@ -156,6 +156,12 @@
    (interop/method Numbers "unchecked_minus" Double Int64)
    [(il/conv-r8) (il/sub)]
    
+   (interop/method Numbers "unchecked_minus" Int64 Int64)
+   (il/sub)
+   
+   (interop/method Numbers "unchecked_minus" Double Double)
+   (il/sub)
+   
    (interop/method Numbers "divide" Double Int64)
    [(il/conv-r8) (il/div)]
    
