@@ -1,13 +1,13 @@
 (ns magic.tests-generative
+  (:refer-clojure :exclude [any? methods])
   (:require
     [clojure.string :as string]
     [clojure.test.check.properties :refer [for-all for-all*]]
     [clojure.test.check.generators :as gen]
     [clojure.test.check :as check]
-    [clojure.tools.analyzer.clr :as clr]
-    [clojure.tools.analyzer.clr.types :refer [clr-type]]
-    [magic.core :as magic] :reload
-    )
+    [magic.analyzer :as clr]
+    [magic.analyzer.types :refer [clr-type]]
+    [magic.core :as magic])
   (:import [System.Reflection Assembly]))
 
 (in-ns 'clojure.test.check.generators)
@@ -207,8 +207,8 @@
     [[2 gen/string]
      [1 (gen-interop-form t)]]))
 
-(comment 
-  ;; ctors - working
+
+(defn test-ctors []
   (binding [*testing-types* [OpenTK.Vector3 OpenTK.Vector2 OpenTK.Matrix3]]
     (check/quick-check
       50
@@ -217,9 +217,10 @@
         (let [ast (clr/analyze ctor-invoke-form)]
           (and (or (= (:op ast) :new)
                    (= (:op ast) :initobj))
-               (= OpenTK.Vector3 (clr-type ast)))))))
-  
-  ;; 
+               (= OpenTK.Vector3 (clr-type ast))))))))
+
+;; 
+(defn test-fields []
   (binding [*testing-types* [OpenTK.Vector3 OpenTK.Vector2 OpenTK.Matrix3]]
     (check/quick-check
       50
@@ -228,8 +229,9 @@
         (let [ast (clr/analyze field-get-form)]
           (and (or (= (:op ast) :static-field)
                    (= (:op ast) :instance-field))
-               (= Single (clr-type ast)))))))
-  
+               (= Single (clr-type ast))))))))
+
+(defn test-properties []
   (binding [*testing-types* [OpenTK.Vector3 OpenTK.Vector2 OpenTK.Matrix3]]
     (check/quick-check
       50
@@ -238,8 +240,9 @@
         (let [ast (clr/analyze property-get-form)]
           (and (or (= (:op ast) :static-property)
                    (= (:op ast) :instance-property))
-               (= Single (clr-type ast)))))))
-  
+               (= Single (clr-type ast))))))))
+
+(defn test-methods []
   (binding [*testing-types* [OpenTK.Vector3 OpenTK.Vector2 OpenTK.Matrix3]]
     (check/quick-check
       5
@@ -248,8 +251,10 @@
         (let [ast (clr/analyze method-invoke-form)]
           (and (or (= (:op ast) :static-method)
                    (= (:op ast) :instance-method))
-               (= Single (clr-type ast)))))))
-  
+               (= Single (clr-type ast))))))))
+
+
+(comment   
   (defn run-tests [n type interop-fn validation-fn]
     (check/quick-check
       n

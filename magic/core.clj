@@ -1,9 +1,9 @@
 (ns magic.core
   (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
-            [clojure.tools.analyzer.clr :as ana]
-            [clojure.tools.analyzer.clr.util :refer [var-interfaces]]
-            [clojure.tools.analyzer.clr.types :as types :refer [tag clr-type non-void-clr-type best-match]]
+            [magic.analyzer :as ana]
+            [magic.analyzer.util :refer [var-interfaces]]
+            [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type best-match]]
             [magic.interop :as interop]
             [clojure.string :as string])
   (:import [clojure.lang Var RT IFn Keyword]
