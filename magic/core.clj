@@ -33,7 +33,7 @@
       (= arg-id 1) (il/ldarg-1)
       (= arg-id 2) (il/ldarg-2)
       (= arg-id 3) (il/ldarg-3)
-      (< arg-id 16) (il/ldarg-s arg-id) ;; TODO what is the cutoff?
+      (< arg-id 16) (il/ldarg-s (short arg-id)) ;; TODO what is the cutoff?
       :else (il/ldarg arg-id))))
 
 (defmulti load-constant type)
