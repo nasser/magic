@@ -494,7 +494,8 @@
         binding-map (reduce (fn [m binding]
                               (assoc m
                                 (-> binding :name)
-                                (il/local (clr-type binding))))
+                                (il/local (clr-type binding)
+                                          (str (-> binding :name)))))
                             (sorted-map) 
                             bindings)
         binding-vector (mapv #(binding-map (-> % :name)) bindings)
@@ -671,7 +672,7 @@
     "HasArity"
     (enum-or MethodAttributes/Public
              MethodAttributes/Virtual)
-    Boolean [Int32]
+    Boolean [(il/parameter Int32)]
     (let [ret-true (il/label)]
       [(map (fn [arity]
               [(il/ldarg-1)
@@ -735,6 +736,8 @@
   (let [param-hint (-> form first tag)
         param-types (mapv clr-type params)
         obj-params (mapv (constantly Object) params)
+        param-il (map #(il/parameter (clr-type %) (-> % :form str)) params)
+        param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
         return-type (or param-hint
                         (non-void-clr-type ret))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
@@ -742,7 +745,7 @@
         (il/method
           "invoke"
           public-virtual
-          Object obj-params
+          Object param-il-unhinted
           [(symbolize body symbolizers)
            (convert return-type Object)
            (il/ret)])
@@ -750,7 +753,7 @@
         (il/method
           "invoke"
           public-virtual
-          return-type param-types
+          return-type param-il
           [(symbolize body symbolizers)
            (convert (clr-type ret) return-type)
            (il/ret)])
@@ -758,7 +761,7 @@
         (il/method
           "invoke"
           public-virtual
-          Object obj-params
+          Object param-il-unhinted
           [(il/ldarg-0)
            (interleave
              (map (comp load-argument-standard inc) (range))
