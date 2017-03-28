@@ -12,7 +12,8 @@
 
 (defn class-for-name [s]
   (if s
-    (clojure.lang.RT/classForName (str s))))
+    (or (.GetMapping *ns* (symbol (str s)))
+        (clojure.lang.RT/classForName (str s)))))
 
 ;; TODO look into this, does this do anything useful?  
 (defn maybe-class [c]
