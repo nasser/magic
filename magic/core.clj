@@ -199,13 +199,21 @@
     
     ;; RT casts
     (and (= from Object) (= to Single))
-    (il/call (interop/method RT "floatCast" from))
+    (il/call (if *unchecked-math*
+               (interop/method RT "uncheckedFloatCast" from)
+               (interop/method RT "floatCast" from)))
     (and (= from Object) (= to Double))
-    (il/call (interop/method RT "doubleCast" from))
+    (il/call (if *unchecked-math*
+               (interop/method RT "uncheckedDoubleCast" from)
+               (interop/method RT "doubleCast" from)))
     (and (= from Object) (= to Int32))
-    (il/call (interop/method RT "intCast" from))
+    (il/call (if *unchecked-math*
+               (interop/method RT "uncheckedIntCast" from)
+               (interop/method RT "intCast" from)))
     (and (= from Object) (= to Int64))
-    (il/call (interop/method RT "longCast" from))
+    (il/call (if *unchecked-math*
+               (interop/method RT "uncheckedLongCast" from)
+               (interop/method RT "longCast" from)))
     
     ;; unbox objects to valuetypes
     (and (= from Object) (.IsValueType to))
