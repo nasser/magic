@@ -556,7 +556,7 @@
                   (cond
                     (statement? ast) 
                     (cleanup-stack else)
-                    (not= :recur (:op else))
+                    (not= System.Void (clr-type else))
                     (convert (clr-type else) if-expr-type))]
                  (il/br end-label)
                  then-label
@@ -564,7 +564,7 @@
                   (cond
                     (statement? ast) 
                     (cleanup-stack then)
-                    (not= :recur (:op then))
+                    (not= System.Void (clr-type then))
                     (convert (clr-type then) if-expr-type))]
                  end-label])))
 
