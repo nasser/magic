@@ -1,6 +1,6 @@
 (ns magic.faster
-  (:require [clojure.tools.analyzer.clr :as ana]
-            [clojure.tools.analyzer.clr.types :refer [clr-type non-void-clr-type tag]]
+  (:require [magic.analyzer :as ana]
+            [magic.analyzer.types :refer [clr-type non-void-clr-type tag]]
             [magic.core :as magic]
             [mage.core :as il])
   (:import [clojure.lang RT]
