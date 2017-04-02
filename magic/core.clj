@@ -160,6 +160,8 @@
     
     (= to Boolean)
     [(il/ldnull)
+     (il/ceq)
+     (il/ldc-i4-0)
      (il/ceq)]
     
     (and (= from Boolean)
