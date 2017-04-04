@@ -1,6 +1,7 @@
 (ns magic.core
-  (:refer-clojure :exclude [compile])
-  (:require [mage.core :as il]
+  (:refer-clojure :exclude [compile defn])
+  (:require [clojure.core :as c]
+            [mage.core :as il]
             [magic.analyzer :as ana]
             [magic.analyzer.util :refer [var-interfaces]]
             [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type best-match]]
@@ -23,12 +24,12 @@
 (defmacro throw! [& e]
   `(throw (Exception. (str ~@e))))
 
-(defn load-argument-byref [arg-id]
+(c/defn load-argument-byref [arg-id]
   (cond
     (< arg-id 16) (il/ldarga-s (short arg-id))
     :else (il/ldarga arg-id)))
 
-(defn load-argument-standard [arg-id]
+(c/defn load-argument-standard [arg-id]
   (cond
     (= arg-id 0) (il/ldarg-0)
     (= arg-id 1) (il/ldarg-1)
@@ -37,7 +38,7 @@
     (< arg-id 16) (il/ldarg-s (short arg-id)) ;; TODO what is the cutoff?
     :else (il/ldarg arg-id)))
 
-(defn load-argument [{:keys [arg-id by-ref?]}]
+(c/defn load-argument [{:keys [arg-id by-ref?]}]
   (if by-ref?
     (load-argument-byref arg-id)
     (load-argument-standard arg-id)))
@@ -88,14 +89,14 @@
    (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
 
 
-(defn load-var [v]
+(c/defn load-var [v]
   (let [nsname  (.. v Namespace Name ToString)
         symname (.. v Symbol ToString)]
     [(load-constant nsname)
      (load-constant symname)
      (il/call (interop/method RT "var" String String))]))
 
-(defn get-var [v]
+(c/defn get-var [v]
   (if (.isDynamic v)
     (il/call (interop/method Var "get"))
     (il/call (interop/method Var "getRawRoot"))))
@@ -118,7 +119,7 @@
 (def ^:static TRUE true)
 (def ^:static FALSE false)
 
-(defn convert [from to]
+(c/defn convert [from to]
   (cond
     (nil? from)
     nil
@@ -248,10 +249,10 @@
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
 
-(defn statement? [{{:keys [context]} :env}]
+(c/defn statement? [{{:keys [context]} :env}]
   (= context :ctx/statement))
 
-(defn cleanup-stack
+(c/defn cleanup-stack
   "il/pop if in a non-void statement context.
   Required to keep the stack balanced."
   [{:keys [op] :as ast}]
@@ -264,19 +265,19 @@
 ;;; symbolizers
 (def symbolize)
 
-(defn do-symbolizer
+(c/defn do-symbolizer
   [{:keys [statements ret]} symbolizers]
   [(interleave
      (map #(symbolize % symbolizers) statements)
      (map #(cleanup-stack %) statements))
    (symbolize ret symbolizers)])
 
-(defn const-symbolizer
+(c/defn const-symbolizer
   "Symbolic bytecode for :const nodes"
   [{:keys [val] :as ast} symbolizers]
   (load-constant val))
 
-(defn prepare-array [items symbolizers]
+(c/defn prepare-array [items symbolizers]
   [(il/newarr Object)
    (map (fn [i c]
           [(il/dup)
@@ -287,39 +288,39 @@
         (range)
         items)])
 
-(defn vector-symbolizer
+(c/defn vector-symbolizer
   [{:keys [items]} symbolizers]
   [(load-constant (int (count items)))
    (prepare-array items symbolizers)
    (il/call (interop/method clojure.lang.RT "vector" |System.Object[]|))])
 
-(defn set-symbolizer
+(c/defn set-symbolizer
   [{:keys [items]} symbolizers]
   [(load-constant (int (count items)))
    (prepare-array items symbolizers)
    (il/call (interop/method clojure.lang.RT "set" |System.Object[]|))])
 
-(defn map-symbolizer
+(c/defn map-symbolizer
   [{:keys [keys vals]} symbolizers]
   [(load-constant (int (+ (count keys) (count vals))))
    (prepare-array (interleave keys vals) symbolizers)
    (il/call (interop/method clojure.lang.PersistentArrayMap "createWithCheck" |System.Object[]|))])
 
-(defn static-property-symbolizer
+(c/defn static-property-symbolizer
   "Symbolic bytecode for static properties"
   [{:keys [property]} symbolizers]
   (il/call (.GetGetMethod property)))
 
 ;; TODO keep an eye on this
 ;; TODO il/ldarga, il/ldarga-s for references to args
-(defn reference-to [{:keys [local arg-id] :as ast}]
+(c/defn reference-to [{:keys [local arg-id] :as ast}]
   (when (.IsValueType (clr-type ast))
     (let [local (il/local (clr-type ast) ast)]
       [(il/stloc local)
        (il/ldloca local)])))
 
 
-(defn instance-property-symbolizer
+(c/defn instance-property-symbolizer
   "Symbolic bytecode for instance properties"
   [{:keys [target property]} symbolizers]
   [(symbolize target symbolizers)
@@ -327,7 +328,7 @@
    (il/call (.GetGetMethod property))])
 
 
-(defn static-field-symbolizer
+(c/defn static-field-symbolizer
   "Symbolic bytecode for static fields"
   [{:keys [field]} symbolizers]
   (if (.IsLiteral field)
@@ -335,14 +336,14 @@
     (il/ldsfld field)))
 
 
-(defn instance-field-symbolizer
+(c/defn instance-field-symbolizer
   "Symbolic bytecode for instance fields"
   [{:keys [field target]} symbolizers]
   [(symbolize target symbolizers)
    (reference-to target)
    (il/ldfld field)])
 
-(defn dynamic-field-symbolizer
+(c/defn dynamic-field-symbolizer
   "Symbolic bytecode for dynamic fields"
   [{:keys [field target]} symbolizers]
   (let [target-local (il/local)
@@ -368,7 +369,7 @@
      (il/callvirt (interop/method FieldInfo "GetValue" Object))
      ]))
 
-(defn inexact-static-method-symbolizer
+(c/defn inexact-static-method-symbolizer
   "Symbolic bytecode for static methods"
   [{:keys [method target args methods] :as ast} symbolizers]
   (let [arg-types (map clr-type args)]
@@ -383,7 +384,7 @@
               " on type " (:val target)
               " matching signature " (vec arg-types)))))
 
-(defn static-method-symbolizer
+(c/defn static-method-symbolizer
   ;; TODO inexact-static-method should be its own :op
   "Symbolic bytecode for static methods"
   [{:keys [method args inexact?] :as ast} symbolizers]
@@ -398,7 +399,7 @@
               (interop/parameter-types method)))
        (il/call method)])))
 
-(defn inexact-instance-method-symbolizer
+(c/defn inexact-instance-method-symbolizer
   [{:keys [method target args inexact? generic-parameters] :as ast} symbolizers]
   (let [arg-types (map clr-type args)]
     (if-let [matching-method (best-match ast :methods)]
@@ -428,7 +429,7 @@
               " on type " (clr-type target)
               " matching signature " (vec arg-types)))))
 
-(defn instance-method-symbolizer
+(c/defn instance-method-symbolizer
   ;; TODO inexact-instance-method should be its own :op
   "Symbolic bytecode for instance methods"
   [{:keys [method target args inexact? generic-parameters] :as ast} symbolizers]
@@ -464,7 +465,7 @@
               generic-parameters)
          (il/call method generic-parameters))])))
 
-(defn initobj-symbolizer
+(c/defn initobj-symbolizer
   "Symbolic bytecode for zero arity value type constructor invocation"
   [{:keys [type args]} symbolizers]
   (let [loc (il/local type)]
@@ -472,7 +473,7 @@
      (il/initobj type)
      (il/ldloc loc)]))
 
-(defn inexact-new-symbolizer
+(c/defn inexact-new-symbolizer
   [{:keys [inexact? type args] :as ast} symbolizers]
   (let [arg-types (map clr-type args)]
     (if-let [matching-constructor (best-match ast :constructors)]
@@ -485,7 +486,7 @@
       (throw! "No constructor for type " type
               " matching signature " (vec arg-types)))))
 
-(defn new-symbolizer
+(c/defn new-symbolizer
   "Symbolic bytecode for constructor invocation"
   [{:keys [inexact? type constructor args] :as ast} symbolizers]
   (if inexact?
@@ -498,7 +499,7 @@
               (interop/parameter-types constructor)))
        (il/newobj constructor)])))
 
-(defn let-symbolizer
+(c/defn let-symbolizer
   [{:keys [bindings body loop-id] :as ast} symbolizers]
   (let [;; uniqued names -> il/locals
         binding-map (reduce (fn [m binding]
@@ -552,7 +553,7 @@
      ;; emit body with specialized symbolizers
      (symbolize body specialized-symbolizers)]))
 
-(defn if-symbolizer
+(c/defn if-symbolizer
   [{:keys [test then else] :as ast} symbolizers]
   (let [if-expr-type (clr-type ast)
         then-label (il/label)
@@ -578,17 +579,17 @@
                     (convert (clr-type then) if-expr-type))]
                  end-label])))
 
-(defn binding-symbolizer
+(c/defn binding-symbolizer
   [{:keys [init] :as ast} symbolizers]
   (symbolize init symbolizers))
 
-(defn local-symbolizer
+(c/defn local-symbolizer
   [{:keys [name local] :as ast} symbolizers]
   (if (= local :arg)
     (load-argument (update ast :arg-id inc))
     (throw! "Local " name " not an argument and could not be symbolized")))
 
-(defn invoke-symbolizer
+(c/defn invoke-symbolizer
   [{:keys [fn args] :as ast} symbolizers]
   (let [fn-tag (-> fn :var tag)
         arg-types (map clr-type args)
@@ -616,13 +617,13 @@
         (when fn-tag
           (convert Object fn-tag))])]))
 
-(defn var-symbolizer
+(c/defn var-symbolizer
   [{:keys [var] :as ast} symbolizers]
   [(load-var var)
    (get-var var)])
 
 
-(defn set!-symbolizer
+(c/defn set!-symbolizer
   [{:keys [target val] :as ast} symbolizers]
   (let [target-op (:op target)
         target' (-> target :target)
@@ -675,7 +676,7 @@
          (if value-used?
            (il/ldloc v))]))))
 
-(defn has-arity-method
+(c/defn has-arity-method
   "Symbolic bytecode for the IFnArity.HasArity method"
   [arities]
   (il/method
@@ -695,7 +696,7 @@
        (il/ldc-i4-1)
        (il/ret)])))
 
-(defn private-constructor [t]
+(c/defn private-constructor [t]
   (first (.GetConstructors t (enum-or BindingFlags/NonPublic BindingFlags/Instance))))
 
 (def default-constructor
@@ -707,7 +708,7 @@
      (il/call (private-constructor clojure.lang.AFunction))
      (il/ret)]))
 
-(defn gen-fn-name [n]
+(c/defn gen-fn-name [n]
   (string/replace
     (str (gensym
            (str "magic$$"
@@ -717,7 +718,7 @@
     "."
     "$"))
 
-(defn fn-symbolizer
+(c/defn fn-symbolizer
   [{:keys [local methods raw-forms] :as ast} symbolizers]
   (let [arities (map :fixed-arity methods)
         param-types (->> methods
@@ -741,7 +742,7 @@
        (has-arity-method arities)
        (map #(symbolize % symbolizers) methods)])))
 
-(defn fn-method-symbolizer
+(c/defn fn-method-symbolizer
   [{:keys [body params form] {:keys [ret statements]} :body} symbolizers]
   (let [param-hint (-> form first tag)
         param-types (mapv clr-type params)
@@ -814,7 +815,7 @@
 
 (def ^:dynamic *spells* [])
 
-(defn ast->symbolizer
+(c/defn ast->symbolizer
   "Look up symbolizer for AST node. Throws exception if not found."
   [ast symbolizers]
   (or (-> ast :op symbolizers)
@@ -822,7 +823,7 @@
                                                                 ast)))))))
 
 ;; (merge base-symbolizers *initial-symbolizers*) might be better
-(defn get-symbolizers
+(c/defn get-symbolizers
   ([] (get-symbolizers base-symbolizers))
   ([symbolizers] (get-symbolizers symbolizers *spells*))
   ([symbolizers spells]
@@ -831,7 +832,7 @@
      symbolizers
      spells)))
 
-(defn symbolize
+(c/defn symbolize
   "Generate symbolic bytecode for AST node"
   ([ast]
    (symbolize ast (get-symbolizers)))
@@ -839,7 +840,7 @@
    (if-let [symbolizer (ast->symbolizer ast symbolizers)]
      (symbolizer ast symbolizers))))
 
-(defn compile-fn
+(c/defn compile-fn
   "Compile fn form using base-symbolizers, emit binary to current directory, return fn"
   ([expr] (compile-fn expr
             (get-symbolizers)
@@ -858,14 +859,14 @@
         ; Activator/CreateInstance
         )))
 
-(defn compile-il
+(c/defn compile-il
   "Compile bytes"
   [il]
   (-> il
       
       ))
 
-(defmacro define [name args & body]
+(defmacro defn [name args & body]
   (let [form (list* 'fn name args body)]
     `(def ~name
        ~(compile-fn form))))
