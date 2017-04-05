@@ -325,7 +325,7 @@
   [{:keys [target property]} symbolizers]
   [(symbolize target symbolizers)
    (reference-to target)
-   (il/call (.GetGetMethod property))])
+   (il/callvirt (.GetGetMethod property))])
 
 
 (c/defn static-field-symbolizer
