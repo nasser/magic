@@ -266,25 +266,32 @@
 (defmethod clr-type :loop [ast]
   (-> ast :body :ret clr-type))
 
-;; TODO ????
+;; ???
 (defmethod clr-type :recur [ast]
-  System.Void)
+  System.Object)
 
 (defmethod clr-type :throw [ast]
-  System.Void)
+  System.Object)
 
 (defmethod clr-type :try [{:keys [body catches] :as ast}]
   (let [body-type (clr-type body)
         catches-types (-> #{}
                           (into (map clr-type catches))
                           (disj System.Void))]
-    (if (and (= 1 (count catches-types))
-             (= body-type (first catches-types)))
+    (if (or (empty? catches-types)
+            (and (= 1 (count catches-types))
+                 (= body-type (first catches-types))))
       body-type
       Object)))
 
 (defmethod clr-type :catch [{:keys [body] :as ast}]
   (clr-type body))
+
+(defmethod clr-type :monitor-enter [ast]
+  System.Void)
+
+(defmethod clr-type :monitor-exit [ast]
+  System.Void)
 
 (defn always-then?
   "Is an if AST node always true?"

@@ -95,6 +95,39 @@
   (into ana/specials
         '#{var monitor-enter monitor-exit clojure.core/import* reify* deftype* case*}))
 
+(defn parse-monitor-enter
+  [[_ target :as form] env]
+  (when-not (= 2 (count form))
+    (throw (ex-info (str "Wrong number of args to monitor-enter, had: " (dec (count form)))
+                    (merge {:form form}
+                           (-source-info form env)))))
+  {:op       :monitor-enter
+   :env      env
+   :form     form
+   :target   (ana/analyze target (ctx env :ctx/expr))
+   :children [:target]})
+
+(defn parse-monitor-exit
+  [[_ target :as form] env]
+  (when-not (= 2 (count form))
+    (throw (ex-info (str "Wrong number of args to monitor-exit, had: " (dec (count form)))
+                    (merge {:form form}
+                           (-source-info form env)))))
+  {:op       :monitor-exit
+   :env      env
+   :form     form
+   :target   (ana/analyze target (ctx env :ctx/expr))
+   :children [:target]})
+
+(defn parse
+  "Extension to tools.analyzer/-parse for CLR special forms"
+  [form env]
+  ((case (first form)
+     monitor-enter        parse-monitor-enter
+     monitor-exit         parse-monitor-exit
+     #_:else              ana/-parse)
+   form env))
+
 (defn empty-env
   "Returns an empty env map"
   []
@@ -235,7 +268,7 @@
              ana/create-var    (fn [sym env]
                                  (doto (intern (:ns env) sym)
                                    (reset-meta! (meta sym))))
-             ana/parse         ana/-parse
+             ana/parse         parse
              ana/var?          var?]
      (with-env (global-env) (run-passes (ana/analyze form env))))))
 

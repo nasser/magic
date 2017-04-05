@@ -828,6 +828,18 @@
   [(symbolize exception symbolizers)
    (il/throw)])
 
+(c/defn monitor-enter-symbolizer
+  [{:keys [target]} symbolizers]
+  [(symbolize target symbolizers)
+   (convert (clr-type target) Object)
+   (il/call (interop/method System.Threading.Monitor "Enter" Object))])
+
+(c/defn monitor-exit-symbolizer
+  [{:keys [target]} symbolizers]
+  [(symbolize target symbolizers)
+   (convert (clr-type target) Object)
+   (il/call (interop/method System.Threading.Monitor "Exit" Object))])
+
 (def base-symbolizers
   {:const               #'const-symbolizer
    :do                  #'do-symbolizer
@@ -847,6 +859,8 @@
    :try                 #'try-symbolizer
    :catch               #'catch-symbolizer
    :throw               #'throw-symbolizer
+   :monitor-enter       #'monitor-enter-symbolizer
+   :monitor-exit        #'monitor-exit-symbolizer
    :fn-method           #'fn-method-symbolizer
    :static-property     #'static-property-symbolizer
    :instance-property   #'instance-property-symbolizer
