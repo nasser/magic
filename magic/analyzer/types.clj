@@ -255,7 +255,7 @@
                    (= local :arg)
                    Object
                    :else
-                   (clr-type init))]
+                   (non-void-clr-type init))]
     (if by-ref?
       (.MakeByRefType type)
       type)))
@@ -311,6 +311,18 @@
        (or (= (:val test) false)
            (= (:val test) nil))))
 
+;; NOTE this works, but is pretty gross
+(defn control-flow?
+  "Does the AST represent pure control flow?"
+  [{:keys [op] :as ast}]
+  (or
+    (#{:recur :throw} op)
+    (and (= :if op)
+         (or (and (always-then? ast)
+                  (control-flow? (:then ast)))
+             (and (always-else? ast)
+                  (control-flow? (:else ast)))))))
+
 (defmethod clr-type :if
   [{:keys [form test then else] :as ast}]
   (if-let [t (tag form)]
@@ -321,8 +333,9 @@
         (= then-type else-type) then-type
         (always-then? ast) then-type
         (always-else? ast) else-type
-        ;; TODO do these make sense? are they just for recur?
-        (= then-type System.Void) else-type  
-        (= else-type System.Void) then-type
+        (control-flow? then) else-type
+        (control-flow? else) then-type
+        (= then-type System.Void) Object
+        (= else-type System.Void) Object
         ;; TODO compute common type  
         :else Object))))

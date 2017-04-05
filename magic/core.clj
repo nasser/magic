@@ -505,7 +505,7 @@
         binding-map (reduce (fn [m binding]
                               (assoc m
                                 (-> binding :name)
-                                (il/local (clr-type binding)
+                                (il/local (non-void-clr-type binding)
                                           (str (-> binding :name)))))
                             (sorted-map) 
                             bindings)
@@ -544,7 +544,7 @@
     ;; emit local initializations
     [(map (fn [binding]
             [(symbolize binding specialized-symbolizers)
-             (convert (clr-type (-> binding :init)) (clr-type binding))
+             (convert (clr-type (-> binding :init)) (non-void-clr-type binding))
              (il/stloc (binding-map (:name binding)))])
           bindings)
      ;; mark recur target
@@ -555,7 +555,7 @@
 
 (c/defn if-symbolizer
   [{:keys [test then else] :as ast} symbolizers]
-  (let [if-expr-type (clr-type ast)
+  (let [if-expr-type (non-void-clr-type ast)
         then-label (il/label)
         end-label (il/label)]
     (cond (types/always-then? ast) (symbolize then symbolizers)
@@ -567,7 +567,7 @@
                   (cond
                     (statement? ast) 
                     (cleanup-stack else)
-                    (not= System.Void (clr-type else))
+                    (not (types/control-flow? else))
                     (convert (clr-type else) if-expr-type))]
                  (il/br end-label)
                  then-label
@@ -575,7 +575,7 @@
                   (cond
                     (statement? ast) 
                     (cleanup-stack then)
-                    (not= System.Void (clr-type then))
+                    (not (types/control-flow? then))
                     (convert (clr-type then) if-expr-type))]
                  end-label])))
 
@@ -758,7 +758,7 @@
           public-virtual
           Object param-il-unhinted
           [(symbolize body symbolizers)
-           (convert return-type Object)
+           (convert (clr-type ret) Object)
            (il/ret)])
         hinted-method
         (il/method
@@ -778,7 +778,7 @@
              (map (comp load-argument-standard inc) (range))
              (map #(convert Object %) param-types))
            (il/callvirt hinted-method)
-           (convert return-type Object)
+           (convert (clr-type ret) Object)
            (il/ret)])]
     [(if (and (= param-types obj-params)
               (= return-type Object))
@@ -787,22 +787,27 @@
 
 (c/defn try-symbolizer
   [{:keys [catches body finally] :as ast} symbolizers]
-  (if (empty? catches)
+  (if (and (empty? catches)
+           (nil? finally))
     (symbolize body symbolizers)
     (let [expr-type (clr-type ast)
           try-local (il/local expr-type)]
       [(il/exception
-         [(symbolize body symbolizers)
-          (convert (clr-type body) expr-type)
-          (il/stloc try-local)
-          (interleave
-            (map #(symbolize % symbolizers) catches)
-            (map #(convert (clr-type %) expr-type) catches)
-            (repeat (il/stloc try-local)))
-          (when finally
-            (il/finally
-              (symbolize finally symbolizers)))])
-       (il/ldloc try-local)])))
+         [(if (= expr-type System.Void)
+            [(symbolize body symbolizers)
+             (map #(symbolize % symbolizers) catches)]
+            [(symbolize body symbolizers)
+             (convert (clr-type body) expr-type)
+             (il/stloc try-local)
+             (interleave
+               (map #(symbolize % symbolizers) catches)
+               (map #(convert (clr-type %) expr-type) catches)
+               (repeat (il/stloc try-local)))])
+          [(when finally
+             (il/finally
+               (symbolize finally symbolizers)))]])
+       (when-not (= expr-type System.Void)
+         (il/ldloc try-local))])))
 
 (c/defn catch-symbolizer
   [{:keys [class local body]} symbolizers]
