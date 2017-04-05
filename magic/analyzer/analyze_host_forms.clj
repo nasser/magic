@@ -240,6 +240,7 @@
 
 (defn analyze-byref
   "Analyze (by-ref foo) into a CLR pass-by-reference local"
+  {:pass-info {:walk :post :after #{#'uniquify-locals}}}
   [{:keys [op fn args] :as ast}]
   (if (and (= :invoke op)
            (= #'by-ref (:var fn)))
@@ -252,17 +253,3 @@
             (first args)
             :by-ref? true))
     ast))
-
-
-
-;; TODO make into a multimethod
-(defn analyze
-  {:pass-info {:walk :post :after #{#'uniquify-locals}}}
-  [ast]
-  (-> ast
-      analyze-byref
-      analyze-type
-      analyze-host-field
-      analyze-constructor
-      analyze-host-interop
-      analyze-host-call))

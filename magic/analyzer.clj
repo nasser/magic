@@ -1,7 +1,7 @@
 (ns magic.analyzer
   (:refer-clojure :exclude [macroexpand-1])
   (:require [clojure.tools.analyzer :as ana]
-            [clojure.tools.analyzer.ast :refer [nodes]]
+            [clojure.tools.analyzer.ast :refer [nodes prewalk]]
             [clojure.tools.analyzer.utils :refer [update-vals]]
             [clojure.tools.analyzer.passes :refer [schedule]]
             [clojure.tools.analyzer.passes
@@ -179,10 +179,38 @@
     (assoc ast :vectors (->> ast nodes (filter #(= :vector (:op %)))))
     ast))
 
+(defn tag-local
+  [{:keys [op] :as ast} tag]
+  (if (= op :local)
+    (update ast :form vary-meta merge {:tag tag})
+    ast))
+
+(defn tag-catch-locals
+  {:pass-info {:walk :pre :depends #{#'uniquify-locals #'host/analyze-type} :before #{#'host/analyze-host-interop}}}
+  [{:keys [op class body local] :as ast}]
+  (if (= op :catch)
+    (let [local-type (-> class :val)
+          local-name (-> local :name)]
+      (assoc ast
+        :local (tag-local local local-type)
+        :body (prewalk body
+                       (fn [{:keys [op form name] :as ast}]
+                         (if (and (= op :local)
+                                  (= name local-name))
+                           (tag-local ast local-type)
+                           ast)))))
+    ast))
+
 (def default-passes
-  #{#'host/analyze
+  #{#'host/analyze-byref
+    #'host/analyze-type
+    #'host/analyze-host-field
+    #'host/analyze-constructor
+    #'host/analyze-host-interop
+    #'host/analyze-host-call
     #'novel/csharp-operators
     #'novel/generic-type-syntax
+    #'tag-catch-locals
     ; #'source-info
     ; #'collect-vars
     ; #'cleanup

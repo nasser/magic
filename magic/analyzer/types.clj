@@ -246,7 +246,8 @@
 
 (defmethod clr-type :local
   [{:keys [name init form local by-ref?] {:keys [locals]} :env}]
-  (let [tag (-> form locals :form meta :tag)
+  (let [tag (or (-> form meta :tag)
+                (-> form locals :form meta :tag))
         type (cond tag
                    (if (symbol? tag)
                      (resolve tag)
@@ -268,6 +269,22 @@
 ;; TODO ????
 (defmethod clr-type :recur [ast]
   System.Void)
+
+(defmethod clr-type :throw [ast]
+  System.Void)
+
+(defmethod clr-type :try [{:keys [body catches] :as ast}]
+  (let [body-type (clr-type body)
+        catches-types (-> #{}
+                          (into (map clr-type catches))
+                          (disj System.Void))]
+    (if (and (= 1 (count catches-types))
+             (= body-type (first catches-types)))
+      body-type
+      Object)))
+
+(defmethod clr-type :catch [{:keys [body] :as ast}]
+  (clr-type body))
 
 (defn always-then?
   "Is an if AST node always true?"

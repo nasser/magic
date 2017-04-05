@@ -785,6 +785,49 @@
        unhinted-method
        [hinted-method unhinted-shim])]))
 
+(c/defn try-symbolizer
+  [{:keys [catches body finally] :as ast} symbolizers]
+  (if (empty? catches)
+    (symbolize body symbolizers)
+    (let [expr-type (clr-type ast)
+          try-local (il/local expr-type)]
+      [(il/exception
+         [(symbolize body symbolizers)
+          (convert (clr-type body) expr-type)
+          (il/stloc try-local)
+          (interleave
+            (map #(symbolize % symbolizers) catches)
+            (map #(convert (clr-type %) expr-type) catches)
+            (repeat (il/stloc try-local)))
+          (when finally
+            (il/finally
+              (symbolize finally symbolizers)))])
+       (il/ldloc try-local)])))
+
+(c/defn catch-symbolizer
+  [{:keys [class local body]} symbolizers]
+  (let [catch-local-name (:name local)
+        catch-local (il/local (-> class :val))
+        specialized-symbolizers
+        (merge symbolizers
+               {:local
+                (fn catch-local-symbolizer
+                  [{:keys [name by-ref?] {:keys [locals]} :env :as ast} syms]
+                  (if (= name (:name local))
+                    (if by-ref?
+                      (il/ldloca catch-local)
+                      (il/ldloc catch-local))
+                    (symbolize ast symbolizers)))})]
+    (il/catch
+      (-> class :val)
+      [(il/stloc catch-local)
+       (symbolize body specialized-symbolizers)])))
+
+(c/defn throw-symbolizer
+  [{:keys [exception]} symbolizers]
+  [(symbolize exception symbolizers)
+   (il/throw)])
+
 (def base-symbolizers
   {:const               #'const-symbolizer
    :do                  #'do-symbolizer
@@ -801,6 +844,9 @@
    :var                 #'var-symbolizer
    :the-var             #'var-symbolizer
    :set!                #'set!-symbolizer
+   :try                 #'try-symbolizer
+   :catch               #'catch-symbolizer
+   :throw               #'throw-symbolizer
    :fn-method           #'fn-method-symbolizer
    :static-property     #'static-property-symbolizer
    :instance-property   #'instance-property-symbolizer
