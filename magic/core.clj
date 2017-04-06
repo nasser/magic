@@ -880,6 +880,23 @@
 
 (def ^:dynamic *spells* [])
 
+(c/defn add-spell! [& spells]
+  (alter-var-root #'*spells* into spells))
+
+(c/defn ensure-spell! [& spells]
+  (alter-var-root #'*spells*
+    (fn [spells*]
+      (into spells*
+        (filter (apply disj (set spells) spells*))
+        spells))))
+
+(c/defn remove-spell! [& spells]
+  (alter-var-root #'*spells*
+    (fn [spells*]
+      (into (empty spells*)
+        (remove (set spells))
+        spells*))))
+
 (c/defn ast->symbolizer
   "Look up symbolizer for AST node. Throws exception if not found."
   [ast symbolizers]
