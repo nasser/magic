@@ -935,3 +935,14 @@
   (let [form (list* 'fn name args body)]
     `(def ~name
        ~(compile-fn form))))
+
+;; load up spells
+;; cyclic, but meh
+(require
+  'magic.spells.intrinsics
+  'magic.spells.lift-vars)
+
+(alter-var-root #'*spells*
+  (constantly
+    [magic.spells.intrinsics/intrinsics
+     magic.spells.lift-vars/lift-vars]))
