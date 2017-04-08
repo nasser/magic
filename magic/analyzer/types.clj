@@ -175,14 +175,10 @@
   clojure.lang.IPersistentMap)
 
 (defmethod clr-type :static-method [ast]
-  (if (ast :inexact?)
-    (.ReturnType (best-match ast :methods))
-    (.ReturnType (ast :method))))
+  (.ReturnType (ast :method)))
 
 (defmethod clr-type :instance-method [ast]
-  (if (ast :inexact?)
-    (.ReturnType (best-match ast :methods))
-    (.ReturnType (ast :method))))
+  (.ReturnType (ast :method)))
 
 (defmethod clr-type :static-property [ast]
   (-> ast :property .PropertyType))

@@ -369,101 +369,49 @@
      (il/callvirt (interop/method FieldInfo "GetValue" Object))
      ]))
 
-(c/defn inexact-static-method-symbolizer
-  "Symbolic bytecode for static methods"
-  [{:keys [method target args methods] :as ast} symbolizers]
-  (let [arg-types (map clr-type args)]
-    (if-let [matching-method (best-match ast :methods)]
-      [(interleave
-         (map #(symbolize % symbolizers) args)
-         (map convert
-              arg-types
-              (interop/parameter-types matching-method)))
-       (il/call matching-method)]
-      (throw! "No static method " method
-              " on type " (:val target)
-              " matching signature " (vec arg-types)))))
-
 (c/defn static-method-symbolizer
-  ;; TODO inexact-static-method should be its own :op
   "Symbolic bytecode for static methods"
-  [{:keys [method args inexact?] :as ast} symbolizers]
-  (if inexact?
-    (inexact-static-method-symbolizer
-      ast symbolizers)
-    (let [arg-types (map clr-type args)]
-      [(interleave
-         (map #(symbolize % symbolizers) args)
-         (map convert
-              arg-types
-              (interop/parameter-types method)))
-       (il/call method)])))
-
-(c/defn inexact-instance-method-symbolizer
-  [{:keys [method target args inexact? generic-parameters] :as ast} symbolizers]
+  [{:keys [method args] :as ast} symbolizers]
   (let [arg-types (map clr-type args)]
-    (if-let [matching-method (best-match ast :methods)]
-      [(symbolize target symbolizers)
-       (interleave
-         (map #(symbolize % symbolizers) args)
-         (map convert
-              arg-types
-              (interop/parameter-types matching-method)))
-       (cond
-         (and (.IsVirtual matching-method)
-              (nil? generic-parameters))
-         (il/callvirt matching-method)
-
-         (and (not (.IsVirtual matching-method))
-              (nil? generic-parameters))
-         (il/call matching-method)
-         ;; TODO ???
-         (and (.IsVirtual matching-method)
-              generic-parameters)
-         (il/callvirt matching-method generic-parameters)
-         ;; TODO ???
-         (and (not (.IsVirtual matching-method))
-              generic-parameters)
-         (il/call matching-method generic-parameters))]
-      (throw! "No static method " method
-              " on type " (clr-type target)
-              " matching signature " (vec arg-types)))))
+    [(interleave
+       (map #(symbolize % symbolizers) args)
+       (map convert
+            arg-types
+            (interop/parameter-types method)))
+     (il/call method)]))
 
 (c/defn instance-method-symbolizer
-  ;; TODO inexact-instance-method should be its own :op
   "Symbolic bytecode for instance methods"
-  [{:keys [method target args inexact? generic-parameters] :as ast} symbolizers]
-  (if inexact?
-    (inexact-instance-method-symbolizer ast symbolizers)
-    (let [arg-types (map clr-type args)
-          virtcall (if (.IsValueType (clr-type target))
-                     il/call
-                     il/callvirt )]
-      [(symbolize target symbolizers)
-       ; (reference-to target)
-       (interleave
-         (map #(symbolize % symbolizers) args)
-         (map convert
-              arg-types
-              (interop/parameter-types method)))
-       (cond
-         (and (.IsVirtual method)
-              (nil? generic-parameters))
-         [(reference-to target)
-          (virtcall method)]
-
-         (and (not (.IsVirtual method))
-              (nil? generic-parameters))
-         (il/call method)
-         ;; TODO ???
-         (and (.IsVirtual method)
-              generic-parameters)
-         [(reference-to target)
-          (virtcall method generic-parameters)]
-         ;; TODO ???
-         (and (not (.IsVirtual method))
-              generic-parameters)
-         (il/call method generic-parameters))])))
+  [{:keys [method target args generic-parameters] :as ast} symbolizers]
+  (let [arg-types (map clr-type args)
+        virtcall (if (.IsValueType (clr-type target))
+                   il/call
+                   il/callvirt )]
+    [(symbolize target symbolizers)
+     ; (reference-to target)
+     (interleave
+       (map #(symbolize % symbolizers) args)
+       (map convert
+            arg-types
+            (interop/parameter-types method)))
+     (cond
+       (and (.IsVirtual method)
+            (nil? generic-parameters))
+       [(reference-to target)
+        (virtcall method)]
+       
+       (and (not (.IsVirtual method))
+            (nil? generic-parameters))
+       (il/call method)
+       ;; TODO ???
+       (and (.IsVirtual method)
+            generic-parameters)
+       [(reference-to target)
+        (virtcall method generic-parameters)]
+       ;; TODO ???
+       (and (not (.IsVirtual method))
+            generic-parameters)
+       (il/call method generic-parameters))]))
 
 (c/defn initobj-symbolizer
   "Symbolic bytecode for zero arity value type constructor invocation"
@@ -473,31 +421,16 @@
      (il/initobj type)
      (il/ldloc loc)]))
 
-(c/defn inexact-new-symbolizer
-  [{:keys [inexact? type args] :as ast} symbolizers]
-  (let [arg-types (map clr-type args)]
-    (if-let [matching-constructor (best-match ast :constructors)]
-      [(interleave
-         (map #(symbolize % symbolizers) args)
-         (map convert
-              arg-types
-              (interop/parameter-types matching-constructor)))
-       (il/newobj matching-constructor)]
-      (throw! "No constructor for type " type
-              " matching signature " (vec arg-types)))))
-
 (c/defn new-symbolizer
   "Symbolic bytecode for constructor invocation"
-  [{:keys [inexact? type constructor args] :as ast} symbolizers]
-  (if inexact?
-    (inexact-new-symbolizer ast symbolizers)
-    (let [arg-types (map clr-type args)]
-      [(interleave
-         (map #(symbolize % symbolizers) args)
-         (map convert
-              arg-types
-              (interop/parameter-types constructor)))
-       (il/newobj constructor)])))
+  [{:keys [type constructor args] :as ast} symbolizers]
+  (let [arg-types (map clr-type args)]
+    [(interleave
+       (map #(symbolize % symbolizers) args)
+       (map convert
+            arg-types
+            (interop/parameter-types constructor)))
+     (il/newobj constructor)]))
 
 (c/defn let-symbolizer
   [{:keys [bindings body loop-id] :as ast} symbolizers]
