@@ -55,14 +55,3 @@
                     (magic/symbolize (magic/get-symbolizers faster-symbolizers)))]
     (il/emit! body-il)
     (::il/type body-il)))
-
-(defmacro faster [& body]
-  (let [ks (keys &env)
-        vs (vals &env)
-        types (map #(or (tag %1)
-                        (and (.HasClrType %2) (.ClrType %2))
-                        Object)
-                   ks vs)
-        ftype (symbol (faster-type ks types (list* 'do body)))]
-    (.importClass *ns* (RT/classForName (str ftype)))
-    `(. ~ftype ~'invoke ~@ks)))
