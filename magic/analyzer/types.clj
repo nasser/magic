@@ -57,7 +57,7 @@
     (resolve t)))
 
 ;; TODO warn on truncate?
-(defn convertable? [from to]
+(defn convertible? [from to]
   (or (and (nil? from) (nil? to))
       (= from to)
       (and (nil? from) (not (.IsValueType to)))
@@ -83,7 +83,7 @@
                  (let [sig-params (map #(.ParameterType %) (.GetParameters sig))]
                    (and (= (count params)
                            (count sig-params))
-                        (every? true? (map convertable? params sig-params))))))
+                        (every? true? (map convertible? params sig-params))))))
        (sort-by specificity)
        reverse))
 
@@ -101,7 +101,7 @@
     (and (= (count args)
             (count params))
          (->> (map
-                #(convertable? %1 %2)
+                #(convertible? %1 %2)
                 (map #(.ParameterType %) params)
                 args)
               (remove identity)
