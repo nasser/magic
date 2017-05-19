@@ -173,7 +173,8 @@
                   (if (obj? res)
                     (vary-meta res merge
                                (and t {:tag t})
-                               (meta form))
+                               (meta form)
+                               {:original-var v})
                     res))
 
                 :else
