@@ -1,7 +1,7 @@
 (ns magic.analyzer.types
   (:refer-clojure :exclude [resolve])
   (:require [magic.analyzer
-             [util :refer [throw! var-interfaces]]
+             [util :refer [throw! var-interfaces] :as util]
              [reflection :refer [find-method]]]))
 
 (defn read-generic-name [name]
@@ -181,27 +181,22 @@
 (def numeric
   (set numeric-promotion-order))
 
+(def integer
+  (disj numeric Single Double))
+
 (defn best-numeric-promotion [types]
   (and (or (every? numeric types) nil)
        (->> types
             (sort-by #(.IndexOf numeric-promotion-order %))
             last)))
 
-(defmulti intrinsic-type (fn [v args] v))
-
-(defmethod intrinsic-type #'+ [_ args]
-  (case (count args)
-    0 Int64                                         ;; (+) -> 0
-    1 (let [t (clr-type (first args))]              ;; (+ x) -> x (if numeric)
-        (when (numeric t) t))
-    (best-numeric-promotion (map clr-type args))))  ;; (+ x y…) -> promote
-
-
-
 ;;;;; ast types
 
 (defmethod clr-type :default [ast]
-  (throw! "clr-type not implemented for :op " (:op ast) " in AST " (pr-str ast)))
+  (throw! "clr-type not implemented for :op " (:op ast) " while analyzing " (-> ast :raw-forms first pr-str)))
+
+(defmethod clr-type :intrinsic
+  [{:keys [type]}] type)
 
 ;; TODO remove
 (defmethod clr-type nil
@@ -248,8 +243,7 @@
 ;; put in a more general place?
 (defmethod clr-type :static-method
   [{:keys [form method args]}]
-  (or (intrinsic-type (-> form meta :original-var) args)
-      (.ReturnType method)))
+  (.ReturnType method))
 
 (defmethod clr-type :instance-method [ast]
   (.ReturnType (ast :method)))
@@ -273,8 +267,7 @@
 (defmethod clr-type :invoke
   [{:keys [fn args]}]
   (resolve
-    (or (intrinsic-type (:var fn) args)
-        (->> fn
+    (or (->> fn
              :meta
              :arglists
              (filter #(= (count %) (count args)))

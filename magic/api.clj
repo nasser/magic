@@ -7,7 +7,6 @@
             [magic.faster :refer [faster-type]]
             [mage.core :as il]
             [magic.spells
-             [intrinsics :refer [intrinsics]]
              [lift-vars :refer [lift-vars]]])
   (:import [clojure.lang RT]))
 
@@ -63,4 +62,4 @@
   (alter-var-root #'magic/*spells* (constantly spells)))
 
 (c/defn bind-basic-spells! []
-  (bind-spells! [intrinsics lift-vars]))
+  (bind-spells! [lift-vars]))

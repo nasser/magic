@@ -15,6 +15,8 @@
             [clojure.tools.analyzer.env :refer [*env* with-env] :as env]
             [clojure.tools.analyzer.utils :refer [resolve-sym ctx -source-info resolve-ns obj? dissoc-env]]
             [magic.analyzer
+             [intrinsics :as intrinsics]
+             [util :as util]
              [novel :as novel]
              [analyze-host-forms :as host]
              [errors :refer [error] :as errors]
@@ -153,7 +155,9 @@
                    local? (-> env :locals (get op))
                    macro? (and (not local?) (:macro m)) ;; locals shadow macros
                    inline-arities-f (:inline-arities m)
-                   inline? (and (not local?)
+                   intrinsic-expr? (@intrinsics/intrinsic-forms (util/var-symbol v))
+                   inline? (and (not intrinsic-expr?)
+                                (not local?)
                                 (or (not inline-arities-f)
                                     (inline-arities-f (count args)))
                                 (:inline m))
@@ -173,14 +177,12 @@
                   (if (obj? res)
                     (vary-meta res merge
                                (and t {:tag t})
-                               (meta form)
-                               {:original-var v})
+                               (meta form))
                     res))
 
                 :else
                 (desugar-host-expr form env)))))
          (desugar-host-expr form env)))))
-
 
 ;; patch analysis of locals to carry binding inits with them
 ;; good type resolution depends on it
@@ -244,6 +246,7 @@
     #'host/analyze-host-call
     #'novel/csharp-operators
     #'novel/generic-type-syntax
+    #'intrinsics/analyze
     #'tag-catch-locals
     ; #'source-info
     ; #'collect-vars
