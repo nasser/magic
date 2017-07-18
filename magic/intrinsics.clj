@@ -45,6 +45,33 @@
                  checked
                  unchecked))])))
 
+(defn conversion-symbolizer
+  [{:keys [args]} type symbolizers]
+  (let [arg (first args)]
+    [(magic/symbolize arg symbolizers)
+     (magic/convert (clr-type arg) type)]))
+
+(def conversions
+  {'clojure.core/float  Single
+   'clojure.core/double Double
+   'clojure.core/char   Char
+   'clojure.core/byte   Byte
+   'clojure.core/sbyte  SByte
+   'clojure.core/int    Int32
+   'clojure.core/uint   UInt32
+   'clojure.core/long   Int64
+   'clojure.core/ulong  UInt64
+   'clojure.core/short  Int16
+   'clojure.core/ushort UInt16})
+
+(reduce-kv
+  #(register-intrinsic-form
+     %2
+     (constantly %3)
+     conversion-symbolizer)
+  nil
+  conversions)
+
 (defintrinsic clojure.core/+
   associative-numeric-type
   (associative-numeric-symbolizer
