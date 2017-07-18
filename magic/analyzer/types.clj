@@ -1,7 +1,7 @@
 (ns magic.analyzer.types
   (:refer-clojure :exclude [resolve])
   (:require [magic.analyzer
-             [util :refer [throw! var-interfaces]]
+             [util :refer [throw! var-interfaces] :as util]
              [reflection :refer [find-method]]]))
 
 (defn read-generic-name [name]
@@ -71,6 +71,46 @@
       (.IsSubclassOf to from)
       (.IsSubclassOf from to)))
 
+;; https://stackoverflow.com/questions/14315437/get-best-matching-overload-from-set-of-overloads
+
+;; https://msdn.microsoft.com/en-us/library/aa691339(v=vs.71).aspx
+(defn better-conversion [s t1 t2]
+  (when (and (convertable? s t1)
+             (convertable? s t2))
+    (cond
+      (= t1 t2) nil
+      (= s t1) t1
+      (= s t2) t2
+      (and (convertable? t1 t2) (not (convertable? t2 t1)))
+      t1
+      (and (convertable? t2 t1) (not (convertable? t1 t2)))
+      t2
+      (and (= t1 SByte) (#{Byte UInt16 UInt32 UInt64} t2))
+      t1
+      (and (= t2 SByte) (#{Byte UInt16 UInt32 UInt64} t1))
+      t2
+      (and (= t1 Int16) (#{UInt16 UInt32 UInt64} t2))
+      t1
+      (and (= t2 Int16) (#{UInt16 UInt32 UInt64} t1))
+      t2
+      (and (= t1 Int32) (#{UInt32 UInt64} t2))
+      t1
+      (and (= t2 Int32) (#{UInt32 UInt64} t1))
+      t2
+      (and (= t1 Int64) (= UInt64 t2))
+      t1
+      (and (= t2 Int64) (= UInt64 t1))
+      t2)))
+
+;; https://msdn.microsoft.com/en-us/library/aa691338(v=vs.71).aspx
+#_
+(defn better-function-member
+  [a p q]
+  (let [a-types (map clr-type args)
+        p-types (->> p .GetParameters (map #(.ParameterType %)))
+        q-tyqes (->> p .GetParameters (map #(.ParameterType %)))]
+    ))
+
 (defn specificity [sig]
   (->> (.GetParameters sig)
        (map #(-> (.ParameterType %) superchain count))
@@ -131,8 +171,32 @@
          (filter #(method-match? % arg-types))
          first)))
 
+;;;;; intrinsics
+
+;; TODO this should be part of a more general conversion system
+;; TODO Boolean? Decimal?
+(def numeric-promotion-order
+  [Byte SByte UInt16 Int16 UInt32 Int32 UInt64 Int64 Single Double])
+
+(def numeric
+  (set numeric-promotion-order))
+
+(def integer
+  (disj numeric Single Double))
+
+(defn best-numeric-promotion [types]
+  (and (or (every? numeric types) nil)
+       (->> types
+            (sort-by #(.IndexOf numeric-promotion-order %))
+            last)))
+
+;;;;; ast types
+
 (defmethod clr-type :default [ast]
-  (throw! "clr-type not implemented for :op " (:op ast) " in AST " (pr-str ast)))
+  (throw! "clr-type not implemented for :op " (:op ast) " while analyzing " (-> ast :raw-forms first pr-str)))
+
+(defmethod clr-type :intrinsic
+  [{:keys [type]}] type)
 
 ;; TODO remove
 (defmethod clr-type nil
@@ -174,8 +238,12 @@
 (defmethod clr-type :map [ast]
   clojure.lang.IPersistentMap)
 
-(defmethod clr-type :static-method [ast]
-  (.ReturnType (ast :method)))
+;; TODO :original-var is not constrained to static methods
+;; (the macroexpander can inline to anything)
+;; put in a more general place?
+(defmethod clr-type :static-method
+  [{:keys [form method args]}]
+  (.ReturnType method))
 
 (defmethod clr-type :instance-method [ast]
   (.ReturnType (ast :method)))
@@ -198,22 +266,23 @@
 
 (defmethod clr-type :invoke
   [{:keys [fn args]}]
-  (resolve (or (->> fn
-                    :meta
-                    :arglists
-                    (filter #(= (count %) (count args)))
-                    first
-                    meta
-                    :tag)
-               (let [arg-types (map clr-type args)
-                     target-interfaces (var-interfaces fn)
-                     exact-match (->> target-interfaces
-                                      (filter #(= (drop 1 (.GetGenericArguments %))
-                                                  arg-types))
-                                      first)]
-                 (if exact-match
-                   (first (.GetGenericArguments exact-match))))
-               'Object)))
+  (resolve
+    (or (->> fn
+             :meta
+             :arglists
+             (filter #(= (count %) (count args)))
+             first
+             meta
+             :tag)
+        (let [arg-types (map clr-type args)
+              target-interfaces (var-interfaces fn)
+              exact-match (->> target-interfaces
+                               (filter #(= (drop 1 (.GetGenericArguments %))
+                                           arg-types))
+                               first)]
+          (if exact-match
+            (first (.GetGenericArguments exact-match))))
+        'Object)))
 
 (defmethod clr-type :new [ast]
   (:type ast))

@@ -15,6 +15,8 @@
             [clojure.tools.analyzer.env :refer [*env* with-env] :as env]
             [clojure.tools.analyzer.utils :refer [resolve-sym ctx -source-info resolve-ns obj? dissoc-env]]
             [magic.analyzer
+             [intrinsics :as intrinsics]
+             [util :as util]
              [novel :as novel]
              [analyze-host-forms :as host]
              [errors :refer [error] :as errors]
@@ -153,7 +155,9 @@
                    local? (-> env :locals (get op))
                    macro? (and (not local?) (:macro m)) ;; locals shadow macros
                    inline-arities-f (:inline-arities m)
-                   inline? (and (not local?)
+                   intrinsic-expr? (@intrinsics/intrinsic-forms (util/var-symbol v))
+                   inline? (and (not intrinsic-expr?)
+                                (not local?)
                                 (or (not inline-arities-f)
                                     (inline-arities-f (count args)))
                                 (:inline m))
@@ -179,7 +183,6 @@
                 :else
                 (desugar-host-expr form env)))))
          (desugar-host-expr form env)))))
-
 
 ;; patch analysis of locals to carry binding inits with them
 ;; good type resolution depends on it
@@ -234,6 +237,20 @@
                            ast)))))
     ast))
 
+(defn enforce-var-arity
+  {:pass-info {:walk :pre :before #{#'uniquify-locals}}}
+  [{:keys [op fn args] :as ast}]
+  (if (= op :invoke)
+    (let [fixed-arities (util/var-fixed-arities ast)
+          variadic-arity (util/var-variadic-arity ast)
+          argcount (count args)]
+      (if (or (fixed-arities argcount)
+              (and variadic-arity
+                   (>= argcount variadic-arity)))
+        ast
+        (errors/error ::errors/var-bad-arity ast)))
+    ast))
+
 (def default-passes
   #{#'host/analyze-byref
     #'host/analyze-type
@@ -243,7 +260,9 @@
     #'host/analyze-host-call
     #'novel/csharp-operators
     #'novel/generic-type-syntax
+    #'intrinsics/analyze
     #'tag-catch-locals
+    #'enforce-var-arity
     ; #'source-info
     ; #'collect-vars
     ; #'cleanup

@@ -776,6 +776,10 @@
    (convert (clr-type target) Object)
    (il/call (interop/method System.Threading.Monitor "Exit" Object))])
 
+(defn intrinsic-symbolizer
+  [{:keys [original type il-fn]} symbolizers]
+  (il-fn original type symbolizers))
+
 (def base-symbolizers
   {:const               #'const-symbolizer
    :do                  #'do-symbolizer
@@ -807,6 +811,7 @@
    :instance-method     #'instance-method-symbolizer
    :initobj             #'initobj-symbolizer
    :new                 #'new-symbolizer
+   :intrinsic           #'intrinsic-symbolizer
    })
 
 (def ^:dynamic *spells* [])
