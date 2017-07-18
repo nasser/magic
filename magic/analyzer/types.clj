@@ -40,10 +40,47 @@
       (.GetProperty class name)
       (.GetMethod class name Type/EmptyTypes)))
 
+(def shorthand
+  {'float    Single
+   'double   Double
+   'short    Int16
+   'ushort   UInt16
+   'int      Int32
+   'uint     UInt32
+   'long     Int64
+   'ulong    UInt64
+   'bool     Boolean
+   'object   Object
+   'intptr   IntPtr
+   'uintptr  UIntPtr
+   'char     Char
+   'byte     Byte
+   'sbyte    SByte
+   'decimal  Decimal
+   'string   String
+   'floats   System.Single|[]|
+   'doubles  System.Double|[]|
+   'shorts   System.Int16|[]|
+   'ushorts  System.UInt16|[]|
+   'ints     System.Int32|[]|
+   'uints    System.UInt32|[]|
+   'longs    System.Int64|[]|
+   'ulongs   System.UInt64|[]|
+   'bools    System.Boolean|[]|
+   'objects  System.Object|[]|
+   'intptrs  System.IntPtr|[]|
+   'uintptrs System.UIntPtr|[]|
+   'chars    System.Char|[]|
+   'bytes    System.Byte|[]|
+   'sbytes   System.SByte|[]|
+   'decimals System.Decimal|[]|
+   'strings  System.String|[]|})
+
 (defn resolve
   ([t]
    (if (symbol? t)
-     (or (clojure.core/resolve t)
+     (or (shorthand t)
+         (clojure.core/resolve t)
          (throw! "Could not resolve " t " as  type."))
      t))
   ([t ast]
