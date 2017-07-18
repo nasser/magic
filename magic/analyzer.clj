@@ -237,6 +237,20 @@
                            ast)))))
     ast))
 
+(defn enforce-var-arity
+  {:pass-info {:walk :pre :before #{#'uniquify-locals}}}
+  [{:keys [op fn args] :as ast}]
+  (if (= op :invoke)
+    (let [fixed-arities (util/var-fixed-arities ast)
+          variadic-arity (util/var-variadic-arity ast)
+          argcount (count args)]
+      (if (or (fixed-arities argcount)
+              (and variadic-arity
+                   (>= argcount variadic-arity)))
+        ast
+        (errors/error ::errors/var-bad-arity ast)))
+    ast))
+
 (def default-passes
   #{#'host/analyze-byref
     #'host/analyze-type
@@ -248,6 +262,7 @@
     #'novel/generic-type-syntax
     #'intrinsics/analyze
     #'tag-catch-locals
+    #'enforce-var-arity
     ; #'source-info
     ; #'collect-vars
     ; #'cleanup
