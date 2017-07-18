@@ -55,6 +55,12 @@
   (associative-numeric-symbolizer
     (il/ldc-i8 1) (il/mul-ovf) (il/mul)))
 
+(defintrinsic clojure.core/float
+  (constantly Single)
+  (fn [{:keys [args]} type symbolizers]
+    [(magic/symbolize (first args) symbolizers)
+     (magic/convert (clr-type (first args)) type)]))
+
 (defintrinsic clojure.core/<
   #(when (numeric-args %) Boolean)
   (fn intrinsic-lt-symbolizer
