@@ -240,7 +240,8 @@
 (defn enforce-var-arity
   {:pass-info {:walk :pre :before #{#'uniquify-locals}}}
   [{:keys [op fn args] :as ast}]
-  (if (= op :invoke)
+  (if (and (= op :invoke)
+           (= (:op fn) :var))
     (let [fixed-arities (util/var-fixed-arities ast)
           variadic-arity (util/var-variadic-arity ast)
           argcount (count args)]
