@@ -263,7 +263,7 @@
     #'novel/generic-type-syntax
     #'intrinsics/analyze
     #'tag-catch-locals
-    #'enforce-var-arity
+    ; #'enforce-var-arity
     ; #'source-info
     ; #'collect-vars
     ; #'cleanup
