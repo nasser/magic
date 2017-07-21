@@ -112,15 +112,15 @@
 
 ;; https://msdn.microsoft.com/en-us/library/aa691339(v=vs.71).aspx
 (defn better-conversion [s t1 t2]
-  (when (and (convertable? s t1)
-             (convertable? s t2))
+  (when (and (convertible? s t1)
+             (convertible? s t2))
     (cond
       (= t1 t2) nil
       (= s t1) t1
       (= s t2) t2
-      (and (convertable? t1 t2) (not (convertable? t2 t1)))
+      (and (convertible? t1 t2) (not (convertible? t2 t1)))
       t1
-      (and (convertable? t2 t1) (not (convertable? t1 t2)))
+      (and (convertible? t2 t1) (not (convertible? t1 t2)))
       t2
       (and (= t1 SByte) (#{Byte UInt16 UInt32 UInt64} t2))
       t1
@@ -172,7 +172,7 @@
   (matching-signatures (.GetConstructors type) params))
 
 (defn method-match?
-  "Does are args convertable to method's parameters?"
+  "Does are args convertible to method's parameters?"
   [method args]
   (let [params (.GetParameters method)]
     (and (= (count args)
