@@ -94,6 +94,44 @@
      (load-constant symname)
      (il/call (interop/method RT "var" String String))]))
 
+;; TODO remaining element types
+(defn load-element [type]
+  (case type
+    ;; ??? (il/ldelem-i)
+    ;; ??? (il/ldelema)
+    SByte (il/ldelem-i1)
+    Int16 (il/ldelem-i2)
+    Int32 (il/ldelem-i4)
+    Int64 (il/ldelem-i8)
+    Byte (il/ldelem-u1)
+    UInt16 (il/ldelem-u2)
+    UInt32 (il/ldelem-u4)
+    UInt64 (il/ldelem-i8) ;; weird??
+    Single (il/ldelem-r4)
+    Double (il/ldelem-r8)
+    (if (.IsValueType type)
+      (il/ldelem type)
+      (il/ldelem-ref))))
+
+;; TODO remaining element types
+(defn store-element [type]
+  (case type
+    ;; ??? (il/stelem-i)
+    ;; ??? (il/stelema)
+    SByte (il/stelem-i1)
+    Int16 (il/stelem-i2)
+    Int32 (il/stelem-i4)
+    Int64 (il/stelem-i8)
+    ;; Byte (il/stelem-u1)
+    ;; UInt16 (il/stelem-u2)
+    ;; UInt32 (il/stelem-u4)
+    ;; UInt64 (il/stelem-i8) ;; weird??
+    Single (il/stelem-r4)
+    Double (il/stelem-r8)
+    (if (.IsValueType type)
+      (il/stelem type)
+      (il/stelem-ref))))
+
 (defn get-var [v]
   (if (.isDynamic v)
     (il/call (interop/method Var "get"))
@@ -246,6 +284,24 @@
     
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
+
+;; TODO is this better than e.g. a peephope pass?
+(defn reinterpret [{:keys [literal? op val] :as ast} to-type]
+  (if (and (= op :const) literal?)
+    (let [v (condp = to-type
+              Single (Convert/ToSingle val)
+              Double (Convert/ToDouble val)
+              Byte (Convert/ToByte val)
+              SByte (Convert/ToSByte val)
+              Int16 (Convert/ToInt16 val)
+              UInt16 (Convert/ToUInt16 val)
+              Int32 (Convert/ToInt32 val)
+              UInt32 (Convert/ToUInt32 val)
+              Int64 (Convert/ToInt64 val)
+              UInt64 (Convert/ToUInt64 val)
+              val)]
+      (assoc ast :val v :form v))
+    ast))
 
 (defn statement? [{{:keys [context]} :env}]
   (= context :ctx/statement))
