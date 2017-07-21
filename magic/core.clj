@@ -379,8 +379,9 @@
   [{:keys [target property]} symbolizers]
   [(symbolize target symbolizers)
    (reference-to target)
-   (il/callvirt (.GetGetMethod property))])
-
+   (if (-> target clr-type .IsValueType)
+     (il/call (.GetGetMethod property))
+     (il/callvirt (.GetGetMethod property)))])
 
 (defn static-field-symbolizer
   "Symbolic bytecode for static fields"
