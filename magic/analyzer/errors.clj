@@ -1,9 +1,12 @@
 (ns magic.analyzer.errors
-  (:require [magic.analyzer.types :refer [clr-type]]))
+  (:require [magic.analyzer
+             [types :refer [clr-type]]
+             [util :refer [throw! var-interfaces] :as util]
+             ]))
 
-;; TODO different Exception types?
-(defmacro throw! [& e]
-  `(throw (Exception. (str ~@e))))
+; ;; TODO different Exception types?
+; (defmacro throw! [& e]
+;   `(throw (Exception. (str ~@e))))
 
 (defn user-form
   "The form as the user typed it"
@@ -74,7 +77,20 @@
   (throw! "Could not find overload of instance method " method
           " taking " (count args) " arguments"
           " for type " (clr-type target)
-          " while analyzing form " (user-form ast)))
+          " while analyzing form " (user-form )))
+
+(defmethod error ::var-bad-arity
+  [err {:keys [fn args] :as ast}]
+  (let [fixed-arities (vec (sort (util/var-fixed-arities ast)))
+        variadic-arity (util/var-variadic-arity ast)
+        arg-data (if variadic-arity
+                   (conj fixed-arities (str variadic-arity " or greater"))
+                   fixed-arities)
+        plural (if (or (> (count fixed-arities) 1)
+                       variadic-arity)
+                 "s" "")]
+    (throw! (:var fn) " requires " (util/seq-sentence arg-data) " argument" plural " but got " (count args)
+            " while analyzing form " (user-form ast))))
 
 (defmethod error ::by-ref-bad-arity
   [err {:keys [args] :as ast}]
@@ -86,3 +102,7 @@
   (throw! "by-ref requires a local as an argument but got " (-> args first :op)
           " while analyzing form " (user-form ast)))
 
+(defmethod error ::bad-arithmetic-conversion
+  [err {:keys [args fn] :as ast}]
+  (throw! "Could not convert non-numeric arguments in arithmetic expression"
+          " while analyzing form " (user-form ast)))
