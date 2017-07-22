@@ -2,7 +2,7 @@
 title:        The Morgan And Grand Iron Clojure Compiler
 shorttitle:   The MAGIC Compiler
 tagline:      A high-performance Clojure compiler library targeting the Common Language Runtime
-baseurl:      ""
+baseurl:      "http://nas.sr/magic/"
 future: true
 
 # paginate:     5

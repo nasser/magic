@@ -3,4 +3,4 @@ layout: post
 title:  🎩✨
 ---
 
-![]({{ site.url }}/images/magic.gif)
+![]({{ site.baseurl }}/images/magic.gif)
