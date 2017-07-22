@@ -1,0 +1,20 @@
+# Setup
+title:        The Morgan And Grand Iron Clojure Compiler
+shorttitle:   The MAGIC Compiler
+tagline:      A high-performance Clojure compiler library targeting the Common Language Runtime
+baseurl:      ""
+future: true
+
+# paginate:     5
+
+# About/contact
+author:
+  name:       Ramsey Nasser
+  url:        http://nas.sr
+
+# Gems
+# gems:
+  # - jekyll-paginate
+
+#Others
+markdown: kramdown

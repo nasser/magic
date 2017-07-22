@@ -1,0 +1,6 @@
+---
+layout: post
+title:  🎩✨
+---
+
+![]({{ site.url }}/images/magic.gif)
