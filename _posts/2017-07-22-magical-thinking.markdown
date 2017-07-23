@@ -45,7 +45,7 @@ A new compiler was not the first thing we tried.
 We spent months hacking on the original to fix type flow, introduce value types, and improve the memory usage of generated code.
 Underneath the elegance, Clojure's compiler is built on traditional Object Oriented principles in tens of thousands of lines of C#.
 The story is all too common, and the kind that drives many people to Clojure in the first place:
-Manipulating type inference in one part of the compiler brakes method resolution somewhere else.
+Manipulating type inference in one part of the compiler breaks method resolution somewhere else.
 Adding logic to the type system means editing a few dozen files in *exactly* the same way.
 Testing ideas means recompiling the compiler, which could take over a minute.
 Failure means the compiler does not build at all, and you have to start again.
