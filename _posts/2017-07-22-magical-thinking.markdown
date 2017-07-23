@@ -55,13 +55,15 @@ Not only did we miss our technical goals, but hacking the compiler was simply *n
 
 In the end, using Clojure to build a Clojure compiler has proven to be a winning strategy.
 MAGIC is built around functional programming and immutable data, and I develop it live in a REPL like any other Clojure project.
-This lends it the simplicity and joy of work that has brought it this far with a single developer.
+Every step of the pipeline, from the user's parsed source code, to the abstract syntax tree, even to the bytecode, is represented as persistent Clojure data and transformed using Clojure functions.
+In particular, The representation of bytecode as persistent data, something I've called *symbolic assembly* in past talks, allows for a functional approach to compiler optimization.
+This allows for a decomplecting and decoupling of the different parts of the compiler that make the whole thing manageable and a joy to work on.
 
 ## A Taste of MAGIC
 There is a lot of work left to do, but as of today MAGIC can compile most of Clojure and is already being used to optimize game code in the Arcadia community.
 There is much more to say, and I will elaborate the ideas above and more in coming posts, but for now I will end with a taste of where the compiler is at.
 
-The snippet below is an example of the kind of computation you might find in a video game: given an array of three dimensional vectors, it calculates their [centroid][centroid]. A million random [`Vector3`][v3]s are generated and passed to centroid functions written in the stock compiler and MAGIC. They are compared for accuracy, run time, and – in a REPL session with garbage collector tracing turned on – for the amount of garbage they generate.
+The snippet below is an example of the kind of computation you might find in a video game: given an array of three dimensional vectors, it calculates their [centroid][centroid]. A million random [`Vector3`][v3]s are generated and passed to centroid functions written in the stock compiler and MAGIC. They are compared for accuracy, run time, and – in a REPL session with garbage collector tracing turned on – for the amount of garbage they generate.
 
 ```clojure
 (ns user
