@@ -30,6 +30,7 @@ The short answer is: Arcadia is built on the existing ClojureCLR project, and it
 
 The primary motivator is performance, both in terms of run time and memory allocation.
 ClojureCLR is more or less a straight port of Clojure on the JVM, and borrows most of its approach to optimization.
+This strategy was a reasonable one, in that it meant that ClojureCLR happened *at all*, but it has its limits.
 Mismatches between JVM and CLR semantics are a constant source of performance pain for us, particularly due to the demanding nature of game development.
 We've contributed spot fixes to ClojureCLR when possible, but addressing the deep misassumptions it makes about its host necessitates a rewrite.
 Without one, there will be a fairly low ceiling on how fast we can realistically expect Clojure game code to be.
