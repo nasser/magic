@@ -1,7 +1,6 @@
 ---
 layout: post
 title:  Magical Thinking
-draft: true
 ---
 
 The Morgan And Grand Iron Clojure (MAGIC) compiler is a high-performance [Clojure][clojure] compiler, written as a Clojure library, targeting the [Common Language Runtime][clr].
