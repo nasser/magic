@@ -28,9 +28,6 @@
 
 (def mscorlib (Assembly/Load "mscorlib"))
 
-(assembly-load-from "/Applications/Unity/Unity.app/Contents/Managed/UnityEngine.dll")
-(assembly-load-from "/Users/nasser/Scratch/hummus/OpenTK.dll")
-
 (def single
   (gen/sized (fn [size] (gen/return (- (rand size) (/ size 2))))))
 
@@ -255,6 +252,9 @@
 
 
 (comment   
+  (assembly-load-from "/Applications/Unity/Unity.app/Contents/Managed/UnityEngine.dll")
+  (assembly-load-from "/Users/nasser/Scratch/hummus/OpenTK.dll")
+
   (defn run-tests [n type interop-fn validation-fn]
     (check/quick-check
       n
