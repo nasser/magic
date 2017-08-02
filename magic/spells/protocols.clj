@@ -9,12 +9,12 @@
   (enum-or FieldAttributes/Private FieldAttributes/InitOnly FieldAttributes/Static))
 
 (defn protocols [cached-type?]
-  (fn [symbolizers]
-    (update symbolizers
+  (fn [compilers]
+    (update compilers
             :invoke
-            (fn [old-invoke-symbolizer]
-              (fn protocol-invoke-symbolizer
-                [{:keys [fn args] :as ast} symbolizers]
+            (fn [old-invoke-compiler]
+              (fn protocol-invoke-compiler
+                [{:keys [fn args] :as ast} compilers]
                 (if-let [proto (-> fn :meta :protocol)]
                   (let [iface (-> proto deref :on-interface)
                         target (first args)
@@ -24,8 +24,8 @@
                                       iface
                                       fn-name
                                       (repeat (count fn-args) Object))
-                        fn-il (magic/symbolize fn symbolizers)
-                        target-il (magic/symbolize (first args) symbolizers)
+                        fn-il (magic/compile fn compilers)
+                        target-il (magic/compile (first args) compilers)
                         cached-type (il/field Type
                                               (str (gensym (str fn-name "-cached-type" )))
                                               cached-field-attrs)
@@ -46,7 +46,7 @@
                      target-il
                      ; (il/castclass iface)
                      (interleave
-                       (map magic/symbolize fn-args)
+                       (map magic/compile fn-args)
                        (map magic/convert
                             (map clr-type fn-args)
                             (interop/parameter-types method)))
@@ -58,9 +58,9 @@
                         (il/callvirt (interop/method Object "GetType"))
                         (il/stsfld cached-type)
                         cache-hit])
-                     (old-invoke-symbolizer ast symbolizers)
+                     (old-invoke-compiler ast compilers)
                      end])
-                  (old-invoke-symbolizer ast symbolizers)))))))
+                  (old-invoke-compiler ast compilers)))))))
 
 (def protocols-type-cache (protocols true))
 (def protocols-no-type-cache (protocols false))

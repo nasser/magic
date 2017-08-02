@@ -16,7 +16,7 @@
           (slurp :encoding "utf8")
           read-string
           ana/analyze
-          magic/symbolize)))
+          magic/compile)))
   (println (str "Built " file ".dll")))
 
 (defn tests

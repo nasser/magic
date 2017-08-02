@@ -1,4 +1,5 @@
 (ns magic.core
+  (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
             [magic.analyzer :as ana]
             [magic.analyzer.util :refer [var-interfaces]]
@@ -318,87 +319,87 @@
            (not= System.Void (clr-type ast)))
     (il/pop)))
 
-;;; symbolizers
-(def symbolize)
+;;; compilers
+(def compile)
 
-(defn do-symbolizer
-  [{:keys [statements ret]} symbolizers]
+(defn do-compiler
+  [{:keys [statements ret]} compilers]
   [(interleave
-     (map #(symbolize % symbolizers) statements)
+     (map #(compile % compilers) statements)
      (map #(cleanup-stack %) statements))
-   (symbolize ret symbolizers)])
+   (compile ret compilers)])
 
-(defn const-symbolizer
+(defn const-compiler
   "Symbolic bytecode for :const nodes"
-  [{:keys [val] :as ast} symbolizers]
+  [{:keys [val] :as ast} compilers]
   (load-constant val))
 
-(defn prepare-array [items symbolizers]
+(defn prepare-array [items compilers]
   [(il/newarr Object)
    (map (fn [i c]
           [(il/dup)
            (load-constant (int i))
-           (symbolize c symbolizers)
+           (compile c compilers)
            (convert (clr-type c) Object)
            (il/stelem-ref)])
         (range)
         items)])
 
-(defn vector-symbolizer
-  [{:keys [items]} symbolizers]
+(defn vector-compiler
+  [{:keys [items]} compilers]
   [(load-constant (int (count items)))
-   (prepare-array items symbolizers)
+   (prepare-array items compilers)
    (il/call (interop/method clojure.lang.RT "vector" |System.Object[]|))])
 
-(defn set-symbolizer
-  [{:keys [items]} symbolizers]
+(defn set-compiler
+  [{:keys [items]} compilers]
   [(load-constant (int (count items)))
-   (prepare-array items symbolizers)
+   (prepare-array items compilers)
    (il/call (interop/method clojure.lang.RT "set" |System.Object[]|))])
 
-(defn map-symbolizer
-  [{:keys [keys vals]} symbolizers]
+(defn map-compiler
+  [{:keys [keys vals]} compilers]
   [(load-constant (int (+ (count keys) (count vals))))
-   (prepare-array (interleave keys vals) symbolizers)
+   (prepare-array (interleave keys vals) compilers)
    (il/call (interop/method clojure.lang.PersistentArrayMap "createWithCheck" |System.Object[]|))])
 
-(defn static-property-symbolizer
+(defn static-property-compiler
   "Symbolic bytecode for static properties"
-  [{:keys [property]} symbolizers]
+  [{:keys [property]} compilers]
   (il/call (.GetGetMethod property)))
 
-(defn instance-property-symbolizer
+(defn instance-property-compiler
   "Symbolic bytecode for instance properties"
-  [{:keys [target property]} symbolizers]
-  [(symbolize target symbolizers)
+  [{:keys [target property]} compilers]
+  [(compile target compilers)
    (reference-to target)
    (if (-> target clr-type .IsValueType)
      (il/call (.GetGetMethod property))
      (il/callvirt (.GetGetMethod property)))])
 
-(defn static-field-symbolizer
+(defn static-field-compiler
   "Symbolic bytecode for static fields"
-  [{:keys [field]} symbolizers]
+  [{:keys [field]} compilers]
   (if (.IsLiteral field)
     (load-constant (.GetRawConstantValue field))
     (il/ldsfld field)))
 
 
-(defn instance-field-symbolizer
+(defn instance-field-compiler
   "Symbolic bytecode for instance fields"
-  [{:keys [field target]} symbolizers]
-  [(symbolize target symbolizers)
+  [{:keys [field target]} compilers]
+  [(compile target compilers)
    (reference-to target)
    (il/ldfld field)])
 
-(defn dynamic-field-symbolizer
+(defn dynamic-field-compiler
   "Symbolic bytecode for dynamic fields"
-  [{:keys [field target]} symbolizers]
+  [{:keys [field target]} compilers]
   (let [target-local (il/local)
         target-type (il/local Type)
         reflected-field (il/local FieldInfo)
         valid-field (il/label)]
-    [(symbolize target symbolizers)
+    [(compile target compilers)
      (reference-to target)
      (il/stloc target-local)
      (il/ldloc target-local)
@@ -417,28 +418,28 @@
      (il/callvirt (interop/method FieldInfo "GetValue" Object))
      ]))
 
-(defn static-method-symbolizer
+(defn static-method-compiler
   "Symbolic bytecode for static methods"
-  [{:keys [method args] :as ast} symbolizers]
+  [{:keys [method args] :as ast} compilers]
   (let [arg-types (map clr-type args)]
     [(interleave
-       (map #(symbolize % symbolizers) args)
+       (map #(compile % compilers) args)
        (map convert
             arg-types
             (interop/parameter-types method)))
      (il/call method)]))
 
-(defn instance-method-symbolizer
+(defn instance-method-compiler
   "Symbolic bytecode for instance methods"
-  [{:keys [method target args generic-parameters] :as ast} symbolizers]
+  [{:keys [method target args generic-parameters] :as ast} compilers]
   (let [arg-types (map clr-type args)
         virtcall (if (.IsValueType (clr-type target))
                    il/call
                    il/callvirt )]
-    [(symbolize target symbolizers)
+    [(compile target compilers)
      (reference-to target)
      (interleave
-       (map #(symbolize % symbolizers) args)
+       (map #(compile % compilers) args)
        (map convert
             arg-types
             (interop/parameter-types method)))
@@ -461,27 +462,27 @@
             generic-parameters)
        (il/call method generic-parameters))]))
 
-(defn initobj-symbolizer
+(defn initobj-compiler
   "Symbolic bytecode for zero arity value type constructor invocation"
-  [{:keys [type args]} symbolizers]
+  [{:keys [type args]} compilers]
   (let [loc (il/local type)]
     [(il/ldloca-s loc)
      (il/initobj type)
      (il/ldloc loc)]))
 
-(defn new-symbolizer
+(defn new-compiler
   "Symbolic bytecode for constructor invocation"
-  [{:keys [type constructor args] :as ast} symbolizers]
+  [{:keys [type constructor args] :as ast} compilers]
   (let [arg-types (map clr-type args)]
     [(interleave
-       (map #(symbolize % symbolizers) args)
+       (map #(compile % compilers) args)
        (map convert
             arg-types
             (interop/parameter-types constructor)))
      (il/newobj constructor)]))
 
-(defn let-symbolizer
-  [{:keys [bindings body loop-id] :as ast} symbolizers]
+(defn let-compiler
+  [{:keys [bindings body loop-id] :as ast} compilers]
   (let [;; uniqued names -> il/locals
         binding-map (reduce (fn [m binding]
                               (assoc m
@@ -492,27 +493,27 @@
                             bindings)
         binding-vector (mapv #(binding-map (-> % :name)) bindings)
         recur-target (il/label)
-        ;; TODO symbolizer local and recur with symbolizers or syms?
-        specialized-symbolizers
-        (merge symbolizers
+        ;; TODO compiler local and recur with compilers or syms?
+        specialized-compilers
+        (merge compilers
                {:local
-                (fn let-local-symbolizer
+                (fn let-local-compiler
                   [{:keys [name by-ref?] {:keys [locals]} :env :as ast} syms]
                   (if-let [loc (-> name binding-map)]
                     (if by-ref?
                       (il/ldloca loc)
                       (il/ldloc loc))
-                    (symbolize ast symbolizers)))}
+                    (compile ast compilers)))}
                (when loop-id
                  {:recur
-                  (fn let-recur-symbolizer
+                  (fn let-recur-compiler
                     [{:keys [exprs] :as ast} syms]
                     (let [expr-range (range (count exprs))
                           temporaries
                           (mapv #(il/local (::il/type (nth binding-vector %)))
                                 expr-range)]
                       [(interleave
-                         (map #(symbolize % syms) exprs)
+                         (map #(compile % syms) exprs)
                          (map #(convert (clr-type %1)
                                         (::il/type (temporaries %2)))
                               exprs
@@ -524,27 +525,27 @@
                        (il/br recur-target)]))}))]
     ;; emit local initializations
     [(map (fn [binding]
-            [(symbolize binding specialized-symbolizers)
+            [(compile binding specialized-compilers)
              (convert (clr-type (-> binding :init)) (non-void-clr-type binding))
              (il/stloc (binding-map (:name binding)))])
           bindings)
      ;; mark recur target
      (when loop-id
        recur-target)
-     ;; emit body with specialized symbolizers
-     (symbolize body specialized-symbolizers)]))
+     ;; emit body with specialized compilers
+     (compile body specialized-compilers)]))
 
-(defn if-symbolizer
-  [{:keys [test then else] :as ast} symbolizers]
+(defn if-compiler
+  [{:keys [test then else] :as ast} compilers]
   (let [if-expr-type (non-void-clr-type ast)
         then-label (il/label)
         end-label (il/label)]
-    (cond (types/always-then? ast) (symbolize then symbolizers)
-          (types/always-else? ast) (symbolize else symbolizers)
-          :else [(symbolize test symbolizers)
+    (cond (types/always-then? ast) (compile then compilers)
+          (types/always-else? ast) (compile else compilers)
+          :else [(compile test compilers)
                  (convert (clr-type test) Boolean)
                  (il/brtrue then-label)
-                 [(symbolize else symbolizers)
+                 [(compile else compilers)
                   (cond
                     (statement? ast) 
                     (cleanup-stack else)
@@ -552,7 +553,7 @@
                     (convert (clr-type else) if-expr-type))]
                  (il/br end-label)
                  then-label
-                 [(symbolize then symbolizers)
+                 [(compile then compilers)
                   (cond
                     (statement? ast) 
                     (cleanup-stack then)
@@ -560,18 +561,18 @@
                     (convert (clr-type then) if-expr-type))]
                  end-label])))
 
-(defn binding-symbolizer
-  [{:keys [init] :as ast} symbolizers]
-  (symbolize init symbolizers))
+(defn binding-compiler
+  [{:keys [init] :as ast} compilers]
+  (compile init compilers))
 
-(defn local-symbolizer
-  [{:keys [name local] :as ast} symbolizers]
+(defn local-compiler
+  [{:keys [name local] :as ast} compilers]
   (if (= local :arg)
     (load-argument (update ast :arg-id inc))
-    (throw! "Local " name " not an argument and could not be symbolized")))
+    (throw! "Local " name " not an argument and could not be compiled")))
 
-(defn invoke-symbolizer
-  [{:keys [fn args] :as ast} symbolizers]
+(defn invoke-compiler
+  [{:keys [fn args] :as ast} compilers]
   (let [fn-tag (-> fn :var tag)
         arg-types (map clr-type args)
         ;; TODO magic's Function interfaces should be in their own namespace
@@ -583,29 +584,29 @@
                          (filter #(= (drop 1 (.GetGenericArguments %))
                                      arg-types))
                          first)]
-    [(symbolize fn symbolizers)
+    [(compile fn compilers)
      (if exact-match
        [(il/castclass exact-match)
         (interleave
-          (map #(symbolize % symbolizers) args)
+          (map #(compile % compilers) args)
           (map #(convert (clr-type %1) %2) args arg-types))
         (il/callvirt (apply interop/method exact-match "invoke" arg-types))]
        [(il/castclass IFn)
         (interleave
-          (map #(symbolize % symbolizers) args)
+          (map #(compile % compilers) args)
           (map #(convert (clr-type %) Object) args))
         (il/callvirt (apply interop/method IFn "invoke" (repeat (count args) Object)))
         (when fn-tag
           (convert Object fn-tag))])]))
 
-(defn var-symbolizer
-  [{:keys [var] :as ast} symbolizers]
+(defn var-compiler
+  [{:keys [var] :as ast} compilers]
   [(load-var var)
    (get-var var)])
 
 
-(defn set!-symbolizer
-  [{:keys [target val] :as ast} symbolizers]
+(defn set!-compiler
+  [{:keys [target val] :as ast} compilers]
   (let [target-op (:op target)
         target' (-> target :target)
         field (-> target :field)
@@ -614,9 +615,9 @@
     (cond
       (= target-op :instance-field)
       (let [v (il/local (clr-type val))]
-        [(symbolize target' symbolizers)
+        [(compile target' compilers)
          (reference-to target')
-         (symbolize val symbolizers)
+         (compile val compilers)
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
@@ -626,9 +627,9 @@
            (il/ldloc v))])
       (= target-op :instance-property)
       (let [v (il/local (clr-type val))]
-        [(symbolize target' symbolizers)
+        [(compile target' compilers)
          (reference-to target')
-         (symbolize val symbolizers)
+         (compile val compilers)
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
@@ -638,7 +639,7 @@
            (il/ldloc v))])
       (= target-op :static-field)
       (let [v (il/local (clr-type val))]
-        [(symbolize val symbolizers)
+        [(compile val compilers)
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
@@ -648,7 +649,7 @@
            (il/ldloc v))])
       (= target-op :static-property)
       (let [v (il/local (clr-type val))]
-        [(symbolize val symbolizers)
+        [(compile val compilers)
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
@@ -699,8 +700,8 @@
     "."
     "$"))
 
-(defn fn-symbolizer
-  [{:keys [local methods raw-forms] :as ast} symbolizers]
+(defn fn-compiler
+  [{:keys [local methods raw-forms] :as ast} compilers]
   (let [arities (map :fixed-arity methods)
         param-types (->> methods
                          (map :params)
@@ -721,10 +722,10 @@
       clojure.lang.AFunction
       [default-constructor
        (has-arity-method arities)
-       (map #(symbolize % symbolizers) methods)])))
+       (map #(compile % compilers) methods)])))
 
-(defn fn-method-symbolizer
-  [{:keys [body params form] {:keys [ret statements]} :body} symbolizers]
+(defn fn-method-compiler
+  [{:keys [body params form] {:keys [ret statements]} :body} compilers]
   (let [param-hint (-> form first tag)
         param-types (mapv clr-type params)
         obj-params (mapv (constantly Object) params)
@@ -741,7 +742,7 @@
           "invoke"
           public-virtual
           Object param-il-unhinted
-          [(symbolize body symbolizers)
+          [(compile body compilers)
            (convert ret-type Object)
            (il/ret)])
         hinted-method
@@ -749,7 +750,7 @@
           "invoke"
           public-virtual
           return-type param-il
-          [(symbolize body symbolizers)
+          [(compile body compilers)
            (convert ret-type return-type)
            (il/ret)])
         unhinted-shim
@@ -769,127 +770,127 @@
        unhinted-method
        [hinted-method unhinted-shim])]))
 
-(defn try-symbolizer
-  [{:keys [catches body finally] :as ast} symbolizers]
+(defn try-compiler
+  [{:keys [catches body finally] :as ast} compilers]
   (if (and (empty? catches)
            (nil? finally))
-    (symbolize body symbolizers)
+    (compile body compilers)
     (let [expr-type (clr-type ast)
           try-local (il/local expr-type)]
       [(il/exception
          [(if (= expr-type System.Void)
-            [(symbolize body symbolizers)
-             (map #(symbolize % symbolizers) catches)]
-            [(symbolize body symbolizers)
+            [(compile body compilers)
+             (map #(compile % compilers) catches)]
+            [(compile body compilers)
              (convert (clr-type body) expr-type)
              (il/stloc try-local)
              (interleave
-               (map #(symbolize % symbolizers) catches)
+               (map #(compile % compilers) catches)
                (map #(convert (clr-type %) expr-type) catches)
                (repeat (il/stloc try-local)))])
           [(when finally
              (il/finally
-               (symbolize finally symbolizers)))]])
+               (compile finally compilers)))]])
        (when-not (= expr-type System.Void)
          (il/ldloc try-local))])))
 
-(defn catch-symbolizer
-  [{:keys [class local body]} symbolizers]
+(defn catch-compiler
+  [{:keys [class local body]} compilers]
   (let [catch-local-name (:name local)
         catch-local (il/local (-> class :val))
-        specialized-symbolizers
-        (merge symbolizers
+        specialized-compilers
+        (merge compilers
                {:local
-                (fn catch-local-symbolizer
+                (fn catch-local-compiler
                   [{:keys [name by-ref?] {:keys [locals]} :env :as ast} syms]
                   (if (= name (:name local))
                     (if by-ref?
                       (il/ldloca catch-local)
                       (il/ldloc catch-local))
-                    (symbolize ast symbolizers)))})]
+                    (compile ast compilers)))})]
     (il/catch
       (-> class :val)
       [(il/stloc catch-local)
-       (symbolize body specialized-symbolizers)])))
+       (compile body specialized-compilers)])))
 
-(defn throw-symbolizer
-  [{:keys [exception]} symbolizers]
-  [(symbolize exception symbolizers)
+(defn throw-compiler
+  [{:keys [exception]} compilers]
+  [(compile exception compilers)
    (il/throw)])
 
-(defn monitor-enter-symbolizer
-  [{:keys [target]} symbolizers]
-  [(symbolize target symbolizers)
+(defn monitor-enter-compiler
+  [{:keys [target]} compilers]
+  [(compile target compilers)
    (convert (clr-type target) Object)
    (il/call (interop/method System.Threading.Monitor "Enter" Object))])
 
-(defn monitor-exit-symbolizer
-  [{:keys [target]} symbolizers]
-  [(symbolize target symbolizers)
+(defn monitor-exit-compiler
+  [{:keys [target]} compilers]
+  [(compile target compilers)
    (convert (clr-type target) Object)
    (il/call (interop/method System.Threading.Monitor "Exit" Object))])
 
-(defn intrinsic-symbolizer
-  [{:keys [original type il-fn]} symbolizers]
-  (il-fn original type symbolizers))
+(defn intrinsic-compiler
+  [{:keys [original type il-fn]} compilers]
+  (il-fn original type compilers))
 
-(def base-symbolizers
-  {:const               #'const-symbolizer
-   :do                  #'do-symbolizer
-   :vector              #'vector-symbolizer
-   :set                 #'set-symbolizer
-   :map                 #'map-symbolizer
-   :fn                  #'fn-symbolizer
-   :if                  #'if-symbolizer
-   :let                 #'let-symbolizer
-   :loop                #'let-symbolizer
-   :local               #'local-symbolizer
-   :binding             #'binding-symbolizer
-   :invoke              #'invoke-symbolizer
-   :var                 #'var-symbolizer
-   :the-var             #'var-symbolizer
-   :set!                #'set!-symbolizer
-   :try                 #'try-symbolizer
-   :catch               #'catch-symbolizer
-   :throw               #'throw-symbolizer
-   :monitor-enter       #'monitor-enter-symbolizer
-   :monitor-exit        #'monitor-exit-symbolizer
-   :fn-method           #'fn-method-symbolizer
-   :static-property     #'static-property-symbolizer
-   :instance-property   #'instance-property-symbolizer
-   :static-field        #'static-field-symbolizer
-   :instance-field      #'instance-field-symbolizer
-   :dynamic-field       #'dynamic-field-symbolizer
-   :static-method       #'static-method-symbolizer
-   :instance-method     #'instance-method-symbolizer
-   :initobj             #'initobj-symbolizer
-   :new                 #'new-symbolizer
-   :intrinsic           #'intrinsic-symbolizer
+(def base-compilers
+  {:const               #'const-compiler
+   :do                  #'do-compiler
+   :vector              #'vector-compiler
+   :set                 #'set-compiler
+   :map                 #'map-compiler
+   :fn                  #'fn-compiler
+   :if                  #'if-compiler
+   :let                 #'let-compiler
+   :loop                #'let-compiler
+   :local               #'local-compiler
+   :binding             #'binding-compiler
+   :invoke              #'invoke-compiler
+   :var                 #'var-compiler
+   :the-var             #'var-compiler
+   :set!                #'set!-compiler
+   :try                 #'try-compiler
+   :catch               #'catch-compiler
+   :throw               #'throw-compiler
+   :monitor-enter       #'monitor-enter-compiler
+   :monitor-exit        #'monitor-exit-compiler
+   :fn-method           #'fn-method-compiler
+   :static-property     #'static-property-compiler
+   :instance-property   #'instance-property-compiler
+   :static-field        #'static-field-compiler
+   :instance-field      #'instance-field-compiler
+   :dynamic-field       #'dynamic-field-compiler
+   :static-method       #'static-method-compiler
+   :instance-method     #'instance-method-compiler
+   :initobj             #'initobj-compiler
+   :new                 #'new-compiler
+   :intrinsic           #'intrinsic-compiler
    })
 
 (def ^:dynamic *spells* [])
 
-(defn ast->symbolizer
-  "Look up symbolizer for AST node. Throws exception if not found."
-  [ast symbolizers]
-  (or (-> ast :op symbolizers)
-      (throw (Exception. (str "No symbolizer for " (pr-str (or  (:op ast)
+(defn ast->compiler
+  "Look up compiler for AST node. Throws exception if not found."
+  [ast compilers]
+  (or (-> ast :op compilers)
+      (throw (Exception. (str "No compiler for " (pr-str (or  (:op ast)
                                                                 ast)))))))
 
-;; (merge base-symbolizers *initial-symbolizers*) might be better
-(defn get-symbolizers
-  ([] (get-symbolizers base-symbolizers))
-  ([symbolizers] (get-symbolizers symbolizers *spells*))
-  ([symbolizers spells]
+;; (merge base-compilers *initial-compilers*) might be better
+(defn get-compilers
+  ([] (get-compilers base-compilers))
+  ([compilers] (get-compilers compilers *spells*))
+  ([compilers spells]
    (reduce
-     (fn [symbolizers* spell] (spell symbolizers*))
-     symbolizers
+     (fn [compilers* spell] (spell compilers*))
+     compilers
      spells)))
 
-(defn symbolize
+(defn compile
   "Generate symbolic bytecode for AST node"
   ([ast]
-   (symbolize ast (get-symbolizers)))
-  ([ast symbolizers]
-   (if-let [symbolizer (ast->symbolizer ast symbolizers)]
-     (symbolizer ast symbolizers))))
+   (compile ast (get-compilers)))
+  ([ast compilers]
+   (if-let [compiler (ast->compiler ast compilers)]
+     (compiler ast compilers))))
