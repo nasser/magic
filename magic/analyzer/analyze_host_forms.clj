@@ -2,6 +2,7 @@
   (:require
    [clojure.tools.analyzer.passes
     [uniquify :refer [uniquify-locals]]]
+   [magic.interop :as interop]
    [magic.analyzer
     [errors :refer [error] :as errors]
     [types :refer [read-generic-name clr-type class-for-name best-match]]])
@@ -206,9 +207,12 @@
                {:op (if static?
                       :static-method
                       :instance-method)}
-               (if-let [meth (.GetMethod target-type (str method) (->> args
-                                                                       (map clr-type)
-                                                                       (into-array Type)))]
+               (if-let [meth (apply interop/method
+                                    target-type
+                                    (str method)
+                                    (->> args
+                                         (map clr-type)
+                                         (into-array Type)))]
                  {:method meth}
                  (if-let [best-method (best-match args (->> (.GetMethods target-type)
                                                             (filter #(and
