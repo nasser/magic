@@ -36,7 +36,7 @@
     ))
 
 ;; this will change when the magic api settles down
-(defn symbolize-raw [bytecode]
+(defn compile-raw [bytecode]
   (let [asm-name "magic.tests"]
     (il/assembly
       asm-name
@@ -45,13 +45,13 @@
         bytecode
         ))))
 
-(defn symbolize-fn [expr]
+(defn compile-fn [expr]
   (let [asm-name "magic.tests"]
     (il/assembly
       asm-name
       (il/module
         (str asm-name ".dll")
-        (symbolize (analyze expr) base-symbolizers)))))
+        (compile (analyze expr) base-compilers)))))
 
 (defn compile-fn [expr]
   (let [asm-name "magic.tests"]
@@ -59,7 +59,7 @@
           asm-name
           (il/module
             (str asm-name ".dll")
-            (symbolize (analyze expr) base-symbolizers)))
+            (compile (analyze expr) base-compilers)))
         il/emit!
         ; :mage.core/assembly-builder
         ; .GetTypes

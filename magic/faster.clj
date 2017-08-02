@@ -10,35 +10,35 @@
 (defn static-type-fn
   "Symbolize :fn to a simple static type without interfaces,
   HasArity methods, or constructors"
-  [{:keys [local methods] :as ast} symbolizers]
+  [{:keys [local methods] :as ast} compilers]
   (il/type
     (magic/gen-fn-name (:form local))
-    (map #(magic/symbolize % symbolizers) methods)))
+    (map #(magic/compile % compilers) methods)))
 
 (defn typed-static-invoke-fn-method
   "Symbolize :fn-method to a single, well typed static method"
-  [{:keys [body params] {:keys [ret]} :body} symbolizers]
+  [{:keys [body params] {:keys [ret]} :body} compilers]
   (let [param-types (mapv clr-type params)
         return-type (non-void-clr-type ret)]
     (il/method
       "invoke"
       (enum-or MethodAttributes/Public MethodAttributes/Static)
       return-type param-types
-      [(magic/symbolize body symbolizers)
+      [(magic/compile body compilers)
        (magic/convert (clr-type ret) return-type)
        (il/ret)])))
 
 (defn static-argument-local
   "Symbolize :local arguments to static arguments"
-  [{:keys [name arg-id local] :as ast} symbolizers]
+  [{:keys [name arg-id local] :as ast} compilers]
   (if (= local :arg)
     (magic/load-argument ast)
-    (magic/throw! "Local " name " not an argument and could not be symbolized")))
+    (magic/throw! "Local " name " not an argument and could not be compiled")))
 
 ;; TODO ::il/type is kind of lame, use ::il/name maybe?
 (defn faster-type [args-names args-types body]
-  (let [faster-symbolizers
-        (merge magic/base-symbolizers
+  (let [faster-compilers
+        (merge magic/base-compilers
                {:fn static-type-fn
                 :fn-method typed-static-invoke-fn-method
                 :local static-argument-local})
@@ -52,6 +52,6 @@
                         ~body)
         body-il (-> wrapped-body
                     ana/analyze
-                    (magic/symbolize (magic/get-symbolizers faster-symbolizers)))]
+                    (magic/compile (magic/get-compilers faster-compilers)))]
     (il/emit! body-il)
     (::il/type body-il)))

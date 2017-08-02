@@ -117,7 +117,7 @@
 (defmethod clr-type :default [ast]
   (throw! "clr-type not implemented for " (pr-str ast)))
 
-;; TODO repeated shape between instance-zero-arity-call-type instance-zero-arity-call-symbolizer
+;; TODO repeated shape between instance-zero-arity-call-type instance-zero-arity-call-compiler
 (defn instance-zero-arity-call-type [izac]
   (let [{:keys [_target _memberName]} (data-map izac)
         typ (clr-type _target)]
@@ -493,19 +493,19 @@
        (il/ldc-i4-1)
        (il/ret)])))
 
-;; ast -symbolize-> symbolics -emit-> bytecode
+;; ast -compile-> symbolics -emit-> bytecode
 ;;        M&GIC                M&GE
 
-(def symbolize)
+(def compile)
 
 ;; 42
 ;; "foo"
 (defmethod clr-type :const [ast]
   (-> ast :val type))
 
-(defn literal-symbolizer
+(defn literal-compiler
   [{:keys [val] :as ast}
-   symbolizers]
+   compilers]
   [(load-constant val)
    (cleanup-stack ast)])
 
@@ -513,14 +513,14 @@
 (defmethod clr-type :vector [ast]
   clojure.lang.IPersistentVector)
 
-(defn vector-symbolizer
-  [{:keys [items]} symbolizers]
+(defn vector-compiler
+  [{:keys [items]} compilers]
   [(load-constant (int (count items)))
    (il/newarr Object)
    (map (fn [i c]
           [(il/dup)
            (load-constant (int i))
-           (symbolize c symbolizers)
+           (compile c compilers)
            (convert c Object)
            (il/stelem-ref)])
         (range)
@@ -531,14 +531,14 @@
 (defmethod clr-type :set [ast]
   clojure.lang.IPersistentSet)
 
-(defn set-symbolizer
-  [{:keys [items]} symbolizers]
+(defn set-compiler
+  [{:keys [items]} compilers]
   [(load-constant (int (count items)))
    (il/newarr Object)
    (map (fn [i c]
           [(il/dup)
            (load-constant (int i))
-           (symbolize c symbolizers)
+           (compile c compilers)
            (convert c Object)
            (il/stelem-ref)])
         (range)
@@ -549,14 +549,14 @@
 (defmethod clr-type :map [ast]
   clojure.lang.IPersistentMap)
 
-(defn map-symbolizer
-  [{:keys [keys vals]} symbolizers]
+(defn map-compiler
+  [{:keys [keys vals]} compilers]
   [(load-constant (int (+ (count keys) (count vals))))
    (il/newarr Object)
    (map (fn [i kv]
           [(il/dup)
            (load-constant (int i))
-           (symbolize kv symbolizers)
+           (compile kv compilers)
            (convert kv Object)
            (il/stelem-ref)])
         (range)
@@ -595,8 +595,8 @@
   {[#'clojure.core/+ Int32 Int32]
    (il/add)})
 
-(defn invoke-symbolizer
-  [{:keys [fn args] :as ast} symbolizers]
+(defn invoke-compiler
+  [{:keys [fn args] :as ast} compilers]
   (cond
     (= (:op fn) :maybe-host-form)
     (let [{:keys [class field]} fn
@@ -610,7 +610,7 @@
           method-argument-types (->> method
                                      .GetParameters
                                      (map #(.ParameterType %)))]
-      [(map #(vector (symbolize %1 symbolizers)
+      [(map #(vector (compile %1 compilers)
                      (convert %1 %2))
             args
             method-argument-types)
@@ -621,13 +621,13 @@
                                (:var fn))))
     [(intrinsic-vars (vec (conj (map #(-> % :form meta :tag) args)
                                 (:var fn))))
-     (map #(vector (symbolize % symbolizers))
+     (map #(vector (compile % compilers))
           args)]
      
      :else
-    [(symbolize fn symbolizers)
+    [(compile fn compilers)
      (il/castclass IFn)
-     (map #(vector (symbolize % symbolizers)
+     (map #(vector (compile % compilers)
                    (convert % Object))
           args)
      (il/callvirt (apply find-method IFn "invoke" (repeat (count args) Object)))
@@ -637,8 +637,8 @@
 (defmethod clr-type :new [ast]
   (-> ast :class :class resolve))
 
-(defn new-symbolizer
-  [{:keys [args class] :as ast} symbolizers]
+(defn new-compiler
+  [{:keys [args class] :as ast} compilers]
   (let [type (clr-type class)
         arg-types (map clr-type args)
         ctor (.GetConstructor type (into-array arg-types))]
@@ -648,7 +648,7 @@
       (let [ctor-param-types (->> ctor .GetParameters (map #(.ParameterType %)))]
         ;; TODO what about LocalBindings?
         [(interleave
-           (map #(symbolize % symbolizers)
+           (map #(compile % compilers)
                 args)
            (map #(convert %1 %2)
                 args
@@ -665,14 +665,14 @@
       :else
       (throw! "No constructor for non-valuetype " type))))
 
-(defn var-symbolizer
-  [{:keys [var] :as ast} symbolizers]
+(defn var-compiler
+  [{:keys [var] :as ast} compilers]
   [(load-var var)
    (get-var var)
    (cleanup-stack ast)])
 
-(defn fn-symbolizer
-  [{:keys [methods] :as ast} symbolizers]
+(defn fn-compiler
+  [{:keys [methods] :as ast} compilers]
   (let [name (str (gensym "fn"))
         arities (map :fixed-arity methods)]
     (mage.core/type
@@ -692,30 +692,30 @@
                   constant-fields)
           (il/ret)])
        (has-arity-method arities)
-       (map #(symbolize % symbolizers) methods)])))
+       (map #(compile % compilers) methods)])))
 
-(defn fn-method-symbolizer
-  [{:keys [body params] {:keys [ret statements]} :body} symbolizers]
+(defn fn-method-compiler
+  [{:keys [body params] {:keys [ret statements]} :body} compilers]
   (il/method "invoke"
              (enum-or MethodAttributes/Public
                       MethodAttributes/Virtual)
              ;; Object (mapv (constantly Object) params)
              (clr-type ret) (mapv clr-type params)
-             [(symbolize body symbolizers)
+             [(compile body compilers)
               (convert ret Object)
               (il/ret)]))
 
-(defn local-symbolizer
-  [{:keys [name arg-id local] :as ast} symbolizers]
+(defn local-compiler
+  [{:keys [name arg-id local] :as ast} compilers]
   (if (= local :arg)
     (load-argument arg-id)
-    (throw! "Local " name " not an argument and could not be symbolized")))
+    (throw! "Local " name " not an argument and could not be compiled")))
 
 ;; (do statements...)
-(defn do-symbolizer
-  [{:keys [statements ret]} symbolizers]
-  [(map #(symbolize % symbolizers) statements)
-   (symbolize ret symbolizers)])
+(defn do-compiler
+  [{:keys [statements ret]} compilers]
+  [(map #(compile % compilers) statements)
+   (compile ret compilers)])
 
 (defn load-static-field [field-info]
   (if (.IsLiteral field-info)
@@ -729,8 +729,8 @@
     (or (zero-arity-type class (str field))
         (throw! "Maybe host form type " (:form ast) " not supported"))))
 
-(defn host-form-symbolizer
-  [{:keys [class field] :as ast} symbolizers]
+(defn host-form-compiler
+  [{:keys [class field] :as ast} compilers]
   [(or (if-let [info (.GetField (resolve class) (str field))]
          (load-static-field info))
        (if-let [info (.GetProperty (resolve class) (str field))]
@@ -747,11 +747,11 @@
     (or (zero-arity-type target-type (str m-or-f))
         (throw! "Host interop " (:form ast) " not supported"))))
 
-(defn host-interop-symbolizer
-  [{:keys [m-or-f target] :as ast} symbolizers]
+(defn host-interop-compiler
+  [{:keys [m-or-f target] :as ast} compilers]
   (let [target-type (clr-type target)
         morf (str m-or-f)]
-    [(symbolize target symbolizers)
+    [(compile target compilers)
      (convert target target-type)
      (or (if-let [info (.GetField target-type morf)]
            (il/ldfld info))
@@ -781,11 +781,11 @@
 (defmethod clr-type :let [ast]
   (-> ast :body :ret clr-type))
 
-(defn binding-symbolizer
-  [{:keys [bindings body] :as ast} symbolizers])
+(defn binding-compiler
+  [{:keys [bindings body] :as ast} compilers])
 
-(defn let-symbolizer
-  [{:keys [bindings body] :as ast} symbolizers]
+(defn let-compiler
+  [{:keys [bindings body] :as ast} compilers]
   (let [binding-map (reduce (fn [m binding]
                               (assoc m
                                 ;; dissoc env because its not in :locals
@@ -793,31 +793,31 @@
                                 (il/local (clr-type binding))))
                             {} bindings)
         recur-target (il/label)
-        specialized-symbolizers
-        (assoc symbolizers
+        specialized-compilers
+        (assoc compilers
           :local
-          (fn let-local-symbolizer
+          (fn let-local-compiler
             [{:keys [name] {:keys [locals]} :env :as ast} syms]
             (if-let [loc (-> name locals binding-map)]
               (il/ldloc 'loc)
-              (symbolize ast symbolizers))))]
+              (compile ast compilers))))]
     
     ;; emit local initializations
     [(map (fn [b]
-            [(symbolize b specialized-symbolizers)
+            [(compile b specialized-compilers)
              (il/stloc (binding-map (dissoc b :env)))])
           bindings)
      
      ;; mark recur target
      recur-target
      
-     ;; emit body with specialized symbolizers
-     (symbolize body specialized-symbolizers)
+     ;; emit body with specialized compilers
+     (compile body specialized-compilers)
      (cleanup-stack ast)]))
 
-(defn binding-symbolizer
-  [{:keys [init] :as ast} symbolizers]
-  [(symbolize init symbolizers)
+(defn binding-compiler
+  [{:keys [init] :as ast} compilers]
+  [(compile init compilers)
   (cleanup-stack ast)])
 
 (defmethod clr-type :if
@@ -829,49 +829,49 @@
       ;; TODO compute common type  
       Object)))
 
-(defn if-symbolizer
-  [{:keys [test then else] :as ast} symbolizers]
+(defn if-compiler
+  [{:keys [test then else] :as ast} compilers]
   (let [false-label (il/label)
         end-label (il/label)]
-    [(symbolize test symbolizers)
+    [(compile test compilers)
      (convert test Boolean)
      (il/brfalse false-label)
-     (symbolize then symbolizers)
+     (compile then compilers)
      (cleanup-stack then)
      (il/br end-label)
      false-label
-     (symbolize else symbolizers)
+     (compile else compilers)
      (cleanup-stack else)
      end-label
      ]))
 
-(def base-symbolizers
-  {:const           #'literal-symbolizer
-   :vector          #'vector-symbolizer
-   :set             #'set-symbolizer
-   :map             #'map-symbolizer
-   :invoke          #'invoke-symbolizer
-   :var             #'var-symbolizer
-   :the-var         #'var-symbolizer
-   :do              #'do-symbolizer
-   :fn              #'fn-symbolizer
-   :fn-method       #'fn-method-symbolizer
-   :maybe-host-form #'host-form-symbolizer
-   :host-interop    #'host-interop-symbolizer
-   :new             #'new-symbolizer
-   :let             #'let-symbolizer
-   :binding         #'binding-symbolizer
-   :local           #'local-symbolizer
-   :if              #'if-symbolizer})
+(def base-compilers
+  {:const           #'literal-compiler
+   :vector          #'vector-compiler
+   :set             #'set-compiler
+   :map             #'map-compiler
+   :invoke          #'invoke-compiler
+   :var             #'var-compiler
+   :the-var         #'var-compiler
+   :do              #'do-compiler
+   :fn              #'fn-compiler
+   :fn-method       #'fn-method-compiler
+   :maybe-host-form #'host-form-compiler
+   :host-interop    #'host-interop-compiler
+   :new             #'new-compiler
+   :let             #'let-compiler
+   :binding         #'binding-compiler
+   :local           #'local-compiler
+   :if              #'if-compiler})
 
-(defn ast->symbolizer [ast symbolizers]
-  (or (-> ast :op symbolizers)
-      (throw (Exception. (str "No symbolizer for " (pr-str (or  (:op ast)
+(defn ast->compiler [ast compilers]
+  (or (-> ast :op compilers)
+      (throw (Exception. (str "No compiler for " (pr-str (or  (:op ast)
                                                                ast)))))))
 
-(defn symbolize [ast symbolizers]
-  (if-let [symbolizer (ast->symbolizer ast symbolizers)]
-    (symbolizer ast symbolizers)))
+(defn compile [ast compilers]
+  (if-let [compiler (ast->compiler ast compilers)]
+    (compiler ast compilers)))
 
 (defn compile-fn [expr]
   (let [asm-name "magic.tests"]
@@ -879,7 +879,7 @@
           asm-name
           (il/module
             (str asm-name ".dll")
-            (symbolize (ana/ast expr) base-symbolizers)))
+            (compile (ana/ast expr) base-compilers)))
         il/emit!
         :mage.core/assembly-builder
         .GetTypes

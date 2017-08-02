@@ -26,28 +26,28 @@
                                 (var-name %)
                                 field-attrs))))))
 
-(defn lift-vars [symbolizers]
-  (update symbolizers
+(defn lift-vars [compilers]
+  (update compilers
           :fn
           (fn 
-            [old-fn-symbolizer]
-            (fn lifted-var-fn-symbolizer
-              [{:keys [vars] :as ast} symbolizers]
+            [old-fn-compiler]
+            (fn lifted-var-fn-compiler
+              [{:keys [vars] :as ast} compilers]
               (let [vars (set vars)
                     var-map (var-field-map vars)
-                    specialized-symbolizers
+                    specialized-compilers
                     (assoc
-                      symbolizers
+                      compilers
                       :var
-                      (fn lifted-var-symbolizer
-                        [{:keys [var] :as ast} symbolizers]
+                      (fn lifted-var-compiler
+                        [{:keys [var] :as ast} compilers]
                         (let [{:keys [static]} (meta var)]
                           [(il/ldsfld (var-map var))
                            (when-not static
                              (magic/get-var var))
                            (magic/cleanup-stack ast)])))]
                 (-> ast
-                    (old-fn-symbolizer specialized-symbolizers)
+                    (old-fn-compiler specialized-compilers)
                     (update ::il/body concat
                             [(il/constructor
                                (enum-or MethodAttributes/Public MethodAttributes/Static)

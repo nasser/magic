@@ -14,9 +14,9 @@
   ([exprs]
    (compile-asm "magic.compile" exprs))
   ([asm-name exprs]
-   (compile-asm asm-name (magic/get-symbolizers) exprs))
-  ([asm-name symbolizers exprs]
-   (->> (map #(-> % ana/analyze (magic/symbolize symbolizers))
+   (compile-asm asm-name (magic/get-compilers) exprs))
+  ([asm-name compilers exprs]
+   (->> (map #(-> % ana/analyze (magic/compile compilers))
              exprs)
         (il/assembly+module asm-name)
         il/emit!
@@ -25,11 +25,11 @@
 (c/defn compile-fn
   "Compile fn form using MAGIC, emit binary to current ClojureCLR compilation context
    and return constructor form."
-  ([expr] (compile-fn expr (magic/get-symbolizers)))
-  ([expr symbolizers]
+  ([expr] (compile-fn expr (magic/get-compilers)))
+  ([expr compilers]
    (->> (-> expr
             ana/analyze
-            (magic/symbolize symbolizers))
+            (magic/compile compilers))
         il/emit!
         ::il/type-builder
         .Name
