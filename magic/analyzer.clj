@@ -17,6 +17,7 @@
             [magic.analyzer
              [intrinsics :as intrinsics]
              [util :as util]
+             [literal-reinterpretation :as lr]
              [novel :as novel]
              [analyze-host-forms :as host]
              [errors :refer [error] :as errors]
@@ -262,6 +263,7 @@
     #'novel/csharp-operators
     #'novel/generic-type-syntax
     #'intrinsics/analyze
+    #'lr/analyze
     #'tag-catch-locals
     ; #'enforce-var-arity
     ; #'source-info
