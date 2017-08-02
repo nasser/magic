@@ -3,6 +3,7 @@
     [clojure.tools.analyzer.passes
      [uniquify :refer [uniquify-locals]]]
     [magic.analyzer
+     [analyze-host-forms :as host]
      [util :as util]
      [errors :refer [error] :as errors]
      [types :refer [clr-type numeric integer]]])
@@ -27,19 +28,25 @@
     ast))
 
 (defn reinterpret-interop [ast method-key args-key]
-  (let [method (ast method-key)
-        args (ast args-key)
-        param-types (->> method
-                         .GetParameters
-                         (map #(.ParameterType %)))
-        args* (vec (map #(reinterpret %1 %2)
-                        args
-                        param-types))]
-    (assoc ast :args args*)))
+  (if-let [method (method-key ast)]
+    (let [args (args-key ast)
+          param-types (->> method
+                           .GetParameters
+                           (map #(.ParameterType %)))
+          args* (vec (map #(reinterpret %1 %2)
+                          args
+                          param-types))]
+      (assoc ast :args args*))
+    ast))
 
 (defn analyze
   "Reinterpret numeric literals to avoid casts when possible"
-  {:pass-info {:walk :post :after #{#'uniquify-locals}}}
+  {:pass-info {:walk :post :after #{#'host/analyze-byref
+                                    #'host/analyze-type
+                                    #'host/analyze-host-field
+                                    #'host/analyze-constructor
+                                    #'host/analyze-host-interop
+                                    #'host/analyze-host-call}}}
   [{:keys [op] :as ast}]
   (condp = op
     :set!
