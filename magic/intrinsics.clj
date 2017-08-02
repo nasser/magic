@@ -2,6 +2,7 @@
   (:require [mage.core :as il]
             [magic.core :as magic]
             [magic.analyzer :as ana]
+            [magic.analyzer.literal-reinterpretation :refer [reinterpret]]
             [magic.analyzer.intrinsics :as intrinsics :refer [register-intrinsic-form]]
             [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type best-match]]
             [magic.interop :as interop]
@@ -57,7 +58,7 @@
 
 (defn conversion-compiler
   [{:keys [args]} type compilers]
-  (let [arg (first args)]
+  (let [arg (reinterpret (first args) type)]
     [(magic/compile arg compilers)
      (magic/convert (clr-type arg) type)]))
 
