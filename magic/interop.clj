@@ -1,7 +1,20 @@
-(ns magic.interop)
+(ns magic.interop
+  (:require [magic.analyzer.util :refer [throw!]]))
 
 (defn method
-  ([type name & params] (.GetMethod type name (into-array Type params))))
+  ([t name & params]
+   (try
+     (.GetMethod t name (into-array Type params))
+     (catch Exception e
+       (throw (Exception. (str "Broken! "
+                               (type e) ", "
+                               t ", "
+                               (type t) ", "
+                               name ", "
+                               (type name) ", "
+                               params ", "
+                               (type params) ", "
+                               )))))))
 
 (defn parameters
   [method] (.GetParameters method))
