@@ -40,13 +40,13 @@
     (when (types/numeric arg-type)
       x)))
 
-(defn associative-numeric-symbolizer [ident checked unchecked]
-  (fn associative-symbolizer
-    [{:keys [args] :as ast} type symbolizers]
+(defn associative-numeric-compiler [ident checked unchecked]
+  (fn associative-compiler
+    [{:keys [args] :as ast} type compilers]
     (if (zero? (count args))
       ident
       [(interleave
-         (map #(magic/symbolize % symbolizers) args)
+         (map #(magic/compile % compilers) args)
          (map #(magic/convert (clr-type %) type) args))
        (repeat (-> args count dec)
                (if (not (or *unchecked-math*
@@ -55,10 +55,10 @@
                  checked
                  unchecked))])))
 
-(defn conversion-symbolizer
-  [{:keys [args]} type symbolizers]
+(defn conversion-compiler
+  [{:keys [args]} type compilers]
   (let [arg (first args)]
-    [(magic/symbolize arg symbolizers)
+    [(magic/compile arg compilers)
      (magic/convert (clr-type arg) type)]))
 
 (def conversions
@@ -78,21 +78,21 @@
   #(register-intrinsic-form
      %2
      (constantly %3)
-     conversion-symbolizer)
+     conversion-compiler)
   nil
   conversions)
 
 (defintrinsic clojure.core/+
   associative-numeric-type
-  (associative-numeric-symbolizer
+  (associative-numeric-compiler
     (il/ldc-i8 0) (il/add-ovf) (il/add)))
 
 (defintrinsic clojure.core/inc
   associative-numeric-type
-  (fn intrinsic-inc-symbolizer
-    [{:keys [args] :as ast} type symbolizers]
+  (fn intrinsic-inc-compiler
+    [{:keys [args] :as ast} type compilers]
     (let [arg (first args)]
-      [(magic/symbolize arg symbolizers)
+      [(magic/compile arg compilers)
        (magic/load-constant 1)
        (if *unchecked-math*
          (il/add)
@@ -100,13 +100,13 @@
 
 (defintrinsic clojure.core/*
   associative-numeric-type
-  (associative-numeric-symbolizer
+  (associative-numeric-compiler
     (il/ldc-i8 1) (il/mul-ovf) (il/mul)))
 
 (defintrinsic clojure.core/<
   #(when (numeric-args %) Boolean)
-  (fn intrinsic-lt-symbolizer
-    [{:keys [args] :as ast} type symbolizers]
+  (fn intrinsic-lt-compiler
+    [{:keys [args] :as ast} type compilers]
     (let [arg-pairs (partition 2 1 args)
           greater-label (il/label)
           true-label (il/label)
@@ -115,9 +115,9 @@
           (map (fn [[a b]]
                  (let [best-numeric-type
                        (->> [a b] (map clr-type) types/best-numeric-promotion)]
-                   [(magic/symbolize a symbolizers)
+                   [(magic/compile a compilers)
                     (magic/convert (clr-type a) best-numeric-type)
-                    (magic/symbolize b symbolizers)
+                    (magic/compile b compilers)
                     (magic/convert (clr-type b) best-numeric-type)]))
                arg-pairs)]
       [(->> (interleave il-pairs (repeat (il/bge greater-label)))
@@ -143,20 +143,20 @@
 
 (defintrinsic clojure.core/aclone
   array-type
-  (fn intrinsic-aclone-symbolizer
-    [{:keys [args] :as ast} type symbolizers]
-    [(magic/symbolize (first args) symbolizers)
+  (fn intrinsic-aclone-compiler
+    [{:keys [args] :as ast} type compilers]
+    [(magic/compile (first args) compilers)
      (il/callvirt (interop/method type "Clone"))
      (magic/convert Object type)]))
 
 ;; TODO multidim arrays
 (defintrinsic clojure.core/aget
   array-element-type
-  (fn intrinsic-aget-symbolizer
-    [{:keys [args] :as ast} type symbolizers]
+  (fn intrinsic-aget-compiler
+    [{:keys [args] :as ast} type compilers]
     (let [[array-arg index-arg] args]
-      [(magic/symbolize array-arg symbolizers)
-       (magic/symbolize index-arg symbolizers)
+      [(magic/compile array-arg compilers)
+       (magic/compile index-arg compilers)
        ;; TODO make sure this is conv.ovf
        (magic/convert (clr-type index-arg) Int32)
        (magic/load-element type)])))
@@ -164,16 +164,16 @@
 ;; TODO multidim arrays
 (defintrinsic clojure.core/aset
   array-element-type
-  (fn intrinsic-aget-symbolizer
-    [{:keys [args] :as ast} type symbolizers]
+  (fn intrinsic-aget-compiler
+    [{:keys [args] :as ast} type compilers]
     (let [[array-arg index-arg value-arg] args
           val-return (il/local type)
           statement? (magic/statement? ast)]
-      [(magic/symbolize array-arg symbolizers)
-       (magic/symbolize index-arg symbolizers)
+      [(magic/compile array-arg compilers)
+       (magic/compile index-arg compilers)
        ;; TODO make sure this is conv.ovf
        (magic/convert (clr-type index-arg) Int32)
-       (magic/symbolize value-arg symbolizers)
+       (magic/compile value-arg compilers)
        (magic/convert (clr-type value-arg) type)
        (when-not statement?
          [(il/dup)
@@ -184,25 +184,25 @@
 
 (defintrinsic clojure.core/alength
   #(when-array-type % Int32)
-  (fn intrinsic-alength-symbolizer
-    [{:keys [args] :as ast} type symbolizers]
-    [(magic/symbolize (first args) symbolizers)
+  (fn intrinsic-alength-compiler
+    [{:keys [args] :as ast} type compilers]
+    [(magic/compile (first args) compilers)
      (il/ldlen)]))
 
 (defintrinsic clojure.core/unchecked-inc
   numeric-arg
-  (fn intrinsic-alength-symbolizer
-    [{:keys [args] :as ast} type symbolizers]
-    [(magic/symbolize (first args) symbolizers)
+  (fn intrinsic-alength-compiler
+    [{:keys [args] :as ast} type compilers]
+    [(magic/compile (first args) compilers)
      (il/ldc-i4-1)
      (magic/convert Int32 type)
      (il/add)]))
 
 (defintrinsic clojure.core/unchecked-inc-int
   #(when-numeric-arg % Int32)
-  (fn intrinsic-alength-symbolizer
-    [{:keys [args] :as ast} type symbolizers]
-    [(magic/symbolize (first args) symbolizers)
+  (fn intrinsic-alength-compiler
+    [{:keys [args] :as ast} type compilers]
+    [(magic/compile (first args) compilers)
      (magic/convert (clr-type (first args)) Int32)
      (il/ldc-i4-1)
      (il/add)]))
