@@ -733,13 +733,16 @@
         return-type (or param-hint
                         (non-void-clr-type ret))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+        ;; void -> ret conversion happens in hinted method
+        ret-type (clr-type ret)
+        unhinted-ret-type (if (= ret-type System.Void) Object ret-type) 
         unhinted-method
         (il/method
           "invoke"
           public-virtual
           Object param-il-unhinted
           [(symbolize body symbolizers)
-           (convert (clr-type ret) Object)
+           (convert ret-type Object)
            (il/ret)])
         hinted-method
         (il/method
@@ -747,7 +750,7 @@
           public-virtual
           return-type param-il
           [(symbolize body symbolizers)
-           (convert (clr-type ret) return-type)
+           (convert ret-type return-type)
            (il/ret)])
         unhinted-shim
         (il/method
@@ -759,7 +762,7 @@
              (map (comp load-argument-standard inc) (range))
              (map #(convert Object %) param-types))
            (il/callvirt hinted-method)
-           (convert (clr-type ret) Object)
+           (convert unhinted-ret-type Object)
            (il/ret)])]
     [(if (and (= param-types obj-params)
               (= return-type Object))
