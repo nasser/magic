@@ -155,6 +155,17 @@
 (def ^:static TRUE true)
 (def ^:static FALSE false)
 
+;; TODO keep an eye on this
+;; TODO il/ldarga, il/ldarga-s for references to args
+(defn reference-to-type [t]
+  (when (.IsValueType t)
+    (let [local (il/local t)]
+      [(il/stloc local)
+       (il/ldloca local)])))
+
+(defn reference-to [{:keys [local arg-id] :as ast}]
+  (reference-to-type (clr-type ast)))
+
 (defn convert [from to]
   (cond
     (nil? from)
@@ -282,6 +293,15 @@
     (.IsSubclassOf from to)
     nil
     
+    ;; emit ToString when possible
+    (= to String)
+    [(reference-to-type from)
+     ((if (.IsValueType from)
+        il/call
+        il/callvirt)
+      (interop/method from "ToString"))]
+    
+    
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
 
@@ -365,15 +385,6 @@
   [{:keys [property]} symbolizers]
   (il/call (.GetGetMethod property)))
 
-;; TODO keep an eye on this
-;; TODO il/ldarga, il/ldarga-s for references to args
-(defn reference-to [{:keys [local arg-id] :as ast}]
-  (when (.IsValueType (clr-type ast))
-    (let [local (il/local (clr-type ast) ast)]
-      [(il/stloc local)
-       (il/ldloca local)])))
-
-
 (defn instance-property-symbolizer
   "Symbolic bytecode for instance properties"
   [{:keys [target property]} symbolizers]
@@ -443,7 +454,7 @@
                    il/call
                    il/callvirt )]
     [(symbolize target symbolizers)
-     ; (reference-to target)
+     (reference-to target)
      (interleave
        (map #(symbolize % symbolizers) args)
        (map convert
