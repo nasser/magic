@@ -57,7 +57,7 @@
 
 (defn conversion-symbolizer
   [{:keys [args]} type symbolizers]
-  (let [arg (magic/reinterpret (first args) type)]
+  (let [arg (first args)]
     [(magic/symbolize arg symbolizers)
      (magic/convert (clr-type arg) type)]))
 
@@ -154,8 +154,7 @@
   array-element-type
   (fn intrinsic-aget-symbolizer
     [{:keys [args] :as ast} type symbolizers]
-    (let [[array-arg index-arg] args
-          index-arg (magic/reinterpret index-arg Int32)]
+    (let [[array-arg index-arg] args]
       [(magic/symbolize array-arg symbolizers)
        (magic/symbolize index-arg symbolizers)
        ;; TODO make sure this is conv.ovf
@@ -168,7 +167,6 @@
   (fn intrinsic-aget-symbolizer
     [{:keys [args] :as ast} type symbolizers]
     (let [[array-arg index-arg value-arg] args
-          index-arg (magic/reinterpret index-arg Int32)
           val-return (il/local type)
           statement? (magic/statement? ast)]
       [(magic/symbolize array-arg symbolizers)
