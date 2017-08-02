@@ -305,24 +305,6 @@
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
 
-;; TODO is this better than e.g. a peephope pass?
-(defn reinterpret [{:keys [literal? op val] :as ast} to-type]
-  (if (and (= op :const) literal?)
-    (let [v (condp = to-type
-              Single (Convert/ToSingle val)
-              Double (Convert/ToDouble val)
-              Byte (Convert/ToByte val)
-              SByte (Convert/ToSByte val)
-              Int16 (Convert/ToInt16 val)
-              UInt16 (Convert/ToUInt16 val)
-              Int32 (Convert/ToInt32 val)
-              UInt32 (Convert/ToUInt32 val)
-              Int64 (Convert/ToInt64 val)
-              UInt64 (Convert/ToUInt64 val)
-              val)]
-      (assoc ast :val v :form v))
-    ast))
-
 (defn statement? [{{:keys [context]} :env}]
   (= context :ctx/statement))
 
