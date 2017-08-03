@@ -341,8 +341,7 @@
      (map #(compile % compilers) statements)
      (map #(cleanup-stack %) statements))
    (compile ret compilers)
-   (when (statement? ast)
-     (il/pop))])
+   (cleanup-stack ret)])
 
 (defn const-compiler
   "Symbolic bytecode for :const nodes"
