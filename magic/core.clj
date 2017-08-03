@@ -173,12 +173,6 @@
     (reference-to-argument (inc arg-id))
     (reference-to-type (clr-type ast))))
 
-(defn compile-reference-to [{:keys [local] :as ast} compilers]
-  (if (= local :arg)
-    (reference-to ast)
-    [(compile ast compilers)
-     (reference-to ast)]))
-
 (defn convert [from to]
   (cond
     (nil? from)
@@ -333,6 +327,12 @@
 ;;; compilers
 (def compile)
 
+(defn compile-reference-to [{:keys [local] :as ast} compilers]
+  (if (= local :arg)
+    (reference-to ast)
+    [(compile ast compilers)
+     (reference-to ast)]))
+
 (defn do-compiler
   [{:keys [statements ret] :as ast} compilers]
   [(interleave
@@ -384,8 +384,7 @@
 (defn instance-property-compiler
   "Symbolic bytecode for instance properties"
   [{:keys [target property]} compilers]
-  [(compile target compilers)
-   (reference-to target)
+  [(compile-reference-to target compilers)
    (if (-> target clr-type .IsValueType)
      (il/call (.GetGetMethod property))
      (il/callvirt (.GetGetMethod property)))])
@@ -401,8 +400,7 @@
 (defn instance-field-compiler
   "Symbolic bytecode for instance fields"
   [{:keys [field target]} compilers]
-  [(compile target compilers)
-   (reference-to target)
+  [(compile-reference-to target compilers)
    (il/ldfld field)])
 
 (defn dynamic-field-compiler
@@ -412,8 +410,7 @@
         target-type (il/local Type)
         reflected-field (il/local FieldInfo)
         valid-field (il/label)]
-    [(compile target compilers)
-     (reference-to target)
+    [(compile-reference-to target compilers)
      (il/stloc target-local)
      (il/ldloc target-local)
      (il/callvirt (interop/method Object "GetType"))
@@ -449,8 +446,7 @@
         virtcall (if (.IsValueType (clr-type target))
                    il/call
                    il/callvirt )]
-    [(compile target compilers)
-     (reference-to target)
+    [(compile-reference-to target compilers)
      (interleave
        (map #(compile % compilers) args)
        (map convert
