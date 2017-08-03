@@ -253,6 +253,14 @@
         (errors/error ::errors/var-bad-arity ast)))
     ast))
 
+;; TODO is this knowledge too low level for the analyzer? 
+(defn increment-arg-ids
+  {:pass-info {:walk :pre :before #{#'uniquify-locals}}}
+  [{:keys [local] :as ast}]
+  (if (= local :arg)
+    (update ast :arg-id inc)
+    ast))
+
 (def default-passes
   #{#'host/analyze-byref
     #'host/analyze-type
@@ -264,6 +272,7 @@
     #'novel/generic-type-syntax
     #'intrinsics/analyze
     #'lr/analyze
+    #'increment-arg-ids
     #'tag-catch-locals
     ; #'enforce-var-arity
     ; #'source-info
@@ -285,14 +294,15 @@
 
 (defn analyze
   ([form] (analyze form (empty-env)))
-  ([form env]
+  ([form env] (analyze form env run-passes))
+  ([form env passes-fn]
    (binding [ana/macroexpand-1 macroexpand-1
              ana/create-var    (fn [sym env]
                                  (doto (intern (:ns env) sym)
                                    (reset-meta! (meta sym))))
              ana/parse         parse
              ana/var?          var?]
-     (with-env (global-env) (run-passes (ana/analyze form env))))))
+     (with-env (global-env) (passes-fn (ana/analyze form env))))))
 
 (comment 
   (analyze '(. DateTime Now))

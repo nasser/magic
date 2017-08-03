@@ -167,8 +167,8 @@
 
 (defn reference-to-argument [{:keys [arg-id] :as ast}]
   (if (.IsValueType (clr-type ast))
-    (load-argument-address (inc arg-id))
-    (load-argument-standard (inc arg-id))))
+    (load-argument-address arg-id)
+    (load-argument-standard arg-id)))
 
 (defn reference-to [{:keys [local arg-id] :as ast}]
   (if (= local :arg)
@@ -575,7 +575,7 @@
 (defn local-compiler
   [{:keys [name local] :as ast} compilers]
   (if (= local :arg)
-    (load-argument (update ast :arg-id inc))
+    (load-argument ast)
     (throw! "Local " name " not an argument and could not be compiled")))
 
 (defn invoke-compiler

@@ -1,5 +1,6 @@
 (ns magic.faster
-  (:require [magic.analyzer :as ana]
+  (:require [clojure.tools.analyzer.passes :refer [schedule]]
+            [magic.analyzer :as ana]
             [magic.analyzer.types :refer [clr-type non-void-clr-type tag]]
             [magic.core :as magic]
             [mage.core :as il])
@@ -28,12 +29,12 @@
        (magic/convert (clr-type ret) return-type)
        (il/ret)])))
 
-(defn static-argument-local
-  "Symbolize :local arguments to static arguments"
-  [{:keys [name arg-id local] :as ast} compilers]
-  (if (= local :arg)
-    (magic/load-argument ast)
-    (magic/throw! "Local " name " not an argument and could not be compiled")))
+(def faster-passes
+  (disj ana/default-passes
+        #'ana/increment-arg-ids))
+
+(def scheduled-faster-passes
+  (schedule faster-passes))
 
 ;; TODO ::il/type is kind of lame, use ::il/name maybe?
 (defn faster-type [args-names args-types body]
@@ -41,7 +42,7 @@
         (merge magic/base-compilers
                {:fn static-type-fn
                 :fn-method typed-static-invoke-fn-method
-                :local static-argument-local})
+                :local magic/local-compiler})
         name (symbol (str "--" (gensym "faster--body") "--"))
         wrapped-body `(clojure.core/fn
                         ~name
@@ -51,7 +52,7 @@
                               vec)
                         ~body)
         body-il (-> wrapped-body
-                    ana/analyze
+                    (ana/analyze (ana/empty-env) scheduled-faster-passes)
                     (magic/compile (magic/get-compilers faster-compilers)))]
     (il/emit! body-il)
     (::il/type body-il)))
