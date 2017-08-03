@@ -564,7 +564,7 @@
                  then-label
                  (compile then compilers)
                  (when (and value-used?
-                            (not (types/control-flow? else)))
+                            (not (types/control-flow? then)))
                    (convert (clr-type then) if-expr-type))
                  end-label])))
 
