@@ -165,12 +165,14 @@
       [(il/stloc local)
        (il/ldloca local)])))
 
-(defn reference-to-argument [arg-id]
-  (load-argument-address arg-id))
+(defn reference-to-argument [{:keys [arg-id] :as ast}]
+  (if (.IsValueType (clr-type ast))
+    (load-argument-address (inc arg-id))
+    (load-argument-standard (inc arg-id))))
 
 (defn reference-to [{:keys [local arg-id] :as ast}]
   (if (= local :arg)
-    (reference-to-argument (inc arg-id))
+    (reference-to-argument ast)
     (reference-to-type (clr-type ast))))
 
 (defn convert [from to]
