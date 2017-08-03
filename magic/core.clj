@@ -23,7 +23,7 @@
 (defmacro throw! [& e]
   `(throw (Exception. (str ~@e))))
 
-(defn load-argument-byref [arg-id]
+(defn load-argument-address [arg-id]
   (cond
     (< arg-id 16) (il/ldarga-s (short arg-id))
     :else (il/ldarga arg-id)))
@@ -37,9 +37,10 @@
     (< arg-id 16) (il/ldarg-s (short arg-id)) ;; TODO what is the cutoff?
     :else (il/ldarg arg-id)))
 
+
 (defn load-argument [{:keys [arg-id by-ref?]}]
   (if by-ref?
-    (load-argument-byref arg-id)
+    (load-argument-address arg-id)
     (load-argument-standard arg-id)))
 
 (defmulti load-constant type)
@@ -164,8 +165,19 @@
       [(il/stloc local)
        (il/ldloca local)])))
 
+(defn reference-to-argument [arg-id]
+  (load-argument-address arg-id))
+
 (defn reference-to [{:keys [local arg-id] :as ast}]
-  (reference-to-type (clr-type ast)))
+  (if (= local :arg)
+    (reference-to-argument (inc arg-id))
+    (reference-to-type (clr-type ast))))
+
+(defn compile-reference-to [{:keys [local] :as ast} compilers]
+  (if (= local :arg)
+    (reference-to ast)
+    [(compile ast compilers)
+     (reference-to ast)]))
 
 (defn convert [from to]
   (cond
@@ -313,8 +325,7 @@
   "il/pop if in a non-void statement context.
   Required to keep the stack balanced."
   [{:keys [op] :as ast}]
-  (if (and (not= :if op)    ;; if cleans up its own stack
-           (not= :set! op)  ;; set! cleans up its own stack
+  (if (and (not= :do op)  ;; do cleans up its own stack
            (statement? ast)
            (not= System.Void (clr-type ast)))
     (il/pop)))
@@ -323,11 +334,13 @@
 (def compile)
 
 (defn do-compiler
-  [{:keys [statements ret]} compilers]
+  [{:keys [statements ret] :as ast} compilers]
   [(interleave
      (map #(compile % compilers) statements)
      (map #(cleanup-stack %) statements))
-   (compile ret compilers)])
+   (compile ret compilers)
+   (when (statement? ast)
+     (il/pop))])
 
 (defn const-compiler
   "Symbolic bytecode for :const nodes"
@@ -537,28 +550,26 @@
 
 (defn if-compiler
   [{:keys [test then else] :as ast} compilers]
-  (let [if-expr-type (non-void-clr-type ast)
+  (let [if-expr-type (clr-type ast)
         then-label (il/label)
-        end-label (il/label)]
-    (cond (types/always-then? ast) (compile then compilers)
+        end-label (il/label)
+        value-used? (statement? ast)]
+    (cond (types/equal-branches? ast) (compile then compilers)
+          (types/always-then? ast) (compile then compilers)
           (types/always-else? ast) (compile else compilers)
           :else [(compile test compilers)
                  (convert (clr-type test) Boolean)
                  (il/brtrue then-label)
-                 [(compile else compilers)
-                  (cond
-                    (statement? ast) 
-                    (cleanup-stack else)
-                    (not (types/control-flow? else))
-                    (convert (clr-type else) if-expr-type))]
+                 (compile else compilers)
+                 (when (and value-used?
+                            (not (types/control-flow? else)))
+                   (convert (clr-type else) if-expr-type))
                  (il/br end-label)
                  then-label
-                 [(compile then compilers)
-                  (cond
-                    (statement? ast) 
-                    (cleanup-stack then)
-                    (not (types/control-flow? then))
-                    (convert (clr-type then) if-expr-type))]
+                 (compile then compilers)
+                 (when (and value-used?
+                            (not (types/control-flow? else)))
+                   (convert (clr-type then) if-expr-type))
                  end-label])))
 
 (defn binding-compiler
@@ -615,8 +626,7 @@
     (cond
       (= target-op :instance-field)
       (let [v (il/local (clr-type val))]
-        [(compile target' compilers)
-         (reference-to target')
+        [(compile-reference-to target' compilers)
          (compile val compilers)
          (if value-used?
            [(il/stloc v)
@@ -627,8 +637,7 @@
            (il/ldloc v))])
       (= target-op :instance-property)
       (let [v (il/local (clr-type val))]
-        [(compile target' compilers)
-         (reference-to target')
+        [(compile-reference-to target' compilers)
          (compile val compilers)
          (if value-used?
            [(il/stloc v)
