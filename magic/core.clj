@@ -550,7 +550,7 @@
   (let [if-expr-type (clr-type ast)
         then-label (il/label)
         end-label (il/label)
-        value-used? (statement? ast)]
+        value-used? (not (statement? ast))]
     (cond (types/always-then? ast) (compile then compilers)
           (types/always-else? ast) (compile else compilers)
           :else [(compile test compilers)
