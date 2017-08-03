@@ -47,7 +47,7 @@
     (if (zero? (count args))
       ident
       [(interleave
-         (map #(magic/compile % compilers) args)
+         (map #(magic/compile (reinterpret % type) compilers) args)
          (map #(magic/convert (clr-type %) type) args))
        (repeat (-> args count dec)
                (if (not (or *unchecked-math*
