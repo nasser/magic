@@ -17,7 +17,7 @@
 
 (defn analyze
   "Analyze invoke forms into CLR intrinsics if possible"
-  {:pass-info {:walk :post :after #{#'uniquify-locals}}}
+  {:pass-info {:walk :post :before #{#'uniquify-locals}}}
   [{:keys [op fn args form raw-forms] :as ast}]
   (let [intrinsic-ast
         (when (and (= op :invoke) (:var fn))
