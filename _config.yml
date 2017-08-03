@@ -13,8 +13,11 @@ author:
   url:        http://nas.sr
 
 # Gems
-# gems:
-  # - jekyll-paginate
+plugins:
+  - jekyll-mermaid
 
 #Others
 markdown: kramdown
+
+mermaid:
+  src: '/js/mermaid.js'
