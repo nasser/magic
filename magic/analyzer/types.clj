@@ -246,7 +246,10 @@
   [{:keys [ret] :as ast}] (clr-type ret))
 
 (defmethod clr-type :set!
-  [{:keys [val] :as ast}] (clr-type val))
+  [{:keys [val] {:keys [context]} :env}]
+  (if (= context :ctx/statement)
+    System.Void
+    (clr-type val)))
 
 (defmethod clr-type :quote
   [{:keys [expr] :as ast}] (clr-type expr))
