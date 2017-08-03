@@ -550,8 +550,7 @@
         then-label (il/label)
         end-label (il/label)
         value-used? (statement? ast)]
-    (cond (types/equal-branches? ast) (compile then compilers)
-          (types/always-then? ast) (compile then compilers)
+    (cond (types/always-then? ast) (compile then compilers)
           (types/always-else? ast) (compile else compilers)
           :else [(compile test compilers)
                  (convert (clr-type test) Boolean)
