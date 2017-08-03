@@ -25,7 +25,7 @@
 
 (defn load-argument-address [arg-id]
   (cond
-    (< arg-id 16) (il/ldarga-s (short arg-id))
+    (< arg-id 16) (il/ldarga-s (byte arg-id))
     :else (il/ldarga arg-id)))
 
 (defn load-argument-standard [arg-id]
@@ -34,7 +34,7 @@
     (= arg-id 1) (il/ldarg-1)
     (= arg-id 2) (il/ldarg-2)
     (= arg-id 3) (il/ldarg-3)
-    (< arg-id 16) (il/ldarg-s (short arg-id)) ;; TODO what is the cutoff?
+    (< arg-id 16) (il/ldarg-s (byte arg-id)) ;; TODO what is the cutoff?
     :else (il/ldarg arg-id)))
 
 
