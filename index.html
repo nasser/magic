@@ -5,7 +5,7 @@ title: {{ site.name }}
 
 <div id="home">
   {% for post in site.posts %}
-    {% if post.draft != true %}
+    {% if post.private != true %}
       <h1>{{ post.title }} <a href="{{ site.baseurl }}{{ post.url }}">{{ post.date | date_to_string }}</a></h1>
       {{ post.content }}
       {% if forloop.last == false %}
