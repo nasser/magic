@@ -23,10 +23,11 @@
         (when (and (= op :invoke) (:var fn))
           (when-let [bc-fn (@intrinsic-forms (util/var-symbol (:var fn)))]
             (when-let [bc-type ((::type bc-fn) ast)]
-              {:op :intrinsic
-               :il-fn (::il bc-fn) ;; TODO this is basically a "compiler"... need better name
-               :type bc-type
-               :original ast})))]
+              (merge ast
+                     {:op :intrinsic
+                      :il-fn (::il bc-fn) ;; TODO this is basically a "compiler"... need better name
+                      :type bc-type
+                      :original ast}))))]
     ;; TODO reapply inlining if possible when falling back to original ast
     (or intrinsic-ast
         ast)))
