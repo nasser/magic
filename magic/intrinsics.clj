@@ -208,6 +208,19 @@
      (il/ldc-i4-1)
      (il/add)]))
 
+(defintrinsic clojure.core/instance?
+  (fn [{[{:keys [op type]}] :args}]
+    (when (and (= :const op)
+               (= :class type))
+      Boolean))
+  (fn intrinsic-instance?-compiler
+    [{[{:keys [val] :as type-arg} obj-arg] :args} type compilers]
+    [(magic/compile obj-arg compilers)
+     (il/isinst val)
+     (il/ldnull)
+     (il/cgt-un)]))
+
+
 
 ;;;; array functions
 ;; aclone
