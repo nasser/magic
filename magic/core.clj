@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
             [magic.analyzer :as ana]
-            [magic.analyzer.util :refer [var-interfaces]]
+            [magic.analyzer.util :refer [var-interfaces throw!]]
             [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type best-match]]
             [magic.interop :as interop]
             [clojure.string :as string])
@@ -19,9 +19,6 @@
             MethodInfo
             PropertyInfo]
            System.AppDomain))
-
-(defmacro throw! [& e]
-  `(throw (Exception. (str ~@e))))
 
 (defn load-argument-address [arg-id]
   (cond
