@@ -14,30 +14,23 @@
      ~type-fn
      ~il-fn))
 
-(defn add-mul-numeric-type [{:keys [args]}]
-  (let [arg-types (->> args (map clr-type))
-        non-numeric-args (filter (complement types/numeric) arg-types)
-        inline? (when-not (some #{Object} arg-types)
-                  (empty? non-numeric-args))
-        type (case (-> args count)
-               0 Int64
-               1 (clr-type (first args))
-               (->> args (map clr-type) types/best-numeric-promotion))]
-    (when inline? type)))
-
-(defn sub-numeric-type [{:keys [args]}]
-  (let [arg-types (->> args (map clr-type))
-        non-numeric-args (filter (complement types/numeric) arg-types)
-        inline? (when-not (some #{Object} arg-types)
-                  (empty? non-numeric-args))
-        type (->> args (map clr-type) types/best-numeric-promotion)]
-    (when inline? type)))
-
 (defn numeric-args [{:keys [args]}]
   (let [arg-types (->> args (map clr-type))
         non-numeric-args (filter (complement types/numeric) arg-types)]
     (when (empty non-numeric-args)
       (types/best-numeric-promotion arg-types))))
+
+(defn best-numeric-type [{:keys [args]}]
+  (let [arg-types (->> args (map clr-type))
+        non-numeric-args (filter (complement types/numeric) arg-types)
+        inline? (empty? non-numeric-args)
+        type (->> args (map clr-type) types/best-numeric-promotion)]
+    (when inline? type)))
+
+(defn add-mul-numeric-type [{:keys [args] :as ast}]
+  (if (empty? args)
+    Int64
+    (numeric-args ast)))
 
 (defn numeric-arg [{:keys [args]}]
   (let [arg-type (-> args first clr-type)]
@@ -109,7 +102,7 @@
          (il/add-ovf))])))
 
 (defintrinsic clojure.core/-
-  sub-numeric-type
+  best-numeric-type
   (fn intrinsics-sub-compiler
     [{:keys [args] :as ast} type compilers]
     (let [first-arg (first args)
@@ -133,7 +126,7 @@
            rest-args)]))))
 
 (defintrinsic clojure.core/dec
-  sub-numeric-type
+  best-numeric-type
   (fn intrinsic-dec-compiler
     [{:keys [args] :as ast} type compilers]
     (let [arg (first args)]
