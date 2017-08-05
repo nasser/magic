@@ -265,6 +265,18 @@
      (il/ldnull)
      (il/cgt-un)]))
 
+(defintrinsic clojure.core/count
+  (constantly Int32)
+  (fn intrinsic-count-compiler
+    [{[first-arg] :args} type compilers]
+    (let [arg-type (clr-type first-arg)]
+      [(magic/compile first-arg compilers)
+       (if (.IsArray arg-type)
+         (il/ldlen)
+         [(magic/convert arg-type Object)
+          (il/call (interop/method RT "count" Object))]
+         )])))
+
 
 
 ;;;; array functions
