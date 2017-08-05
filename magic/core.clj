@@ -338,6 +338,7 @@
   Required to keep the stack balanced."
   [{:keys [op] :as ast}]
   (if (and (not= :do op)  ;; do cleans up its own stack
+           (not= :let op) ;; let contains a do
            (statement? ast)
            (not= System.Void (clr-type ast)))
     (il/pop)))
