@@ -6,7 +6,8 @@
             [magic.analyzer.intrinsics :as intrinsics :refer [register-intrinsic-form]]
             [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type best-match]]
             [magic.interop :as interop]
-            [clojure.string :as string]))
+            [clojure.string :as string])
+  (:import [clojure.lang RT BigInteger Numbers Ratio]))
 
 (defmacro defintrinsic [name type-fn il-fn]
   `(register-intrinsic-form
@@ -141,6 +142,54 @@
   add-mul-numeric-type
   (add-mul-numeric-compiler
     (il/ldc-i8 1) (il/mul-ovf) (il/mul)))
+
+(defintrinsic clojure.core//
+  #(let [t (best-numeric-type %)]
+     (if (types/integer t)
+       Ratio
+       t))
+  (fn intrinsics-div-compiler
+    [{:keys [args] :as ast} type compilers]
+    (let [first-arg (first args)
+          first-type (clr-type first-arg)
+          rest-args (rest args)]
+      (cond
+        (and (empty? rest-args)
+             (types/integer first-type))
+        [(il/call (interop/getter BigInteger "One"))
+         (magic/compile first-arg compilers)
+         (magic/convert first-type BigInteger)
+         (il/newobj (interop/constructor Ratio BigInteger BigInteger))]
+        (empty? rest-args)
+        [(magic/load-constant
+           (reinterpret-value 1 first-type))
+         (magic/compile first-arg compilers)
+         (il/div)]
+        (= Ratio type)
+        (let [second-arg (second args)
+              second-type (clr-type second-arg)
+              rest-args (drop 2 args)]
+          [(magic/compile first-arg compilers)
+           (magic/convert first-type BigInteger)
+           (magic/compile second-arg compilers)
+           (magic/convert second-type BigInteger)
+           (mapcat
+             (fn [a]
+               [(magic/compile a compilers)
+                (magic/convert (clr-type a) BigInteger)
+                (il/call (interop/method BigInteger "op_Multiply" BigInteger BigInteger))])
+             rest-args)
+           (il/call (interop/method Numbers "BIDivide" BigInteger BigInteger))
+           (magic/convert Object Ratio)])
+        :else
+        [(magic/compile (reinterpret first-arg type) compilers)
+         (magic/convert first-type type)
+         (mapcat
+           (fn [a]
+             [(magic/compile (reinterpret a type) compilers)
+              (magic/convert (clr-type a) type)
+              (il/div)])
+           rest-args)]))))
 
 (defintrinsic clojure.core/<
   #(when (numeric-args %) Boolean)
