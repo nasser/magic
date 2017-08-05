@@ -2,7 +2,7 @@
   (:require [mage.core :as il]
             [magic.core :as magic]
             [magic.analyzer :as ana]
-            [magic.analyzer.literal-reinterpretation :refer [reinterpret]]
+            [magic.analyzer.literal-reinterpretation :refer [reinterpret-value reinterpret]]
             [magic.analyzer.intrinsics :as intrinsics :refer [register-intrinsic-form]]
             [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type best-match]]
             [magic.interop :as interop]
@@ -14,7 +14,7 @@
      ~type-fn
      ~il-fn))
 
-(defn associative-numeric-type [{:keys [args]}]
+(defn add-mul-numeric-type [{:keys [args]}]
   (let [arg-types (->> args (map clr-type))
         non-numeric-args (filter (complement types/numeric) arg-types)
         inline? (when-not (some #{Object} arg-types)
@@ -23,6 +23,14 @@
                0 Int64
                1 (clr-type (first args))
                (->> args (map clr-type) types/best-numeric-promotion))]
+    (when inline? type)))
+
+(defn sub-numeric-type [{:keys [args]}]
+  (let [arg-types (->> args (map clr-type))
+        non-numeric-args (filter (complement types/numeric) arg-types)
+        inline? (when-not (some #{Object} arg-types)
+                  (empty? non-numeric-args))
+        type (->> args (map clr-type) types/best-numeric-promotion)]
     (when inline? type)))
 
 (defn numeric-args [{:keys [args]}]
@@ -41,8 +49,8 @@
     (when (types/numeric arg-type)
       x)))
 
-(defn associative-numeric-compiler [ident checked unchecked]
-  (fn associative-compiler
+(defn add-mul-numeric-compiler [ident checked unchecked]
+  (fn add-mul-compiler
     [{:keys [args] :as ast} type compilers]
     (if (zero? (count args))
       ident
@@ -84,24 +92,61 @@
   conversions)
 
 (defintrinsic clojure.core/+
-  associative-numeric-type
-  (associative-numeric-compiler
+  add-mul-numeric-type
+  (add-mul-numeric-compiler
     (il/ldc-i8 0) (il/add-ovf) (il/add)))
 
 (defintrinsic clojure.core/inc
-  associative-numeric-type
+  add-mul-numeric-type
   (fn intrinsic-inc-compiler
     [{:keys [args] :as ast} type compilers]
     (let [arg (first args)]
       [(magic/compile arg compilers)
-       (magic/load-constant 1)
+       (magic/load-constant
+         (reinterpret-value 1 type))
        (if *unchecked-math*
          (il/add)
          (il/add-ovf))])))
 
+(defintrinsic clojure.core/-
+  sub-numeric-type
+  (fn intrinsics-sub-compiler
+    [{:keys [args] :as ast} type compilers]
+    (let [first-arg (first args)
+          rest-args (rest args)
+          instr (if (not (or *unchecked-math*
+                             (= type Single)
+                             (= type Double)))
+                  (il/sub-ovf)
+                  (il/sub))]
+      (if (empty? rest-args)
+        [(magic/compile (reinterpret first-arg type) compilers)
+         (magic/convert (clr-type first-arg) type)
+         (il/neg)]
+        [(magic/compile (reinterpret first-arg type) compilers)
+         (magic/convert (clr-type first-arg) type)
+         (mapcat
+           (fn [a]
+             [(magic/compile (reinterpret a type) compilers)
+              (magic/convert (clr-type a) type)
+              instr])
+           rest-args)]))))
+
+(defintrinsic clojure.core/dec
+  sub-numeric-type
+  (fn intrinsic-dec-compiler
+    [{:keys [args] :as ast} type compilers]
+    (let [arg (first args)]
+      [(magic/compile arg compilers)
+       (magic/load-constant
+         (reinterpret-value 1 type))
+       (if *unchecked-math*
+         (il/sub)
+         (il/sub-ovf))])))
+
 (defintrinsic clojure.core/*
-  associative-numeric-type
-  (associative-numeric-compiler
+  add-mul-numeric-type
+  (add-mul-numeric-compiler
     (il/ldc-i8 1) (il/mul-ovf) (il/mul)))
 
 (defintrinsic clojure.core/<
@@ -209,9 +254,9 @@
      (il/add)]))
 
 (defintrinsic clojure.core/instance?
-  (fn [{[{:keys [op type]}] :args}]
-    (when (and (= :const op)
-               (= :class type))
+  (fn [{[first-arg] :args}]
+    (when (and (= :const (:op first-arg))
+               (= :class (:type first-arg)))
       Boolean))
   (fn intrinsic-instance?-compiler
     [{[{:keys [val] :as type-arg} obj-arg] :args} type compilers]
