@@ -251,10 +251,14 @@
 
 ;; TODO multidim arrays
 (defintrinsic clojure.core/aset
-  array-element-type
+  (fn [ast] 
+    (if (magic/statement? ast)
+      System.Void
+      (array-element-type ast)))
   (fn intrinsic-aget-compiler
     [{:keys [args] :as ast} type compilers]
     (let [[array-arg index-arg value-arg] args
+          type (array-element-type ast)
           val-return (il/local type)
           statement? (magic/statement? ast)]
       [(magic/compile array-arg compilers)
