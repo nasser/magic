@@ -242,7 +242,8 @@
   array-element-type
   (fn intrinsic-aget-compiler
     [{:keys [args] :as ast} type compilers]
-    (let [[array-arg index-arg] args]
+    (let [[array-arg index-arg] args
+          index-arg (reinterpret index-arg Int32)]
       [(magic/compile array-arg compilers)
        (magic/compile index-arg compilers)
        ;; TODO make sure this is conv.ovf
@@ -258,6 +259,7 @@
   (fn intrinsic-aget-compiler
     [{:keys [args] :as ast} type compilers]
     (let [[array-arg index-arg value-arg] args
+          index-arg (reinterpret index-arg Int32)
           type (array-element-type ast)
           val-return (il/local type)
           statement? (magic/statement? ast)]
