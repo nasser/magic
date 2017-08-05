@@ -34,6 +34,13 @@
     (< arg-id 16) (il/ldarg-s (byte arg-id)) ;; TODO what is the cutoff?
     :else (il/ldarg arg-id)))
 
+(defn load-integer [k]
+  (cond
+    (= k 0)  (il/ldc-i4-0)
+    (= k 1)  (il/ldc-i4-1)
+    (= k -1) (il/ldc-i4-m1)
+    (< k 128) (il/ldc-i4-s (byte k))
+    :else (il/ldc-i4 (int k))))
 
 (defn load-argument [{:keys [arg-id by-ref?]}]
   (if by-ref?
@@ -52,10 +59,22 @@
   (il/ldstr k))
 
 (defmethod load-constant Int32 [k]
-  (il/ldc-i4 k))
+  (load-integer k))
 
 (defmethod load-constant Int64 [k]
   (il/ldc-i8 k))
+
+(defmethod load-constant UInt64 [k]
+  (il/ldc-i8 k))
+
+(defmethod load-constant UInt32 [k]
+  (load-integer k))
+
+(defmethod load-constant Byte [k]
+  (load-integer k))
+
+(defmethod load-constant SByte [k]
+  (load-integer k))
 
 ;; TODO BigInt vs BigInteger?
 (defmethod load-constant clojure.lang.BigInt [k]
