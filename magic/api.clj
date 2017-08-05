@@ -6,6 +6,7 @@
             [magic.core :as magic]
             [magic.faster :refer [faster-type]]
             [mage.core :as il]
+            magic.intrinsics
             [magic.spells
              [lift-vars :refer [lift-vars]]])
   (:import [clojure.lang RT]))
@@ -63,3 +64,6 @@
 
 (c/defn bind-basic-spells! []
   (bind-spells! [lift-vars]))
+
+;; yolo
+(bind-spells! [lift-vars])
