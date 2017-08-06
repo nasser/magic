@@ -6,7 +6,7 @@
             [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type best-match]]
             [magic.interop :as interop]
             [clojure.string :as string])
-  (:import [clojure.lang Var RT IFn Keyword]
+  (:import [clojure.lang Var RT IFn Keyword Symbol]
            [System.IO FileInfo Path]
            [System.Reflection.Emit OpCodes]
            [System.Reflection
@@ -20,140 +20,8 @@
             PropertyInfo]
            System.AppDomain))
 
-(defn load-argument-address [arg-id]
-  (cond
-    (< arg-id 16) (il/ldarga-s (byte arg-id))
-    :else (il/ldarga arg-id)))
-
-(defn load-argument-standard [arg-id]
-  (cond
-    (= arg-id 0) (il/ldarg-0)
-    (= arg-id 1) (il/ldarg-1)
-    (= arg-id 2) (il/ldarg-2)
-    (= arg-id 3) (il/ldarg-3)
-    (< arg-id 16) (il/ldarg-s (byte arg-id)) ;; TODO what is the cutoff?
-    :else (il/ldarg arg-id)))
-
-(defn load-integer [k]
-  (cond
-    (= k 0)  (il/ldc-i4-0)
-    (= k 1)  (il/ldc-i4-1)
-    (= k -1) (il/ldc-i4-m1)
-    (< k 128) (il/ldc-i4-s (byte k))
-    :else (il/ldc-i4 (int k))))
-
-(defn load-argument [{:keys [arg-id by-ref?]}]
-  (if by-ref?
-    (load-argument-address arg-id)
-    (load-argument-standard arg-id)))
-
-(defmulti load-constant type)
-
-(defmethod load-constant :default [k]
-  (throw! "load-constant not implemented for " (type k)))
-
-(defmethod load-constant nil [k]
-  (il/ldnull))
-
-(defmethod load-constant String [k]
-  (il/ldstr k))
-
-(defmethod load-constant Int32 [k]
-  (load-integer k))
-
-(defmethod load-constant Int64 [k]
-  (il/ldc-i8 k))
-
-(defmethod load-constant UInt64 [k]
-  (il/ldc-i8 k))
-
-(defmethod load-constant UInt32 [k]
-  (load-integer k))
-
-(defmethod load-constant Byte [k]
-  (load-integer k))
-
-(defmethod load-constant SByte [k]
-  (load-integer k))
-
-;; TODO BigInt vs BigInteger?
-(defmethod load-constant clojure.lang.BigInt [k]
-  (if (nil? (.Bipart k))
-    [(load-constant (.Lpart k))
-     (il/call (interop/method clojure.lang.BigInt "fromLong" Int64))]
-    [(load-constant (str k "N"))
-     (il/call (interop/method clojure.lang.RT "readString" String))]))
-
-(defmethod load-constant Single [k]
-  (il/ldc-r4 k))
-
-(defmethod load-constant Double [k]
-  (il/ldc-r8 k))
-
-(defmethod load-constant Boolean [k]
-  (if k (il/ldc-i4-1) (il/ldc-i4-0)))
-
-(defmethod load-constant Keyword [k]
-  [(load-constant (.Namespace k))
-   (load-constant (.Name k))
-   (il/call (interop/method Keyword "intern" String String))])
-
-;; NOTE the stock compiler looks up types using RT.classForName
-;; if the type is not a valuetype. why? does it make a difference?
-(defmethod load-constant Type [v]
-  [(il/ldtoken v)
-   (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
-
-
-(defn load-var [v]
-  (let [nsname  (.. v Namespace Name ToString)
-        symname (.. v Symbol ToString)]
-    [(load-constant nsname)
-     (load-constant symname)
-     (il/call (interop/method RT "var" String String))]))
-
-;; TODO remaining element types
-(defn load-element [type]
-  (case type
-    ;; ??? (il/ldelem-i)
-    ;; ??? (il/ldelema)
-    SByte (il/ldelem-i1)
-    Int16 (il/ldelem-i2)
-    Int32 (il/ldelem-i4)
-    Int64 (il/ldelem-i8)
-    Byte (il/ldelem-u1)
-    UInt16 (il/ldelem-u2)
-    UInt32 (il/ldelem-u4)
-    UInt64 (il/ldelem-i8) ;; weird??
-    Single (il/ldelem-r4)
-    Double (il/ldelem-r8)
-    (if (.IsValueType type)
-      (il/ldelem type)
-      (il/ldelem-ref))))
-
-;; TODO remaining element types
-(defn store-element [type]
-  (case type
-    ;; ??? (il/stelem-i)
-    ;; ??? (il/stelema)
-    SByte (il/stelem-i1)
-    Int16 (il/stelem-i2)
-    Int32 (il/stelem-i4)
-    Int64 (il/stelem-i8)
-    ;; Byte (il/stelem-u1)
-    ;; UInt16 (il/stelem-u2)
-    ;; UInt32 (il/stelem-u4)
-    ;; UInt64 (il/stelem-i8) ;; weird??
-    Single (il/stelem-r4)
-    Double (il/stelem-r8)
-    (if (.IsValueType type)
-      (il/stelem type)
-      (il/stelem-ref))))
-
-(defn get-var [v]
-  (if (.isDynamic v)
-    (il/call (interop/method Var "get"))
-    (il/call (interop/method Var "getRawRoot"))))
+(def compile)
+(def base-compilers)
 
 ;; TODO overflows?
 ;; can overflow opcodes replace e.g. RT.intCast?
@@ -169,27 +37,6 @@
    UInt16 (il/conv-u2)
    UInt32 (il/conv-u4)
    UInt64 (il/conv-u8)})
-
-(def ^:static TRUE true)
-(def ^:static FALSE false)
-
-;; TODO keep an eye on this
-;; TODO il/ldarga, il/ldarga-s for references to args
-(defn reference-to-type [t]
-  (when (.IsValueType t)
-    (let [local (il/local t)]
-      [(il/stloc local)
-       (il/ldloca local)])))
-
-(defn reference-to-argument [{:keys [arg-id] :as ast}]
-  (if (.IsValueType (clr-type ast))
-    (load-argument-address arg-id)
-    (load-argument-standard arg-id)))
-
-(defn reference-to [{:keys [local arg-id] :as ast}]
-  (if (= local :arg)
-    (reference-to-argument ast)
-    (reference-to-type (clr-type ast))))
 
 (defn convert [from to]
   (cond
@@ -330,6 +177,202 @@
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
 
+(defn load-argument-address [arg-id]
+  (cond
+    (< arg-id 16) (il/ldarga-s (byte arg-id))
+    :else (il/ldarga arg-id)))
+
+(defn load-argument-standard [arg-id]
+  (cond
+    (= arg-id 0) (il/ldarg-0)
+    (= arg-id 1) (il/ldarg-1)
+    (= arg-id 2) (il/ldarg-2)
+    (= arg-id 3) (il/ldarg-3)
+    (< arg-id 16) (il/ldarg-s (byte arg-id)) ;; TODO what is the cutoff?
+    :else (il/ldarg arg-id)))
+
+(defn load-integer [k]
+  (cond
+    (= k 0)  (il/ldc-i4-0)
+    (= k 1)  (il/ldc-i4-1)
+    (= k -1) (il/ldc-i4-m1)
+    (< k 128) (il/ldc-i4-s (byte k))
+    :else (il/ldc-i4 (int k))))
+
+(defn load-argument [{:keys [arg-id by-ref?]}]
+  (if by-ref?
+    (load-argument-address arg-id)
+    (load-argument-standard arg-id)))
+
+(defn new-array [items]
+  [(load-constant (int (count items)))
+   (il/newarr Object)
+   (map (fn [i c]
+          [(il/dup)
+           (load-constant (int i))
+           c
+           (il/stelem-ref)])
+        (range)
+        items)])
+
+(defn prepare-array [items compilers]
+  (new-array
+    (map
+      (fn [c]
+        [(compile c compilers)
+         (convert (clr-type c) Object)])
+       items)))
+
+(defmulti load-constant type)
+
+(defmethod load-constant :default [k]
+  (throw! "load-constant not implemented for " (type k)))
+
+(defmethod load-constant nil [k]
+  (il/ldnull))
+
+(defmethod load-constant String [k]
+  (il/ldstr k))
+
+(defmethod load-constant Int32 [k]
+  (load-integer k))
+
+(defmethod load-constant Int64 [k]
+  (il/ldc-i8 k))
+
+(defmethod load-constant UInt64 [k]
+  (il/ldc-i8 k))
+
+(defmethod load-constant UInt32 [k]
+  (load-integer k))
+
+(defmethod load-constant Byte [k]
+  (load-integer k))
+
+(defmethod load-constant SByte [k]
+  (load-integer k))
+
+;; TODO BigInt vs BigInteger?
+(defmethod load-constant clojure.lang.BigInt [k]
+  (if (nil? (.Bipart k))
+    [(load-constant (.Lpart k))
+     (il/call (interop/method clojure.lang.BigInt "fromLong" Int64))]
+    [(load-constant (str k "N"))
+     (il/call (interop/method clojure.lang.RT "readString" String))]))
+
+(defmethod load-constant Single [k]
+  (il/ldc-r4 k))
+
+(defmethod load-constant Double [k]
+  (il/ldc-r8 k))
+
+(defmethod load-constant Boolean [k]
+  (if k (il/ldc-i4-1) (il/ldc-i4-0)))
+
+(defmethod load-constant Keyword [k]
+  [(load-constant (.Namespace k))
+   (load-constant (.Name k))
+   (il/call (interop/method Keyword "intern" String String))])
+
+(defmethod load-constant Symbol [k]
+  [(load-constant (.Namespace k))
+   (load-constant (.Name k))
+   (il/call (interop/method Symbol "intern" String String))])
+
+;; NOTE the stock compiler looks up types using RT.classForName
+;; if the type is not a valuetype. why? does it make a difference?
+(defmethod load-constant Type [v]
+  [(il/ldtoken v)
+   (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
+
+(defmethod load-constant
+  clojure.lang.PersistentList [v]
+  [(new-array (map (fn [c] [(load-constant c)
+                            (convert (type c) Object)])
+                   v))
+   (il/castclass System.Collections.IList)
+   (il/call (interop/method clojure.lang.PersistentList "create" System.Collections.IList))
+   (il/castclass clojure.lang.PersistentList)])
+
+(defmethod load-constant
+  clojure.lang.PersistentVector [v]
+  [(new-array (map (fn [c] [(load-constant c)
+                            (convert (type c) Object)])
+                   v))
+   (il/call (interop/method clojure.lang.RT "vector" System.Object|[]|))
+   (il/castclass clojure.lang.PersistentVector)])
+
+(defn load-var [v]
+  (let [nsname  (.. v Namespace Name ToString)
+        symname (.. v Symbol ToString)]
+    [(load-constant nsname)
+     (load-constant symname)
+     (il/call (interop/method RT "var" String String))]))
+
+;; TODO remaining element types
+(defn load-element [type]
+  (case type
+    ;; ??? (il/ldelem-i)
+    ;; ??? (il/ldelema)
+    SByte (il/ldelem-i1)
+    Int16 (il/ldelem-i2)
+    Int32 (il/ldelem-i4)
+    Int64 (il/ldelem-i8)
+    Byte (il/ldelem-u1)
+    UInt16 (il/ldelem-u2)
+    UInt32 (il/ldelem-u4)
+    UInt64 (il/ldelem-i8) ;; weird??
+    Single (il/ldelem-r4)
+    Double (il/ldelem-r8)
+    (if (.IsValueType type)
+      (il/ldelem type)
+      (il/ldelem-ref))))
+
+;; TODO remaining element types
+(defn store-element [type]
+  (case type
+    ;; ??? (il/stelem-i)
+    ;; ??? (il/stelema)
+    SByte (il/stelem-i1)
+    Int16 (il/stelem-i2)
+    Int32 (il/stelem-i4)
+    Int64 (il/stelem-i8)
+    ;; Byte (il/stelem-u1)
+    ;; UInt16 (il/stelem-u2)
+    ;; UInt32 (il/stelem-u4)
+    ;; UInt64 (il/stelem-i8) ;; weird??
+    Single (il/stelem-r4)
+    Double (il/stelem-r8)
+    (if (.IsValueType type)
+      (il/stelem type)
+      (il/stelem-ref))))
+
+(defn get-var [v]
+  (if (.isDynamic v)
+    (il/call (interop/method Var "get"))
+    (il/call (interop/method Var "getRawRoot"))))
+
+(def ^:static TRUE true)
+(def ^:static FALSE false)
+
+;; TODO keep an eye on this
+;; TODO il/ldarga, il/ldarga-s for references to args
+(defn reference-to-type [t]
+  (when (.IsValueType t)
+    (let [local (il/local t)]
+      [(il/stloc local)
+       (il/ldloca local)])))
+
+(defn reference-to-argument [{:keys [arg-id] :as ast}]
+  (if (.IsValueType (clr-type ast))
+    (load-argument-address arg-id)
+    (load-argument-standard arg-id)))
+
+(defn reference-to [{:keys [local arg-id] :as ast}]
+  (if (= local :arg)
+    (reference-to-argument ast)
+    (reference-to-type (clr-type ast))))
+
 (defn statement? [{{:keys [context]} :env}]
   (= context :ctx/statement))
 
@@ -344,7 +387,6 @@
     (il/pop)))
 
 ;;; compilers
-(def compile)
 
 (defn compile-reference-to [{:keys [local] :as ast} compilers]
   (if (= local :arg)
@@ -365,17 +407,6 @@
   [{:keys [val] :as ast} compilers]
   (load-constant val))
 
-(defn prepare-array [items compilers]
-  [(il/newarr Object)
-   (map (fn [i c]
-          [(il/dup)
-           (load-constant (int i))
-           (compile c compilers)
-           (convert (clr-type c) Object)
-           (il/stelem-ref)])
-        (range)
-        items)])
-
 (defn vector-compiler
   [{:keys [items]} compilers]
   [(load-constant (int (count items)))
@@ -393,6 +424,10 @@
   [(load-constant (int (+ (count keys) (count vals))))
    (prepare-array (interleave keys vals) compilers)
    (il/call (interop/method clojure.lang.PersistentArrayMap "createWithCheck" |System.Object[]|))])
+
+(defn quote-compiler
+  [{:keys [expr]} compilers]
+  (load-constant (:val expr)))
 
 (defn static-property-compiler
   "Symbolic bytecode for static properties"
@@ -862,6 +897,7 @@
    :vector              #'vector-compiler
    :set                 #'set-compiler
    :map                 #'map-compiler
+   :quote               #'quote-compiler
    :fn                  #'fn-compiler
    :if                  #'if-compiler
    :let                 #'let-compiler
