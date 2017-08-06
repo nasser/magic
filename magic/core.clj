@@ -23,6 +23,51 @@
 (def compile)
 (def base-compilers)
 
+(defn load-argument-address [arg-id]
+  (cond
+    (< arg-id 16) (il/ldarga-s (byte arg-id))
+    :else (il/ldarga arg-id)))
+
+(defn load-argument-standard [arg-id]
+  (cond
+    (= arg-id 0) (il/ldarg-0)
+    (= arg-id 1) (il/ldarg-1)
+    (= arg-id 2) (il/ldarg-2)
+    (= arg-id 3) (il/ldarg-3)
+    (< arg-id 16) (il/ldarg-s (byte arg-id)) ;; TODO what is the cutoff?
+    :else (il/ldarg arg-id)))
+
+(defn load-integer [k]
+  (cond
+    (= k 0)  (il/ldc-i4-0)
+    (= k 1)  (il/ldc-i4-1)
+    (= k -1) (il/ldc-i4-m1)
+    (< k 128) (il/ldc-i4-s (byte k))
+    :else (il/ldc-i4 (int k))))
+
+(defn load-argument [{:keys [arg-id by-ref?]}]
+  (if by-ref?
+    (load-argument-address arg-id)
+    (load-argument-standard arg-id)))
+
+;; TODO keep an eye on this
+;; TODO il/ldarga, il/ldarga-s for references to args
+(defn reference-to-type [t]
+  (when (.IsValueType t)
+    (let [local (il/local t)]
+      [(il/stloc local)
+       (il/ldloca local)])))
+
+(defn reference-to-argument [{:keys [arg-id] :as ast}]
+  (if (.IsValueType (clr-type ast))
+    (load-argument-address arg-id)
+    (load-argument-standard arg-id)))
+
+(defn reference-to [{:keys [local arg-id] :as ast}]
+  (if (= local :arg)
+    (reference-to-argument ast)
+    (reference-to-type (clr-type ast))))
+
 ;; TODO overflows?
 ;; can overflow opcodes replace e.g. RT.intCast?
 (def intrinsic-conv
@@ -177,32 +222,7 @@
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
 
-(defn load-argument-address [arg-id]
-  (cond
-    (< arg-id 16) (il/ldarga-s (byte arg-id))
-    :else (il/ldarga arg-id)))
-
-(defn load-argument-standard [arg-id]
-  (cond
-    (= arg-id 0) (il/ldarg-0)
-    (= arg-id 1) (il/ldarg-1)
-    (= arg-id 2) (il/ldarg-2)
-    (= arg-id 3) (il/ldarg-3)
-    (< arg-id 16) (il/ldarg-s (byte arg-id)) ;; TODO what is the cutoff?
-    :else (il/ldarg arg-id)))
-
-(defn load-integer [k]
-  (cond
-    (= k 0)  (il/ldc-i4-0)
-    (= k 1)  (il/ldc-i4-1)
-    (= k -1) (il/ldc-i4-m1)
-    (< k 128) (il/ldc-i4-s (byte k))
-    :else (il/ldc-i4 (int k))))
-
-(defn load-argument [{:keys [arg-id by-ref?]}]
-  (if by-ref?
-    (load-argument-address arg-id)
-    (load-argument-standard arg-id)))
+(defmulti load-constant type)
 
 (defn new-array [items]
   [(load-constant (int (count items)))
@@ -222,8 +242,6 @@
         [(compile c compilers)
          (convert (clr-type c) Object)])
        items)))
-
-(defmulti load-constant type)
 
 (defmethod load-constant :default [k]
   (throw! "load-constant not implemented for " (type k)))
@@ -354,24 +372,6 @@
 
 (def ^:static TRUE true)
 (def ^:static FALSE false)
-
-;; TODO keep an eye on this
-;; TODO il/ldarga, il/ldarga-s for references to args
-(defn reference-to-type [t]
-  (when (.IsValueType t)
-    (let [local (il/local t)]
-      [(il/stloc local)
-       (il/ldloca local)])))
-
-(defn reference-to-argument [{:keys [arg-id] :as ast}]
-  (if (.IsValueType (clr-type ast))
-    (load-argument-address arg-id)
-    (load-argument-standard arg-id)))
-
-(defn reference-to [{:keys [local arg-id] :as ast}]
-  (if (= local :arg)
-    (reference-to-argument ast)
-    (reference-to-type (clr-type ast))))
 
 (defn statement? [{{:keys [context]} :env}]
   (= context :ctx/statement))
