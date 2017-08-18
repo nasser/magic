@@ -1,7 +1,8 @@
 (ns magic.analyzer.types
   (:refer-clojure :exclude [resolve])
   (:require [magic.analyzer
-             [util :refer [throw! var-interfaces] :as util]
+             [binder :refer [select-method]]
+             [util :refer [throw! var-interfaces var-type] :as util]
              [reflection :refer [find-method]]]))
 
 (defn read-generic-name [name]
@@ -108,82 +109,6 @@
       (.IsSubclassOf to from)
       (.IsSubclassOf from to)))
 
-;; https://stackoverflow.com/questions/14315437/get-best-matching-overload-from-set-of-overloads
-
-;; https://msdn.microsoft.com/en-us/library/aa691339(v=vs.71).aspx
-(defn better-conversion [s t1 t2]
-  (when (and (convertible? s t1)
-             (convertible? s t2))
-    (cond
-      (= t1 t2) nil
-      (= s t1) t1
-      (= s t2) t2
-      (and (convertible? t1 t2) (not (convertible? t2 t1)))
-      t1
-      (and (convertible? t2 t1) (not (convertible? t1 t2)))
-      t2
-      (and (= t1 SByte) (#{Byte UInt16 UInt32 UInt64} t2))
-      t1
-      (and (= t2 SByte) (#{Byte UInt16 UInt32 UInt64} t1))
-      t2
-      (and (= t1 Int16) (#{UInt16 UInt32 UInt64} t2))
-      t1
-      (and (= t2 Int16) (#{UInt16 UInt32 UInt64} t1))
-      t2
-      (and (= t1 Int32) (#{UInt32 UInt64} t2))
-      t1
-      (and (= t2 Int32) (#{UInt32 UInt64} t1))
-      t2
-      (and (= t1 Int64) (= UInt64 t2))
-      t1
-      (and (= t2 Int64) (= UInt64 t1))
-      t2)))
-
-;; https://msdn.microsoft.com/en-us/library/aa691338(v=vs.71).aspx
-#_
-(defn better-function-member
-  [a p q]
-  (let [a-types (map clr-type args)
-        p-types (->> p .GetParameters (map #(.ParameterType %)))
-        q-tyqes (->> p .GetParameters (map #(.ParameterType %)))]
-    ))
-
-(defn specificity [sig]
-  (->> (.GetParameters sig)
-       (map #(-> (.ParameterType %) superchain count))
-       (apply +)))
-
-;; TODO sort by distance between sig and params, not specificity 
-(defn matching-signatures [sigs params]
-  (->> sigs
-       (filter (fn [sig]
-                 (let [sig-params (map #(.ParameterType %) (.GetParameters sig))]
-                   (and (= (count params)
-                           (count sig-params))
-                        (every? true? (map convertible? params sig-params))))))
-       (sort-by specificity)
-       reverse))
-
-(defn matching-methods [type name params]
-  (let [sigs (filter #(= name (.Name %)) (.GetMethods type))]
-    (matching-signatures sigs params)))
-
-(defn matching-constructors [type params]
-  (matching-signatures (.GetConstructors type) params))
-
-(defn method-match?
-  "Does are args convertible to method's parameters?"
-  [method args]
-  (let [params (.GetParameters method)]
-    (and (= (count args)
-            (count params))
-         (->> (map
-                #(convertible? %1 %2)
-                (map #(.ParameterType %) params)
-                args)
-              (remove identity)
-              empty?))))
-
 (defmulti clr-type
   "The CLR type of an AST node"
   :op)
@@ -196,17 +121,6 @@
      (if (= t System.Void)
        non-void-type
        t))))
-
-(defn best-match
-  ;; TODO implement better overload resolution
-  ;; e.g. https://ericlippert.com/2013/12/23/closer-is-better/
-  "Given a sequence of argument ASTs and a sequence of MethodInfos returns
-   the best match"
-  [args methods]
-  (let [arg-types (map clr-type args)]
-    (->> methods
-         (filter #(method-match? % arg-types))
-         first)))
 
 ;;;;; intrinsics
 
@@ -316,13 +230,13 @@
              :tag)
         (let [arg-types (map clr-type args)
               target-interfaces (var-interfaces fn)
-              exact-match (->> target-interfaces
-                               (filter #(= (drop 1 (.GetGenericArguments %))
-                                           arg-types))
-                               first)]
+              invokes (filter #(= (.Name %) "invoke")
+                              (.GetMethods (var-type fn)))
+              exact-match (select-method invokes arg-types)]
           (if exact-match
-            (first (.GetGenericArguments exact-match))))
-        'Object)))
+            (.ReturnType exact-match)
+            Object))
+        Object)))
 
 (defmethod clr-type :new [ast]
   (:type ast))

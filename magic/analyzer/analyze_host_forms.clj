@@ -5,7 +5,8 @@
    [magic.interop :as interop]
    [magic.analyzer
     [errors :refer [error] :as errors]
-    [types :refer [read-generic-name clr-type class-for-name best-match]]])
+    [binder :refer [select-method]]
+    [types :refer [read-generic-name clr-type class-for-name]]])
   (:import [System.Reflection BindingFlags]))
 
 (def public-instance (enum-or BindingFlags/Instance BindingFlags/Public))
@@ -94,7 +95,7 @@
                                                                    (into-array Type)))]
                          {:constructor ctor-info}
                          ;; no exact match, look for arity match
-                         (if-let [best-ctor (best-match args (.GetConstructors target-type))]
+                         (if-let [best-ctor (select-method (.GetConstructors target-type) (map clr-type args))]
                                  {:constructor best-ctor}
                                  (error ::errors/missing-constructor ast))))))
     ast))
@@ -111,7 +112,7 @@
                                     (= (.Name %) (str method-name))
                                     (= (count (.GetParameters %))
                                        (count args)))))
-        generic-method (best-match args generic-methods)]
+        generic-method (select-method generic-methods (map clr-type args))]
     (if generic-method
         (assoc
          (dissoc ast :m-or-f)
@@ -182,7 +183,7 @@
                                     (= (.Name %) (str method-name))
                                     (= (count (.GetParameters %))
                                        (count args)))))
-        generic-method (best-match args generic-methods)]
+        generic-method (select-method generic-methods (map clr-type args))]
     (if generic-method
         {:generic-parameters generic-args
          :method
@@ -214,11 +215,10 @@
                                          (map clr-type)
                                          (into-array Type)))]
                  {:method meth}
-                 (if-let [best-method (best-match args (->> (.GetMethods target-type)
-                                                            (filter #(and
-                                                                       (= (.Name %) (str method))
-                                                                       (= (count (.GetParameters %))
-                                                                          (count args))))))]
+                 (if-let [best-method (select-method
+                                        (filter #(= (.Name %) (str method))
+                                                (.GetMethods target-type))
+                                        (map clr-type args))]
                    {:method best-method}
                    (cond static?
                          ;; static method no best match, error
@@ -230,14 +230,12 @@
                          ;; instance method unknown target type, dynamic
                          :else
                          ;; TODO what is this generic match??
-                         (let [matching-name-arity-methods
+                         (let [matching-name-methods
                                (->> (.GetMethods target-type)
                                     (filter #(and
                                                (.IsGenericMethod %)
-                                               (= (.Name %) (str method))
-                                               (= (count (.GetParameters %))
-                                                  (count args)))))]
-                           (if-let [best-method (best-match args matching-name-arity-methods)]
+                                               (= (.Name %) (str method)))))]
+                           (if-let [best-method (select-method matching-name-methods (map clr-type args))]
                              {:method best-method :what-is-this '???}
                              {:op :dynamic-method}))))))))
     ast))

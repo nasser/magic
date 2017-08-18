@@ -2,8 +2,9 @@
   (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
             [magic.analyzer :as ana]
-            [magic.analyzer.util :refer [var-interfaces throw!]]
-            [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type best-match]]
+            [magic.analyzer.util :refer [var-interfaces var-type throw!]]
+            [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type]]
+            [magic.analyzer.binder :refer [select-method]]
             [magic.interop :as interop]
             [clojure.string :as string])
   (:import [clojure.lang Var RT IFn Keyword Symbol]
@@ -628,26 +629,35 @@
     (load-argument ast)
     (throw! "Local " name " not an argument and could not be compiled")))
 
+(defn implementing-interface [t bm]
+  (->> (.GetInterfaces t)
+       ;; TODO magic's Function interfaces should be in their own namespace
+       ;; e.g. Magic.Function. Check for that instead of nil? here 
+       (filter #(nil? (.Namespace %)))
+       (filter
+         #(contains?
+            (set (.. t (GetInterfaceMap %) TargetMethods))
+            bm))
+       first))
+
 (defn invoke-compiler
   [{:keys [fn args] :as ast} compilers]
   (let [fn-tag (-> fn :var tag)
+        fn-type (var-type fn)
         arg-types (map clr-type args)
-        ;; TODO magic's Function interfaces should be in their own namespace
-        ;; e.g. Magic.Function. Check for that instead of nil? here 
-        target-interfaces (->> fn
-                               var-interfaces
-                               (filter #(nil? (.Namespace %)))) 
-        exact-match (->> target-interfaces
-                         (filter #(= (drop 1 (.GetGenericArguments %))
-                                     arg-types))
-                         first)]
+        best-method (select-method (filter #(= (.Name %) "invoke")
+                                            (.GetMethods fn-type))
+                                    arg-types)
+        param-types (map #(.ParameterType %) (.GetParameters best-method))
+        interface-match (implementing-interface fn-type best-method)
+        interface-match-method (apply interop/method interface-match "invoke" param-types)]
     [(compile fn compilers)
-     (if exact-match
-       [(il/castclass exact-match)
+     (if interface-match
+       [(il/castclass interface-match)
         (interleave
           (map #(compile % compilers) args)
-          (map #(convert (clr-type %1) %2) args arg-types))
-        (il/callvirt (apply interop/method exact-match "invoke" arg-types))]
+          (map #(convert %1 %2) arg-types param-types))
+        (il/callvirt interface-match-method)]
        [(il/castclass IFn)
         (interleave
           (map #(compile % compilers) args)

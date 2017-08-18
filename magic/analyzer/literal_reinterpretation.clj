@@ -63,4 +63,5 @@
     (reinterpret-interop ast :method :args)
     :new
     (reinterpret-interop ast :constructor :args)
+    ;; TODO reinterpret :invoke for Magic functions
     ast))
