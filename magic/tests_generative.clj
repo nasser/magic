@@ -2,9 +2,12 @@
   (:refer-clojure :exclude [any? methods])
   (:require
     [clojure.string :as string]
+    [clojure.pprint :as pp]
     [clojure.test.check.properties :refer [for-all for-all*]]
     [clojure.test.check.generators :as gen]
     [clojure.test.check :as check]
+    magic.intrinsics
+    [mage.core :as il]
     [magic.analyzer :as clr]
     [magic.analyzer.types :refer [clr-type]]
     [magic.core :as magic])
@@ -88,17 +91,10 @@
                (-> type methods elements)])]
   (if (empty? opts)
     (throw (Exception. (str "Cursed Type! " type)))
-    (gen/one-of opts)))
-  #_
-  (->>
-    [(-> type constructors elements)
-     (-> type fields elements)
-     (-> type properties elements)
-     (-> type methods elements)]
-     (remove nil?)
-     gen/one-of))
+    (gen/one-of opts))))
 
 (defmulti interop-form type)
+;; TODO rename expression*
 (declare expression)
 
 (defmethod interop-form
@@ -159,51 +155,159 @@
   (gen/bind (gen-interop type)
     interop-form))
 
+;; types for which an expression multimethod path exists
+;; primitives + object & string
+(def basic-types
+  [Object Int16 Int32 Int64 Single Double Byte Boolean String])
+
 (defmulti expression identity)
 
 (defmethod expression Object [t]
   (gen-interop-form t))
 
+;; TODO 0 - max avoids dumb negative number bugs, but does it miss things?
 (defmethod expression Int16 [t]
   (gen/frequency
-    [[2 (gen/choose Int16/MinValue Int16/MaxValue)]
-     [1 (gen-interop-form t)]]))
+    [[20 (gen/choose 0 Int16/MaxValue)]
+     [15 (gen-interop-form t)]]))
 
 (defmethod expression Int32 [t]
   (gen/frequency
-    [[2 (gen/choose Int32/MinValue Int32/MaxValue)]
-     [1 (gen-interop-form t)]]))
+    [[20 (gen/choose 0 Int32/MaxValue)]
+     [15 (gen-interop-form t)]]))
 
 (defmethod expression Int64 [t]
   (gen/frequency
-    [[2 (gen/choose Int64/MinValue Int64/MaxValue)]
-     [1 (gen-interop-form t)]]))
+    [[20 (gen/choose 0 Int64/MaxValue)]
+     [15 (gen-interop-form t)]]))
 
 (defmethod expression Single [t]
   (gen/frequency
-    [[2 single]
-     [1 (gen-interop-form t)]]))
+    [[20 single]
+     [15 (gen-interop-form t)]]))
 
 (defmethod expression Double [t]
   (gen/frequency
-    [[2 single]
-     [1 (gen-interop-form t)]]))
+    [[20 single]
+     [15 (gen-interop-form t)]]))
 
 (defmethod expression Byte [t]
   (gen/frequency
-    [[2 gen/byte]
-     [1 (gen-interop-form t)]]))
+    [[20 gen/byte]
+     [15 (gen-interop-form t)]]))
 
 (defmethod expression Boolean [t]
   (gen/frequency
-    [[2 gen/boolean]
-     [1 (gen-interop-form t)]]))
+    [[20 gen/boolean]
+     [15 (gen-interop-form t)]]))
 
 (defmethod expression String [t]
   (gen/frequency
-    [[2 gen/string]
-     [1 (gen-interop-form t)]]))
+    [[20 gen/string]
+     [15 (gen-interop-form t)]]))
 
+(def s-expressions
+  (gen/elements [:if :< :>]))
+
+(defmulti s-expression identity)
+
+(declare expr)
+
+(defmethod s-expression
+  :if [_]
+  (gen/s-expression
+    (gen/return 'if)
+    (gen/frequency
+      [[3 (expression Boolean)]
+       [1 (expr)]])
+    (expr)
+    (expr)))
+
+(defmethod s-expression
+  :< [_]
+  (gen/s-expression
+    (gen/return '<)
+    (gen/frequency
+      [[1 (expression Int64)]
+       [1 (expression Int32)]
+       [1 (expression Int16)]
+       [1 (expression Byte)]
+       [1 (expression Single)]
+       [1 (expression Double)]
+       [1 (expr)]])
+    (gen/frequency
+      [[1 (expression Int64)]
+       [1 (expression Int32)]
+       [1 (expression Int16)]
+       [1 (expression Byte)]
+       [1 (expression Single)]
+       [1 (expression Double)]
+       [1 (expr)]])))
+
+(defmethod s-expression
+  :> [_]
+  (gen/s-expression
+    (gen/return '>)
+    (gen/frequency
+      [[1 (expression Int64)]
+       [1 (expression Int32)]
+       [1 (expression Int16)]
+       [1 (expression Byte)]
+       [1 (expression Single)]
+       [1 (expression Double)]
+       [1 (expr)]])
+    (gen/frequency
+      [[1 (expression Int64)]
+       [1 (expression Int32)]
+       [1 (expression Int16)]
+       [1 (expression Byte)]
+       [1 (expression Single)]
+       [1 (expression Double)]
+       [1 (expr)]])))
+
+;; TODO rename expression
+(defn expr []
+  (gen/frequency
+    [[2 (gen/one-of
+          (->> *testing-types*
+               (concat basic-types)
+               (map expression)))]
+     [1 (gen/bind
+          s-expressions
+          s-expression)]]))
+
+;; TODO new verify namespace
+(defn- load-path [assemblies]
+  (->> assemblies
+       (map assembly-load-with-partial-name)
+       (map #(.DirectoryName (System.IO.FileInfo. (.Location %))))
+       (string/join System.IO.Path/PathSeparator)))
+
+;; TODO dont hard code load path
+(defn verify [assembly]
+  (let [psi (System.Diagnostics.ProcessStartInfo.)
+        proc (System.Diagnostics.Process.)
+        lp (load-path ["Interfaces" "Constants" "Clojure" "OpenTK"])
+        sb (StringBuilder.)]
+    (set! (.FileName psi) "peverify")
+    (set! (.Arguments psi) assembly)
+    (set! (.UseShellExecute psi) false)
+    (set! (.RedirectStandardOutput psi) true)
+    (set! (.CreateNoWindow psi) true)
+    (.. psi EnvironmentVariables (Add "MONO_PATH" lp))
+    (set! (.StartInfo proc) psi)
+    (.Start proc)
+    (while (not (.. proc StandardOutput EndOfStream))
+      (.AppendLine sb (.. proc StandardOutput ReadLine)))
+    (str sb)))
+
+(defn verify? [assembly]
+  (empty? (verify assembly)))
+
+(defn verify! [assembly]
+  (let [res (verify assembly)]
+    (when-not (empty? res)
+      (throw (ex-info "Verification Failure" {:message res})))))
 
 (defn test-ctors []
   (binding [*testing-types* [OpenTK.Vector3 OpenTK.Vector2 OpenTK.Matrix3]]
@@ -250,11 +354,90 @@
                    (= (:op ast) :instance-method))
                (= Single (clr-type ast))))))))
 
+(defn expressions-analyze []
+  (binding [*testing-types* [OpenTK.Vector3 OpenTK.Vector2 OpenTK.Matrix3]]
+    (check/quick-check
+      50
+      (for-all
+        [expr-form (expr)]
+        (clr/analyze expr-form)))))
+
+(defn expressions-compile [n]
+  (check/quick-check
+    n
+    (for-all
+      [expr-form (expr)]
+      (let [form-string (with-out-str (clojure.pprint/pprint expr-form))
+            filename (str (gensym "magic.test"))
+            w 9000]
+        (Console/WriteLine)
+        (Console/WriteLine "Testing ")
+        (Console/WriteLine (if (> (count form-string) w)
+                             (str (subs form-string 0 (- w 3)) "...")
+                             form-string))
+        (Console/Write "    Compiling...")
+        (->> expr-form
+             (list 'fn [])
+             clr/analyze
+             magic/compile
+             (il/assembly+module filename)
+             il/emit!)
+        (Console/WriteLine "OK")
+        (Console/Write "    Verifying...")
+        (try
+          (verify! (str filename ".dll"))
+          (Console/WriteLine "OK")
+          (catch Exception e
+            (Console/WriteLine "FAIL")
+            (throw e)))
+        true))))
 
 (comment   
+  (use 'clojure.pprint)
+  
+  (nostrand.core/reference "/Users/nasser/Scratch/loadtimes/Compiled/UnityEngine.dll")
+  
+  ;; TODO better handling of e.g. verification ex-infos
+  (time
+    (binding [*unchecked-math* true
+              *testing-types* [UnityEngine.Vector3
+                               UnityEngine.Vector2
+                               UnityEngine.Matrix4x4
+                               UnityEngine.GameObject
+                               UnityEngine.Transform
+                               UnityEngine.BoxCollider
+                               UnityEngine.Camera
+                               UnityEngine.Mesh
+                               UnityEngine.Rigidbody]]
+      (let [res (expressions-compile 100)]
+        (if (= true (:result res))
+          (println "Passed" (:num-tests res) "tests" "\nseed:" (:seed res))
+          (let [smallest-fail (-> res :shrunk :smallest first)
+                smallest-message (-> res :shrunk :result ex-data :message)]
+            (println smallest-message)
+            (pp/pprint smallest-fail))))))
+  
+  (pprint
+    (->> (gen/sample if-expr 10)
+         ; (map count)
+         ; (into #{})
+         ))
+  
+  (ex-info "A" {})
+  
+  (gen/sample
+    (gen/one-of
+      (->> *testing-types*
+           (concat basic-types)
+           (map expression))))
+  
+  
+  (binding [*testing-types* [UnityEngine.Vector3]]
+    (pprint (gen/sample (expr) 10)))
+  
   (assembly-load-from "/Applications/Unity/Unity.app/Contents/Managed/UnityEngine.dll")
-  (assembly-load-from "/Users/nasser/Scratch/hummus/OpenTK.dll")
-
+  (assembly-load-from "OpenTK.dll")
+  
   (defn run-tests [n type interop-fn validation-fn]
     (check/quick-check
       n
@@ -305,9 +488,10 @@
             (try 
               (= (magic-fn) @clojure-result)
               (catch Exception e
-                (= (type e) (type @clojure-result))))))))))
+                (= (type e) (type @clojure-result)))))))))
+  )
 
-;; [x] by-ref arguments (Vector3.SmoothDamp)
+;;) [x] by-ref arguments (Vector3.SmoothDamp)
 ;; [x] Cursed Type! System.SByte*
 ;; [ ] interfaces?
 ;; [ ] System.Globalization.Calendar
