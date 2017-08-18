@@ -508,8 +508,7 @@
      (cond
        (and (.IsVirtual method)
             (nil? generic-parameters))
-       [(reference-to target)
-        (virtcall method)]
+       [(virtcall method)]
        
        (and (not (.IsVirtual method))
             (nil? generic-parameters))
@@ -517,8 +516,7 @@
        ;; TODO ???
        (and (.IsVirtual method)
             generic-parameters)
-       [(reference-to target)
-        (virtcall method generic-parameters)]
+       [(virtcall method generic-parameters)]
        ;; TODO ???
        (and (not (.IsVirtual method))
             generic-parameters)
