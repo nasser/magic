@@ -94,21 +94,6 @@
   (if-let [t (-> x meta :tag)]
     (resolve t)))
 
-;; TODO warn on truncate?
-(defn convertible? [from to]
-  (or (and (nil? from) (nil? to))
-      (= from to)
-      (and (nil? from) (not (.IsValueType to)))
-      (= to Boolean)
-      (and (= System.Void from) (not (.IsValueType to)))
-      (find-method from "op_Implicit" to)
-      (find-method from "op_Explicit" to)
-      (and (.IsPrimitive from) (.IsPrimitive to))
-      (and (.IsValueType from) (= to Object))
-      (and (= from Object) (.IsValueType to))
-      (.IsSubclassOf to from)
-      (.IsSubclassOf from to)))
-
 (defmulti clr-type
   "The CLR type of an AST node"
   :op)

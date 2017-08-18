@@ -4,7 +4,7 @@
             [magic.analyzer :as ana]
             [magic.analyzer.literal-reinterpretation :refer [reinterpret-value reinterpret]]
             [magic.analyzer.intrinsics :as intrinsics :refer [register-intrinsic-form]]
-            [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type best-match]]
+            [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type]]
             [magic.interop :as interop]
             [clojure.string :as string])
   (:import [clojure.lang RT BigInteger Numbers Ratio]))

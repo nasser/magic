@@ -1,7 +1,23 @@
 (ns magic.analyzer.binder
   (:require [magic.analyzer
-             [util :refer [throw! var-interfaces] :as util]])
+             [util :refer [throw! var-interfaces] :as util]
+             [reflection :refer [find-method]]])
   (:import [System.Reflection Binder BindingFlags MethodInfo]))
+
+;; TODO warn on truncate?
+(defn convertible? [from to]
+  (or (and (nil? from) (nil? to))
+      (= from to)
+      (and (nil? from) (not (.IsValueType to)))
+      (= to Boolean)
+      (and (= System.Void from) (not (.IsValueType to)))
+      (find-method from "op_Implicit" to)
+      (find-method from "op_Explicit" to)
+      (and (.IsPrimitive from) (.IsPrimitive to))
+      (and (.IsValueType from) (= to Object))
+      (and (= from Object) (.IsValueType to))
+      (.IsSubclassOf to from)
+      (.IsSubclassOf from to)))
 
 ;; closeness
 ;; a rough implementaion of Eric Lippert's "closeness" concept 
@@ -40,8 +56,7 @@
             (count arg-types))
          (every? true?
                  (map
-                   #(magic.analyzer.types/convertible?
-                      %1 %2)
+                   #(convertible? %1 %2)
                    param-types
                    arg-types)))))
 
