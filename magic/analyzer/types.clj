@@ -339,7 +339,13 @@
         (always-else? ast) else-type
         (control-flow? then) else-type
         (control-flow? else) then-type
-        (= then-type System.Void) Object
-        (= else-type System.Void) Object
+        (and (= then-type System.Void)
+             (= (:op else) :const))
+        System.Void
+        (and (= else-type System.Void)
+             (= (:op then) :const))
+        System.Void
+        (= then-type System.Void) System.Object
+        (= else-type System.Void) System.Object
         ;; TODO compute common type  
         :else Object))))

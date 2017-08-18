@@ -607,13 +607,17 @@
           :else [(compile test compilers)
                  (convert (clr-type test) Boolean)
                  (il/brtrue then-label)
-                 (compile else compilers)
+                 (when (or value-used?
+                           (not= (:op else) :const))
+                   (compile else compilers))
                  (when (and value-used?
                             (not (types/control-flow? else)))
                    (convert (clr-type else) if-expr-type))
                  (il/br end-label)
                  then-label
-                 (compile then compilers)
+                 (when (or value-used?
+                           (not= (:op then) :const))
+                   (compile then compilers))
                  (when (and value-used?
                             (not (types/control-flow? then)))
                    (convert (clr-type then) if-expr-type))
