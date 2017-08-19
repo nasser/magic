@@ -777,7 +777,7 @@
                                           (map (constantly Object) %))))
         return-types (->> methods
                           (mapcat #(vector
-                                     (or (-> % :form first meta :tag)
+                                     (or (-> % :form first meta :tag types/resolve)
                                          (-> % :body non-void-clr-type))
                                      Object)))
         interfaces (map #(interop/generic-type "Function" (conj %1 %2))
@@ -804,7 +804,8 @@
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         ;; void -> ret conversion happens in hinted method
         ret-type (clr-type ret)
-        unhinted-ret-type (if (= ret-type System.Void) Object ret-type) 
+        unhinted-ret-type (or param-hint
+                              (if (= ret-type System.Void) Object ret-type)) 
         unhinted-method
         (il/method
           "invoke"
