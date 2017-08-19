@@ -653,15 +653,14 @@
                                             (.GetMethods fn-type))
                                     arg-types)
         param-types (map #(.ParameterType %) (.GetParameters best-method))
-        interface-match (implementing-interface fn-type best-method)
-        interface-match-method (apply interop/method interface-match "invoke" param-types)]
+        interface-match (implementing-interface fn-type best-method)]
     [(compile fn compilers)
      (if interface-match
        [(il/castclass interface-match)
         (interleave
           (map #(compile % compilers) args)
           (map #(convert %1 %2) arg-types param-types))
-        (il/callvirt interface-match-method)]
+        (il/callvirt (apply interop/method interface-match "invoke" param-types))]
        [(il/castclass IFn)
         (interleave
           (map #(compile % compilers) args)
