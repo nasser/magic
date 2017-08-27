@@ -1,8 +1,16 @@
 {:name "MAGIC Compiler"
  :description "Morgan And Grand Iron Clojure Compiler"
  :author "Ramsey Nasser"
+ :source-paths ["src"]
  :references ["references/Constants.dll"
-              "references/Interfaces.dll"]
+              "references/Interfaces.dll"
+              "OpenTK.dll"
+              "/Users/nasser/Projects/illness/bin/Release/ICSharpCode.Decompiler.dll"
+              "/Users/nasser/Projects/illness/bin/Release/ICSharpCode.NRefactory.CSharp.dll"
+              "/Users/nasser/Projects/illness/bin/Release/ICSharpCode.NRefactory.dll"
+              "/Users/nasser/Projects/illness/bin/Release/Mono.Cecil.dll"
+              "/Users/nasser/Projects/illness/bin/Release/Mono.Options.dll"
+              "/Users/nasser/Projects/illness/bin/Release/Illness.exe"]
  :dependencies [[:github nasser/mage "master"]
                 [:github nasser/test.check "master"]
                 [:maven org.clojure/tools.analyzer "0.6.9"]]}
