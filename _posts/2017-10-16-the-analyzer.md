@@ -77,9 +77,9 @@ user> (pprint (magic.analyzer/analyze :hello))
  :top-level true}
 ```
 
-The simplest usage takes a single form and provides an Abstract Syntax Tree describing it. ASTs here are not special types or data structures, but simple Clojure hashmaps. The analysis of the literal keyword `:hello` reveals the kind of form it is, `:op :const`, the environment it was analyzed in, `:env {:context :ctx/expr, :locals {}, :ns user}`, and other information.
+The simplest usage takes a single form and provides an Abstract Syntax Tree describing it. ASTs here are not special types or data structures, but simple Clojure hash-maps. The analysis of the literal keyword `:hello` reveals the kind of form it is, `:op :const`, the environment it was analyzed in, `:env {:context :ctx/expr, :locals {}, :ns user}`, and other information.
 
-Invoking a var produces a bigger hashmap.
+Invoking a var produces a bigger hash-map.
 
 ```clj
 user> (pprint (magic.analyzer/analyze '(str 1)))
@@ -125,7 +125,7 @@ In fact, `tools.analyzer`'s nodes only make a few guarantees. From the docstring
    * :form the form represented by the AST node
    * :env  the environment map of the AST node
 
-   Additionaly if the AST node contains sub-nodes, it is guaranteed to have:
+   Additionally if the AST node contains sub-nodes, it is guaranteed to have:
    * :children a vector of the keys of the AST node mapping to the sub-nodes,
                ordered, when that makes sense
 ```
