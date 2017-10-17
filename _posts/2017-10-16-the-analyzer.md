@@ -115,7 +115,7 @@ user> (pprint (magic.analyzer/analyze '(str 1)))
  :top-level true}
 ```
 
-A few keys are familiar, `:op`, `:form`, and `:env`, but there are new keys specific to invocation, namely `:fn` and `:args`. 
+A few keys are familiar, `:op`, `:form`, and `:env`, but there are new keys specific to invocation, namely `:fn` and `:args`.
 
 In fact, `tools.analyzer`'s nodes only make a few guarantees. From the docstring:
 
@@ -134,7 +134,7 @@ This is why the `:const` node earlier has no `:children` but the `:invoke` expre
 
 Beyond that, the structure of an AST node is *completely dynamic*. This approach is has all the benefits that Clojure data gives you with enough regularity to run generic recursive walks through a deeply nested tree.
 
-There isn't any documentation on the contents of the different AST node types, and I personally learned about the structure of different the AST nodes by experimenting in the REPL.
+The contents of the different AST node types are [documented in the tools.analyzer AST Quickref](https://clojure.github.io/tools.analyzer/spec/quickref.html), but I personally learned about their structures by experimenting in the REPL.
 
 ## MAGIC Passes
 On its own, `tools.analyzer` only analyzes *most* of Clojure, namely, the subset of Clojure that is not *host-specific*.
