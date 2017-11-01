@@ -142,7 +142,8 @@
   (throw! "ast-type not implemented for nil"))
 
 (defmethod ast-type :do
-  [{:keys [ret] :as ast}] (ast-type ret))
+  [{:keys [ret] :as ast}]
+  (ast-type ret))
 
 (defmethod ast-type :set!
   [{:keys [val] {:keys [context]} :env}]
@@ -177,15 +178,11 @@
 (defmethod ast-type :map [ast]
   clojure.lang.IPersistentMap)
 
-;; TODO :original-var is not constrained to static methods
-;; (the macroexpander can inline to anything)
-;; put in a more general place?
-(defmethod ast-type :static-method
-  [{:keys [form method args]}]
-  (.ReturnType method))
+(defmethod ast-type :static-method [ast]
+  (-> ast :method .ReturnType))
 
 (defmethod ast-type :instance-method [ast]
-  (.ReturnType (ast :method)))
+  (-> ast :method .ReturnType))
 
 (defmethod ast-type :static-property [ast]
   (-> ast :property .PropertyType))
