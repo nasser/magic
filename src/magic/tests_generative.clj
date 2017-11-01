@@ -9,7 +9,7 @@
     magic.intrinsics
     [mage.core :as il]
     [magic.analyzer :as clr]
-    [magic.analyzer.types :refer [clr-type]]
+    [magic.analyzer.types :refer [ast-type]]
     [magic.core :as magic])
   (:import [System.Reflection Assembly]))
 
@@ -318,7 +318,7 @@
         (let [ast (clr/analyze ctor-invoke-form)]
           (and (or (= (:op ast) :new)
                    (= (:op ast) :initobj))
-               (= OpenTK.Vector3 (clr-type ast))))))))
+               (= OpenTK.Vector3 (ast-type ast))))))))
 
 ;; 
 (defn test-fields []
@@ -330,7 +330,7 @@
         (let [ast (clr/analyze field-get-form)]
           (and (or (= (:op ast) :static-field)
                    (= (:op ast) :instance-field))
-               (= Single (clr-type ast))))))))
+               (= Single (ast-type ast))))))))
 
 (defn test-properties []
   (binding [*testing-types* [OpenTK.Vector3 OpenTK.Vector2 OpenTK.Matrix3]]
@@ -341,7 +341,7 @@
         (let [ast (clr/analyze property-get-form)]
           (and (or (= (:op ast) :static-property)
                    (= (:op ast) :instance-property))
-               (= Single (clr-type ast))))))))
+               (= Single (ast-type ast))))))))
 
 (defn test-methods []
   (binding [*testing-types* [OpenTK.Vector3 OpenTK.Vector2 OpenTK.Matrix3]]
@@ -352,7 +352,7 @@
         (let [ast (clr/analyze method-invoke-form)]
           (and (or (= (:op ast) :static-method)
                    (= (:op ast) :instance-method))
-               (= Single (clr-type ast))))))))
+               (= Single (ast-type ast))))))))
 
 (defn expressions-analyze []
   (binding [*testing-types* [OpenTK.Vector3 OpenTK.Vector2 OpenTK.Matrix3]]
@@ -444,7 +444,7 @@
       (for-all*
         [(-> type interop-fn gen/elements (gen/bind interop-form))]
         (fn [form] (let [ast (clr/analyze form)]
-                     (and (= type (clr-type ast))
+                     (and (= type (ast-type ast))
                           (validation-fn ast)))))))
   
   (binding [*testing-types* [UnityEngine.GameObject UnityEngine.Vector3 UnityEngine.Vector2]]
@@ -460,7 +460,7 @@
       (for-all*
         [(-> UnityEngine.GameObject methods elements (gen/bind interop-form))]
         (fn [form] (let [ast (clr/analyze form)]
-                     (= UnityEngine.GameObject (clr-type ast))))))
+                     (= UnityEngine.GameObject (ast-type ast))))))
     )
   
   

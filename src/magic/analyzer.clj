@@ -21,7 +21,7 @@
              [novel :as novel]
              [analyze-host-forms :as host]
              [errors :refer [error] :as errors]
-             [types :refer [clr-type class-for-name maybe-class]]]))
+             [types :refer [ast-type class-for-name maybe-class]]]))
 
 (defn ensure-class [c form]
   (or (class-for-name c)
@@ -350,8 +350,8 @@
       pprint
       )
   
-  (pprint (clr-type (analyze '(inc 3))))
-  (pprint (clr-type (analyze '(int 3))))
+  (pprint (ast-type (analyze '(inc 3))))
+  (pprint (ast-type (analyze '(int 3))))
   (pprint (analyze 'Strin))
   (pprint (analyze 'String))
   (pprint (analyze 'DateTim/Now))

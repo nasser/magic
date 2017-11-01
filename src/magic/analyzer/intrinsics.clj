@@ -5,7 +5,7 @@
     [magic.analyzer
      [util :as util]
      [errors :refer [error] :as errors]
-     [types :refer [clr-type numeric integer]]])
+     [types :refer [ast-type numeric integer]]])
   (:import [System.Reflection BindingFlags]))
 
 (def intrinsic-forms (atom {}))

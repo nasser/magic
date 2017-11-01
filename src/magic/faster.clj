@@ -1,7 +1,7 @@
 (ns magic.faster
   (:require [clojure.tools.analyzer.passes :refer [schedule]]
             [magic.analyzer :as ana]
-            [magic.analyzer.types :refer [clr-type non-void-clr-type tag]]
+            [magic.analyzer.types :refer [ast-type non-void-ast-type tag]]
             [magic.core :as magic]
             [mage.core :as il])
   (:import [clojure.lang RT]
@@ -19,14 +19,14 @@
 (defn typed-static-invoke-fn-method
   "Symbolize :fn-method to a single, well typed static method"
   [{:keys [body params] {:keys [ret]} :body} compilers]
-  (let [param-types (mapv clr-type params)
-        return-type (non-void-clr-type ret)]
+  (let [param-types (mapv ast-type params)
+        return-type (non-void-ast-type ret)]
     (il/method
       "invoke"
       (enum-or MethodAttributes/Public MethodAttributes/Static)
       return-type param-types
       [(magic/compile body compilers)
-       (magic/convert (clr-type ret) return-type)
+       (magic/convert (ast-type ret) return-type)
        (il/ret)])))
 
 (def faster-passes

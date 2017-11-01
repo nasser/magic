@@ -3,7 +3,7 @@
   (:require [mage.core :as il]
             [magic.analyzer :as ana]
             [magic.analyzer.util :refer [var-interfaces var-type throw!]]
-            [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type]]
+            [magic.analyzer.types :as types :refer [tag ast-type non-void-ast-type]]
             [magic.analyzer.binder :refer [select-method]]
             [magic.interop :as interop]
             [clojure.string :as string])
@@ -60,14 +60,14 @@
        (il/ldloca local)])))
 
 (defn reference-to-argument [{:keys [arg-id] :as ast}]
-  (if (.IsValueType (clr-type ast))
+  (if (.IsValueType (ast-type ast))
     (load-argument-address arg-id)
     (load-argument-standard arg-id)))
 
 (defn reference-to [{:keys [local arg-id] :as ast}]
   (if (= local :arg)
     (reference-to-argument ast)
-    (reference-to-type (clr-type ast))))
+    (reference-to-type (ast-type ast))))
 
 ;; TODO overflows?
 ;; can overflow opcodes replace e.g. RT.intCast?
@@ -241,7 +241,7 @@
     (map
       (fn [c]
         [(compile c compilers)
-         (convert (clr-type c) Object)])
+         (convert (ast-type c) Object)])
        items)))
 
 (defmethod load-constant :default [k]
@@ -384,7 +384,7 @@
   (if (and (not= :do op)  ;; do cleans up its own stack
            (not= :let op) ;; let contains a do
            (statement? ast)
-           (not= System.Void (clr-type ast)))
+           (not= System.Void (ast-type ast)))
     (il/pop)))
 
 ;;; compilers
@@ -439,7 +439,7 @@
   "Symbolic bytecode for instance properties"
   [{:keys [target property]} compilers]
   [(compile-reference-to target compilers)
-   (if (-> target clr-type .IsValueType)
+   (if (-> target ast-type .IsValueType)
      (il/call (.GetGetMethod property))
      (il/callvirt (.GetGetMethod property)))])
 
@@ -485,7 +485,7 @@
 (defn static-method-compiler
   "Symbolic bytecode for static methods"
   [{:keys [method args] :as ast} compilers]
-  (let [arg-types (map clr-type args)]
+  (let [arg-types (map ast-type args)]
     [(interleave
        (map #(compile % compilers) args)
        (map convert
@@ -496,8 +496,8 @@
 (defn instance-method-compiler
   "Symbolic bytecode for instance methods"
   [{:keys [method target args generic-parameters] :as ast} compilers]
-  (let [arg-types (map clr-type args)
-        virtcall (if (.IsValueType (clr-type target))
+  (let [arg-types (map ast-type args)
+        virtcall (if (.IsValueType (ast-type target))
                    il/call
                    il/callvirt )]
     [(compile-reference-to target compilers)
@@ -534,7 +534,7 @@
 (defn new-compiler
   "Symbolic bytecode for constructor invocation"
   [{:keys [type constructor args] :as ast} compilers]
-  (let [arg-types (map clr-type args)]
+  (let [arg-types (map ast-type args)]
     [(interleave
        (map #(compile % compilers) args)
        (map convert
@@ -548,7 +548,7 @@
         binding-map (reduce (fn [m binding]
                               (assoc m
                                 (-> binding :name)
-                                (il/local (non-void-clr-type binding)
+                                (il/local (non-void-ast-type binding)
                                           (str (-> binding :name)))))
                             (sorted-map) 
                             bindings)
@@ -575,7 +575,7 @@
                                 expr-range)]
                       [(interleave
                          (map #(compile % cmplrs) exprs)
-                         (map #(convert (clr-type %1)
+                         (map #(convert (ast-type %1)
                                         (::il/type (temporaries %2)))
                               exprs
                               expr-range)
@@ -587,7 +587,7 @@
     ;; emit local initializations
     [(map (fn [binding]
             [(compile binding specialized-compilers)
-             (convert (clr-type (-> binding :init)) (non-void-clr-type binding))
+             (convert (ast-type (-> binding :init)) (non-void-ast-type binding))
              (il/stloc (binding-map (:name binding)))])
           bindings)
      ;; mark recur target
@@ -598,21 +598,21 @@
 
 (defn if-compiler
   [{:keys [test then else] :as ast} compilers]
-  (let [if-expr-type (clr-type ast)
+  (let [if-expr-type (ast-type ast)
         then-label (il/label)
         end-label (il/label)
         value-used? (not (statement? ast))]
     (cond (types/always-then? ast) (compile then compilers)
           (types/always-else? ast) (compile else compilers)
           :else [(compile test compilers)
-                 (convert (clr-type test) Boolean)
+                 (convert (ast-type test) Boolean)
                  (il/brtrue then-label)
                  (when (or value-used?
                            (not= (:op else) :const))
                    (compile else compilers))
                  (when (and value-used?
                             (not (types/control-flow? else)))
-                   (convert (clr-type else) if-expr-type))
+                   (convert (ast-type else) if-expr-type))
                  (il/br end-label)
                  then-label
                  (when (or value-used?
@@ -620,7 +620,7 @@
                    (compile then compilers))
                  (when (and value-used?
                             (not (types/control-flow? then)))
-                   (convert (clr-type then) if-expr-type))
+                   (convert (ast-type then) if-expr-type))
                  end-label])))
 
 (defn binding-compiler
@@ -648,7 +648,7 @@
   [{:keys [fn args] :as ast} compilers]
   (let [fn-tag (-> fn :var tag)
         fn-type (var-type fn)
-        arg-types (map clr-type args)
+        arg-types (map ast-type args)
         best-method (select-method (filter #(= (.Name %) "invoke")
                                             (.GetMethods fn-type))
                                     arg-types)
@@ -664,7 +664,7 @@
        [(il/castclass IFn)
         (interleave
           (map #(compile % compilers) args)
-          (map #(convert (clr-type %) Object) args))
+          (map #(convert (ast-type %) Object) args))
         (il/callvirt (apply interop/method IFn "invoke" (repeat (count args) Object)))
         (when fn-tag
           (convert Object fn-tag))])]))
@@ -684,44 +684,44 @@
         value-used? (not (statement? ast))]
     (cond
       (= target-op :instance-field)
-      (let [v (il/local (clr-type val))]
+      (let [v (il/local (ast-type val))]
         [(compile-reference-to target' compilers)
          (compile val compilers)
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
-         (convert (clr-type val) (.FieldType field))
+         (convert (ast-type val) (.FieldType field))
          (il/stfld field)
          (if value-used?
            (il/ldloc v))])
       (= target-op :instance-property)
-      (let [v (il/local (clr-type val))]
+      (let [v (il/local (ast-type val))]
         [(compile-reference-to target' compilers)
          (compile val compilers)
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
-         (convert (clr-type val) (.PropertyType property))
+         (convert (ast-type val) (.PropertyType property))
          (il/callvirt (.GetSetMethod property))
          (if value-used?
            (il/ldloc v))])
       (= target-op :static-field)
-      (let [v (il/local (clr-type val))]
+      (let [v (il/local (ast-type val))]
         [(compile val compilers)
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
-         (convert (clr-type val) (.FieldType field))
+         (convert (ast-type val) (.FieldType field))
          (il/stsfld field)
          (if value-used?
            (il/ldloc v))])
       (= target-op :static-property)
-      (let [v (il/local (clr-type val))]
+      (let [v (il/local (ast-type val))]
         [(compile val compilers)
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
-         (convert (clr-type val) (.PropertyType property))
+         (convert (ast-type val) (.PropertyType property))
          (il/call (.GetSetMethod property))
          (if value-used?
            (il/ldloc v))]))))
@@ -773,12 +773,12 @@
   (let [arities (map :fixed-arity methods)
         param-types (->> methods
                          (map :params)
-                         (mapcat #(vector (map non-void-clr-type %)
+                         (mapcat #(vector (map non-void-ast-type %)
                                           (map (constantly Object) %))))
         return-types (->> methods
                           (mapcat #(vector
                                      (or (-> % :form first meta :tag types/resolve)
-                                         (-> % :body non-void-clr-type))
+                                         (-> % :body non-void-ast-type))
                                      Object)))
         interfaces (map #(interop/generic-type "Function" (conj %1 %2))
                         param-types
@@ -795,15 +795,15 @@
 (defn fn-method-compiler
   [{:keys [body params form] {:keys [ret statements]} :body} compilers]
   (let [param-hint (-> form first tag)
-        param-types (mapv clr-type params)
+        param-types (mapv ast-type params)
         obj-params (mapv (constantly Object) params)
-        param-il (map #(il/parameter (clr-type %) (-> % :form str)) params)
+        param-il (map #(il/parameter (ast-type %) (-> % :form str)) params)
         param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
         return-type (or param-hint
-                        (non-void-clr-type ret))
+                        (non-void-ast-type ret))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         ;; void -> ret conversion happens in hinted method
-        ret-type (clr-type ret)
+        ret-type (ast-type ret)
         unhinted-ret-type (or param-hint
                               (if (= ret-type System.Void) Object ret-type)) 
         unhinted-method
@@ -844,18 +844,18 @@
   (if (and (empty? catches)
            (nil? finally))
     (compile body compilers)
-    (let [expr-type (clr-type ast)
+    (let [expr-type (ast-type ast)
           try-local (il/local expr-type)]
       [(il/exception
          [(if (= expr-type System.Void)
             [(compile body compilers)
              (map #(compile % compilers) catches)]
             [(compile body compilers)
-             (convert (clr-type body) expr-type)
+             (convert (ast-type body) expr-type)
              (il/stloc try-local)
              (interleave
                (map #(compile % compilers) catches)
-               (map #(convert (clr-type %) expr-type) catches)
+               (map #(convert (ast-type %) expr-type) catches)
                (repeat (il/stloc try-local)))])
           [(when finally
              (il/finally
@@ -890,13 +890,13 @@
 (defn monitor-enter-compiler
   [{:keys [target]} compilers]
   [(compile target compilers)
-   (convert (clr-type target) Object)
+   (convert (ast-type target) Object)
    (il/call (interop/method System.Threading.Monitor "Enter" Object))])
 
 (defn monitor-exit-compiler
   [{:keys [target]} compilers]
   [(compile target compilers)
-   (convert (clr-type target) Object)
+   (convert (ast-type target) Object)
    (il/call (interop/method System.Threading.Monitor "Exit" Object))])
 
 (defn intrinsic-compiler

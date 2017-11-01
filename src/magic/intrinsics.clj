@@ -4,7 +4,7 @@
             [magic.analyzer :as ana]
             [magic.analyzer.literal-reinterpretation :refer [reinterpret-value reinterpret]]
             [magic.analyzer.intrinsics :as intrinsics :refer [register-intrinsic-form]]
-            [magic.analyzer.types :as types :refer [tag clr-type non-void-clr-type]]
+            [magic.analyzer.types :as types :refer [tag ast-type non-void-ast-type]]
             [magic.interop :as interop]
             [clojure.string :as string])
   (:import [clojure.lang RT BigInteger Numbers Ratio]))
@@ -16,16 +16,16 @@
      ~il-fn))
 
 (defn numeric-args [{:keys [args]}]
-  (let [arg-types (->> args (map clr-type))
+  (let [arg-types (->> args (map ast-type))
         non-numeric-args (filter (complement types/numeric) arg-types)]
     (when (empty non-numeric-args)
       (types/best-numeric-promotion arg-types))))
 
 (defn best-numeric-type [{:keys [args]}]
-  (let [arg-types (->> args (map clr-type))
+  (let [arg-types (->> args (map ast-type))
         non-numeric-args (filter (complement types/numeric) arg-types)
         inline? (empty? non-numeric-args)
-        type (->> args (map clr-type) types/best-numeric-promotion)]
+        type (->> args (map ast-type) types/best-numeric-promotion)]
     (when inline? type)))
 
 (defn add-mul-numeric-type [{:keys [args] :as ast}]
@@ -34,12 +34,12 @@
     (numeric-args ast)))
 
 (defn numeric-arg [{:keys [args]}]
-  (let [arg-type (-> args first clr-type)]
+  (let [arg-type (-> args first ast-type)]
     (when (types/numeric arg-type)
       arg-type)))
 
 (defn when-numeric-arg [{:keys [args]} x]
-  (let [arg-type (-> args first clr-type)]
+  (let [arg-type (-> args first ast-type)]
     (when (types/numeric arg-type)
       x)))
 
@@ -50,7 +50,7 @@
       ident
       [(interleave
          (map #(magic/compile (reinterpret % type) compilers) args)
-         (map #(magic/convert (clr-type %) type) args))
+         (map #(magic/convert (ast-type %) type) args))
        (repeat (-> args count dec)
                (if (not (or *unchecked-math*
                             (= type Single)
@@ -62,7 +62,7 @@
   [{:keys [args]} type compilers]
   (let [arg (reinterpret (first args) type)]
     [(magic/compile arg compilers)
-     (magic/convert (clr-type arg) type)]))
+     (magic/convert (ast-type arg) type)]))
 
 (def conversions
   {'clojure.core/float  Single
@@ -115,14 +115,14 @@
                   (il/sub))]
       (if (empty? rest-args)
         [(magic/compile (reinterpret first-arg type) compilers)
-         (magic/convert (clr-type first-arg) type)
+         (magic/convert (ast-type first-arg) type)
          (il/neg)]
         [(magic/compile (reinterpret first-arg type) compilers)
-         (magic/convert (clr-type first-arg) type)
+         (magic/convert (ast-type first-arg) type)
          (mapcat
            (fn [a]
              [(magic/compile (reinterpret a type) compilers)
-              (magic/convert (clr-type a) type)
+              (magic/convert (ast-type a) type)
               instr])
            rest-args)]))))
 
@@ -151,7 +151,7 @@
   (fn intrinsics-div-compiler
     [{:keys [args] :as ast} type compilers]
     (let [first-arg (first args)
-          first-type (clr-type first-arg)
+          first-type (ast-type first-arg)
           rest-args (rest args)]
       (cond
         (and (empty? rest-args)
@@ -167,7 +167,7 @@
          (il/div)]
         (= Ratio type)
         (let [second-arg (second args)
-              second-type (clr-type second-arg)
+              second-type (ast-type second-arg)
               rest-args (drop 2 args)]
           [(magic/compile first-arg compilers)
            (magic/convert first-type BigInteger)
@@ -176,7 +176,7 @@
            (mapcat
              (fn [a]
                [(magic/compile a compilers)
-                (magic/convert (clr-type a) BigInteger)
+                (magic/convert (ast-type a) BigInteger)
                 (il/call (interop/method BigInteger "op_Multiply" BigInteger BigInteger))])
              rest-args)
            (il/call (interop/method Numbers "BIDivide" BigInteger BigInteger))
@@ -187,7 +187,7 @@
          (mapcat
            (fn [a]
              [(magic/compile (reinterpret a type) compilers)
-              (magic/convert (clr-type a) type)
+              (magic/convert (ast-type a) type)
               (il/div)])
            rest-args)]))))
 
@@ -202,11 +202,11 @@
           il-pairs
           (map (fn [[a b]]
                  (let [best-numeric-type
-                       (->> [a b] (map clr-type) types/best-numeric-promotion)]
+                       (->> [a b] (map ast-type) types/best-numeric-promotion)]
                    [(magic/compile a compilers)
-                    (magic/convert (clr-type a) best-numeric-type)
+                    (magic/convert (ast-type a) best-numeric-type)
                     (magic/compile b compilers)
-                    (magic/convert (clr-type b) best-numeric-type)]))
+                    (magic/convert (ast-type b) best-numeric-type)]))
                arg-pairs)]
       [(->> (interleave il-pairs (repeat (il/bge greater-label)))
             drop-last)
@@ -217,15 +217,15 @@
        end-label])))
 
 (defn array-type [{:keys [args]}]
-  (let [type (-> args first clr-type)]
+  (let [type (-> args first ast-type)]
     (when (.IsArray type) type)))
 
 (defn when-array-type [{:keys [args]} v]
-  (let [type (-> args first clr-type)]
+  (let [type (-> args first ast-type)]
     (when (.IsArray type) v)))
 
 (defn array-element-type [{:keys [args]}]
-  (let [type (-> args first clr-type)]
+  (let [type (-> args first ast-type)]
     (when (.IsArray type)
       (.GetElementType type))))
 
@@ -247,7 +247,7 @@
       [(magic/compile array-arg compilers)
        (magic/compile index-arg compilers)
        ;; TODO make sure this is conv.ovf
-       (magic/convert (clr-type index-arg) Int32)
+       (magic/convert (ast-type index-arg) Int32)
        (magic/load-element type)])))
 
 ;; TODO multidim arrays
@@ -266,9 +266,9 @@
       [(magic/compile array-arg compilers)
        (magic/compile index-arg compilers)
        ;; TODO make sure this is conv.ovf
-       (magic/convert (clr-type index-arg) Int32)
+       (magic/convert (ast-type index-arg) Int32)
        (magic/compile value-arg compilers)
-       (magic/convert (clr-type value-arg) type)
+       (magic/convert (ast-type value-arg) type)
        (when-not statement?
          [(il/dup)
           (il/stloc val-return)])
@@ -297,7 +297,7 @@
   (fn intrinsic-alength-compiler
     [{:keys [args] :as ast} type compilers]
     [(magic/compile (first args) compilers)
-     (magic/convert (clr-type (first args)) Int32)
+     (magic/convert (ast-type (first args)) Int32)
      (il/ldc-i4-1)
      (il/add)]))
 
@@ -317,7 +317,7 @@
   (constantly Int32)
   (fn intrinsic-count-compiler
     [{[first-arg] :args} type compilers]
-    (let [arg-type (clr-type first-arg)]
+    (let [arg-type (ast-type first-arg)]
       [(magic/compile first-arg compilers)
        (if (.IsArray arg-type)
          (il/ldlen)

@@ -94,15 +94,15 @@
   (if-let [t (-> x meta :tag)]
     (resolve t)))
 
-(defmulti clr-type
+(defmulti ast-type
   "The CLR type of an AST node"
   :op)
 
-(defn non-void-clr-type
+(defn non-void-ast-type
   ([ast]
-   (non-void-clr-type ast Object))
+   (non-void-ast-type ast Object))
   ([ast non-void-type]
-   (let [t (clr-type ast)]
+   (let [t (ast-type ast)]
      (if (= t System.Void)
        non-void-type
        t))))
@@ -128,82 +128,82 @@
 
 ;;;;; ast types
 
-(defmethod clr-type :default [ast]
-  (throw! "clr-type not implemented for :op " (:op ast) " while analyzing " (-> ast :raw-forms first pr-str)))
+(defmethod ast-type :default [ast]
+  (throw! "ast-type not implemented for :op " (:op ast) " while analyzing " (-> ast :raw-forms first pr-str)))
 
-(defmethod clr-type :intrinsic
+(defmethod ast-type :intrinsic
   [{:keys [type]}] type)
 
 ;; TODO remove
-(defmethod clr-type nil
+(defmethod ast-type nil
   [ast]
   Object
   #_
-  (throw! "clr-type not implemented for nil"))
+  (throw! "ast-type not implemented for nil"))
 
-(defmethod clr-type :do
-  [{:keys [ret] :as ast}] (clr-type ret))
+(defmethod ast-type :do
+  [{:keys [ret] :as ast}] (ast-type ret))
 
-(defmethod clr-type :set!
+(defmethod ast-type :set!
   [{:keys [val] {:keys [context]} :env}]
   (if (= context :ctx/statement)
     System.Void
-    (clr-type val)))
+    (ast-type val)))
 
-(defmethod clr-type :quote
-  [{:keys [expr] :as ast}] (clr-type expr))
+(defmethod ast-type :quote
+  [{:keys [expr] :as ast}] (ast-type expr))
 
-(defmethod clr-type :maybe-class
+(defmethod ast-type :maybe-class
   [{:keys [class] :as ast}]
   (resolve class ast))
 
-(defmethod clr-type :var [ast]
+(defmethod ast-type :var [ast]
   Object)
 
-(defmethod clr-type :the-var [ast]
+(defmethod ast-type :the-var [ast]
   Object)
 
-(defmethod clr-type :const [ast]
+(defmethod ast-type :const [ast]
   (if (= :class (:type ast))
     System.Type ;; (:val ast) ; oh jesus
     (or (type (:val ast)) Object))) ;; nil -> Object
 
-(defmethod clr-type :vector [ast]
+(defmethod ast-type :vector [ast]
   clojure.lang.IPersistentVector)
 
-(defmethod clr-type :set [ast]
+(defmethod ast-type :set [ast]
   clojure.lang.IPersistentSet)
 
-(defmethod clr-type :map [ast]
+(defmethod ast-type :map [ast]
   clojure.lang.IPersistentMap)
 
 ;; TODO :original-var is not constrained to static methods
 ;; (the macroexpander can inline to anything)
 ;; put in a more general place?
-(defmethod clr-type :static-method
+(defmethod ast-type :static-method
   [{:keys [form method args]}]
   (.ReturnType method))
 
-(defmethod clr-type :instance-method [ast]
+(defmethod ast-type :instance-method [ast]
   (.ReturnType (ast :method)))
 
-(defmethod clr-type :static-property [ast]
+(defmethod ast-type :static-property [ast]
   (-> ast :property .PropertyType))
 
-(defmethod clr-type :instance-property [ast]
+(defmethod ast-type :instance-property [ast]
   (-> ast :property .PropertyType))
 
-(defmethod clr-type :static-field [ast]
+(defmethod ast-type :static-field [ast]
   (-> ast :field .FieldType))
 
-(defmethod clr-type :instance-field [ast]
+(defmethod ast-type :instance-field [ast]
   (-> ast :field .FieldType))
 
 ;; TODO dynamics always typed as object?
-(defmethod clr-type :dynamic-field [ast]
+(defmethod ast-type :dynamic-field [ast]
   System.Object)
 
-(defmethod clr-type :invoke
+(defmethod ast-type :invoke
   [{:keys [fn args]}]
   (resolve
     (or (->> fn
@@ -213,7 +213,7 @@
              first
              meta
              :tag)
-        (let [arg-types (map clr-type args)
+        (let [arg-types (map ast-type args)
               target-interfaces (var-interfaces fn)
               invokes (filter #(= (.Name %) "invoke")
                               (.GetMethods (var-type fn)))
@@ -223,32 +223,32 @@
             Object))
         Object)))
 
-(defmethod clr-type :new [ast]
+(defmethod ast-type :new [ast]
   (:type ast))
 
-(defmethod clr-type :initobj [ast]
+(defmethod ast-type :initobj [ast]
   (:type ast))
 
-(defmethod clr-type :maybe-host-form
+(defmethod ast-type :maybe-host-form
   [ast]
   (throw! "Trying to find type of :maybe-host-form in " ast))
 
-(defmethod clr-type :host-interop
+(defmethod ast-type :host-interop
   [ast]
   (throw! "Trying to find type of :host-interop in " ast))
 
 ;; TODO -> form locals :form meta :tag ??
-(defmethod clr-type :binding [ast]
+(defmethod ast-type :binding [ast]
   (or
     (if-let [tag (-> ast :form meta :tag)]
       (if (symbol? tag)
         (resolve tag)
         tag))
     (if-let [init (:init ast)]
-      (clr-type init))
+      (ast-type init))
     Object))
 
-(defmethod clr-type :local
+(defmethod ast-type :local
   [{:keys [name init form local by-ref?] {:keys [locals]} :env}]
   (let [tag (or (-> form meta :tag)
                 (-> form locals :form meta :tag))
@@ -259,28 +259,28 @@
                    (= local :arg)
                    Object
                    :else
-                   (non-void-clr-type init))]
+                   (non-void-ast-type init))]
     (if by-ref?
       (.MakeByRefType type)
       type)))
 
-(defmethod clr-type :let [ast]
-  (-> ast :body :ret clr-type))
+(defmethod ast-type :let [ast]
+  (-> ast :body :ret ast-type))
 
-(defmethod clr-type :loop [ast]
-  (-> ast :body :ret clr-type))
+(defmethod ast-type :loop [ast]
+  (-> ast :body :ret ast-type))
 
 ;; ???
-(defmethod clr-type :recur [ast]
+(defmethod ast-type :recur [ast]
   System.Object)
 
-(defmethod clr-type :throw [ast]
+(defmethod ast-type :throw [ast]
   System.Object)
 
-(defmethod clr-type :try [{:keys [body catches] :as ast}]
-  (let [body-type (clr-type body)
+(defmethod ast-type :try [{:keys [body catches] :as ast}]
+  (let [body-type (ast-type body)
         catches-types (-> #{}
-                          (into (map clr-type catches))
+                          (into (map ast-type catches))
                           (disj System.Void))]
     (if (or (empty? catches-types)
             (and (= 1 (count catches-types))
@@ -288,13 +288,13 @@
       body-type
       Object)))
 
-(defmethod clr-type :catch [{:keys [body] :as ast}]
-  (clr-type body))
+(defmethod ast-type :catch [{:keys [body] :as ast}]
+  (ast-type body))
 
-(defmethod clr-type :monitor-enter [ast]
+(defmethod ast-type :monitor-enter [ast]
   System.Void)
 
-(defmethod clr-type :monitor-exit [ast]
+(defmethod ast-type :monitor-exit [ast]
   System.Void)
 
 (defn always-then?
@@ -304,8 +304,8 @@
        (or (and (:literal? test)
                 (not= (:val test) false)
                 (not= (:val test) nil))
-           (and (.IsValueType (clr-type test))
-                (not= Boolean (clr-type test))))))
+           (and (.IsValueType (ast-type test))
+                (not= Boolean (ast-type test))))))
 
 (defn always-else?
   "Is an if AST node always false?"
@@ -327,12 +327,12 @@
              (and (always-else? ast)
                   (control-flow? (:else ast)))))))
 
-(defmethod clr-type :if
+(defmethod ast-type :if
   [{:keys [form test then else] :as ast}]
   (if-let [t (tag form)]
     t
-    (let [then-type (clr-type then)
-          else-type (clr-type else)]
+    (let [then-type (ast-type then)
+          else-type (ast-type else)]
       (cond
         (= then-type else-type) then-type
         (always-then? ast) then-type

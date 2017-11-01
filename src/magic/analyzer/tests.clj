@@ -1,6 +1,6 @@
 (ns magic.analyzer.tests
   (:require [magic.analyzer :as clr]
-            [magic.analyzer.types :refer [clr-type]])
+            [magic.analyzer.types :refer [ast-type]])
   (:use clojure.test))
 
 (defn tests [& fns]
@@ -91,7 +91,7 @@
            (is (= (-> frm* kw .GetParameters count)
                   (-> frm* :args count)))
            (is (= (->> frm* kw .GetParameters (map #(.ParameterType %)) vec)
-                  (->> frm* :args (map clr-type) vec)))))))
+                  (->> frm* :args (map ast-type) vec)))))))
 
 (defn property [frm frm*]
   (is (isa? (-> frm* :property type)

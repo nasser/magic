@@ -112,15 +112,15 @@
     (= i 2) (il/ldarg-3)
     :else (il/ldarg i)))
 
-(defmulti clr-type :op)
+(defmulti ast-type :op)
 
-(defmethod clr-type :default [ast]
-  (throw! "clr-type not implemented for " (pr-str ast)))
+(defmethod ast-type :default [ast]
+  (throw! "ast-type not implemented for " (pr-str ast)))
 
 ;; TODO repeated shape between instance-zero-arity-call-type instance-zero-arity-call-compiler
 (defn instance-zero-arity-call-type [izac]
   (let [{:keys [_target _memberName]} (data-map izac)
-        typ (clr-type _target)]
+        typ (ast-type _target)]
     (if-let [info (.GetField typ _memberName)]
       (.FieldType info)
       (if-let [info (.GetProperty typ _memberName)]
@@ -155,14 +155,14 @@
        (throw! "Could not resolve " t " as  type in " (:form ast)))))
 
 
-(defmethod clr-type :maybe-class
+(defmethod ast-type :maybe-class
   [{:keys [class] :as ast}]
   (resolve class ast))
 
-(defmethod clr-type :var [ast]
+(defmethod ast-type :var [ast]
   Object)
 
-(defmethod clr-type :the-var [ast]
+(defmethod ast-type :the-var [ast]
   Object)
 
 (def load-constant)
@@ -183,7 +183,7 @@
    UInt64 (il/conv-u8)})
 
 (defn convert [from to]
-  (let [from-type (clr-type from)]
+  (let [from-type (ast-type from)]
     (cond
       (or (nil? from) (nil? from-type))
       nil
@@ -500,7 +500,7 @@
 
 ;; 42
 ;; "foo"
-(defmethod clr-type :const [ast]
+(defmethod ast-type :const [ast]
   (-> ast :val type))
 
 (defn literal-compiler
@@ -510,7 +510,7 @@
    (cleanup-stack ast)])
 
 ;; [1 2 3]
-(defmethod clr-type :vector [ast]
+(defmethod ast-type :vector [ast]
   clojure.lang.IPersistentVector)
 
 (defn vector-compiler
@@ -528,7 +528,7 @@
    (il/call (find-method clojure.lang.RT "vector" |System.Object[]|))])
 
 ;; #{1 2 3}
-(defmethod clr-type :set [ast]
+(defmethod ast-type :set [ast]
   clojure.lang.IPersistentSet)
 
 (defn set-compiler
@@ -546,7 +546,7 @@
    (il/call (find-method clojure.lang.RT "set" |System.Object[]|))])
 
 ;; {:foo bar}
-(defmethod clr-type :map [ast]
+(defmethod ast-type :map [ast]
   clojure.lang.IPersistentMap)
 
 (defn map-compiler
@@ -564,7 +564,7 @@
    (il/call (find-method clojure.lang.PersistentArrayMap "createWithCheck" |System.Object[]|))])
 
 ;; (fn args...)
-(defmethod clr-type :invoke
+(defmethod ast-type :invoke
   [{:keys [fn args] {:keys [op]} :fn}]
   (condp = op
     ;; (class/field args...)
@@ -572,7 +572,7 @@
     (let [{:keys [class field]} fn
           method (or (.GetMethod (resolve class)
                                  (str field)
-                                 (into-array (map clr-type args)))
+                                 (into-array (map ast-type args)))
                      (throw! "Could not find method " class "/" field " matching types"))]
       (.ReturnType method))
     
@@ -587,7 +587,7 @@
                       :tag)
                  'Object))
     
-    (clr-type fn)
+    (ast-type fn)
     ; (throw! "Invoking " op " not supported")
     ))
 
@@ -602,11 +602,11 @@
     (let [{:keys [class field]} fn
           method (or (.GetMethod (resolve class)
                                  (str field)
-                                 (into-array (map clr-type args)))
+                                 (into-array (map ast-type args)))
                      (throw! "Could not find method "
                              class "." field
                              "(" (string/join ","
-                                              (map clr-type args)) ")"))
+                                              (map ast-type args)) ")"))
           method-argument-types (->> method
                                      .GetParameters
                                      (map #(.ParameterType %)))]
@@ -634,13 +634,13 @@
      (cleanup-stack ast)]))
 
 ;; (new Foo)
-(defmethod clr-type :new [ast]
+(defmethod ast-type :new [ast]
   (-> ast :class :class resolve))
 
 (defn new-compiler
   [{:keys [args class] :as ast} compilers]
-  (let [type (clr-type class)
-        arg-types (map clr-type args)
+  (let [type (ast-type class)
+        arg-types (map ast-type args)
         ctor (.GetConstructor type (into-array arg-types))]
     (cond
       ;; have constructor, normal newobj path
@@ -700,7 +700,7 @@
              (enum-or MethodAttributes/Public
                       MethodAttributes/Virtual)
              ;; Object (mapv (constantly Object) params)
-             (clr-type ret) (mapv clr-type params)
+             (ast-type ret) (mapv ast-type params)
              [(compile body compilers)
               (convert ret Object)
               (il/ret)]))
@@ -723,7 +723,7 @@
     (il/ldsfld field-info)))
 
 ;; class/field
-(defmethod clr-type :maybe-host-form
+(defmethod ast-type :maybe-host-form
   [{:keys [class field] :as ast}]
   (let [class (resolve class)]
     (or (zero-arity-type class (str field))
@@ -741,15 +741,15 @@
    (cleanup-stack ast)])
 
 ;; (. target m-or-f)
-(defmethod clr-type :host-interop
+(defmethod ast-type :host-interop
   [{:keys [m-or-f target] :as ast}]
-  (let [target-type (clr-type target)]
+  (let [target-type (ast-type target)]
     (or (zero-arity-type target-type (str m-or-f))
         (throw! "Host interop " (:form ast) " not supported"))))
 
 (defn host-interop-compiler
   [{:keys [m-or-f target] :as ast} compilers]
-  (let [target-type (clr-type target)
+  (let [target-type (ast-type target)
         morf (str m-or-f)]
     [(compile target compilers)
      (convert target target-type)
@@ -762,24 +762,24 @@
      (cleanup-stack ast)]))
 
 ;; (let [a 1] b)
-(defmethod clr-type :binding [ast]
+(defmethod ast-type :binding [ast]
   (or
     (if-let [init (:init ast)]
-      (clr-type init))
+      (ast-type init))
     (if-let [tag (-> ast :name meta :tag)]
       (resolve tag))
     Object))
 
-(defmethod clr-type :local
+(defmethod ast-type :local
   [{:keys [name local arg-id] {:keys [locals]} :env}]
   (if (= local :arg)
     (if-let [tag (-> name meta :tag)]
       (resolve tag)
       Object)
-    (clr-type (locals name))))
+    (ast-type (locals name))))
 
-(defmethod clr-type :let [ast]
-  (-> ast :body :ret clr-type))
+(defmethod ast-type :let [ast]
+  (-> ast :body :ret ast-type))
 
 (defn binding-compiler
   [{:keys [bindings body] :as ast} compilers])
@@ -790,7 +790,7 @@
                               (assoc m
                                 ;; dissoc env because its not in :locals
                                 (dissoc binding :env) 
-                                (il/local (clr-type binding))))
+                                (il/local (ast-type binding))))
                             {} bindings)
         recur-target (il/label)
         specialized-compilers
@@ -820,10 +820,10 @@
   [(compile init compilers)
   (cleanup-stack ast)])
 
-(defmethod clr-type :if
+(defmethod ast-type :if
   [{:keys [test then else] :as ast}]
-  (let [test-type (clr-type test)
-        else-type (clr-type else)]
+  (let [test-type (ast-type test)
+        else-type (ast-type else)]
     (if (= test-type else-type)
       test-type
       ;; TODO compute common type  

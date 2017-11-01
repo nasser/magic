@@ -1,6 +1,6 @@
 (ns magic.spells.protocols
   (:require [magic.core :as magic]
-            [magic.analyzer.types :refer [clr-type]]
+            [magic.analyzer.types :refer [ast-type]]
             [magic.interop :as interop]
             [mage.core :as il])
   (:import [System.Reflection FieldAttributes]))
@@ -48,7 +48,7 @@
                      (interleave
                        (map magic/compile fn-args)
                        (map magic/convert
-                            (map clr-type fn-args)
+                            (map ast-type fn-args)
                             (interop/parameter-types method)))
                      (il/callvirt method)
                      (il/br end)

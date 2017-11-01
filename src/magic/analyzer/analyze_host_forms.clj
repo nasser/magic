@@ -6,7 +6,7 @@
    [magic.analyzer
     [errors :refer [error] :as errors]
     [binder :refer [select-method]]
-    [types :refer [read-generic-name clr-type class-for-name]]])
+    [types :refer [read-generic-name ast-type class-for-name]]])
   (:import [System.Reflection BindingFlags]))
 
 (def public-instance (enum-or BindingFlags/Instance BindingFlags/Public))
@@ -42,7 +42,7 @@
       (let [static? (= :class (:type target))
             target-type (or (and static?
                                  (-> target :val))
-                            (clr-type target))
+                            (ast-type target))
             field-name (str field)
             binding-flags (if static? public-static public-instance)
             ast* (merge (dissoc ast :field)
@@ -81,7 +81,7 @@
   [{:keys [args children class op] :as ast}]
   (if (= :new op)
       ;; target must be a class literal, use :val directly
-      ;; (clr-type class) will always be Type here 
+      ;; (ast-type class) will always be Type here 
       (let [target-type (:val class)]
         ;; TODO OK to drop :class like this?
         (merge (dissoc ast :class)
@@ -91,18 +91,18 @@
                         (empty? args))
                    {:op :initobj}
                  (if-let [ctor-info (.GetConstructor target-type (->> args
-                                                                   (map clr-type)
+                                                                   (map ast-type)
                                                                    (into-array Type)))]
                          {:constructor ctor-info}
                          ;; no exact match, look for arity match
-                         (if-let [best-ctor (select-method (.GetConstructors target-type) (map clr-type args))]
+                         (if-let [best-ctor (select-method (.GetConstructors target-type) (map ast-type args))]
                                  {:constructor best-ctor}
                                  (error ::errors/missing-constructor ast))))))
     ast))
 
 (defn analyze-generic-host-interop
   [{:keys [m-or-f args target op] :as ast}]
-  (let [target-type (clr-type target)
+  (let [target-type (ast-type target)
         static? (= :class (:type target))
         binding-flags (if static? public-static public-instance)
         [method-name type-args] (read-generic-name m-or-f)
@@ -112,7 +112,7 @@
                                     (= (.Name %) (str method-name))
                                     (= (count (.GetParameters %))
                                        (count args)))))
-        generic-method (select-method generic-methods (map clr-type args))]
+        generic-method (select-method generic-methods (map ast-type args))]
     (if generic-method
         (assoc
          (dissoc ast :m-or-f)
@@ -138,10 +138,10 @@
             target-type (cond
                           identity-hack?
                           System.Type
-                          (= System.Type (clr-type target))
+                          (= System.Type (ast-type target))
                           (:val target)
                           :else
-                          (clr-type target))
+                          (ast-type target))
             m-or-f (str m-or-f)
             static? (= :class (:type target))
             binding-flags (if static? public-static public-instance)
@@ -174,7 +174,7 @@
 
 (defn analyze-generic-host-call
   [{:keys [method target args op] :as ast}]
-  (let [target-type (clr-type target)
+  (let [target-type (ast-type target)
         [method-name generic-args-symbols] (read-generic-name method)
         generic-args (map resolve generic-args-symbols)
         generic-methods (->> (.GetMethods target-type)
@@ -183,7 +183,7 @@
                                     (= (.Name %) (str method-name))
                                     (= (count (.GetParameters %))
                                        (count args)))))
-        generic-method (select-method generic-methods (map clr-type args))]
+        generic-method (select-method generic-methods (map ast-type args))]
     (if generic-method
         {:generic-parameters generic-args
          :method
@@ -203,7 +203,7 @@
       (let [static? (= :class (:type target))
             target-type (if static?
                           (:val target)
-                          (clr-type target))]
+                          (ast-type target))]
         (merge ast
                {:op (if static?
                       :static-method
@@ -212,13 +212,13 @@
                                     target-type
                                     (str method)
                                     (->> args
-                                         (map clr-type)
+                                         (map ast-type)
                                          (into-array Type)))]
                  {:method meth}
                  (if-let [best-method (select-method
                                         (filter #(= (.Name %) (str method))
                                                 (.GetMethods target-type))
-                                        (map clr-type args))]
+                                        (map ast-type args))]
                    {:method best-method}
                    (cond static?
                          ;; static method no best match, error
@@ -235,7 +235,7 @@
                                     (filter #(and
                                                (.IsGenericMethod %)
                                                (= (.Name %) (str method)))))]
-                           (if-let [best-method (select-method matching-name-methods (map clr-type args))]
+                           (if-let [best-method (select-method matching-name-methods (map ast-type args))]
                              {:method best-method :what-is-this '???}
                              {:op :dynamic-method}))))))))
     ast))

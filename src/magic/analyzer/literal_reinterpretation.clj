@@ -6,7 +6,7 @@
      [analyze-host-forms :as host]
      [util :as util]
      [errors :refer [error] :as errors]
-     [types :refer [clr-type numeric integer]]])
+     [types :refer [ast-type numeric integer]]])
   (:import [System.Reflection BindingFlags]))
 
 ;; TODO idk if this is in the right place
@@ -56,7 +56,7 @@
   (condp = op
     :set!
     (let [{:keys [val target]} ast]
-      (update ast :val reinterpret (clr-type target)))
+      (update ast :val reinterpret (ast-type target)))
     :static-method
     (reinterpret-interop ast :method :args)
     :instance-method

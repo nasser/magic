@@ -1,6 +1,6 @@
 (ns magic.analyzer.errors
   (:require [magic.analyzer
-             [types :refer [clr-type]]
+             [types :refer [ast-type]]
              [util :refer [throw! var-interfaces] :as util]
              ]))
 
@@ -30,14 +30,14 @@
 
 (defmethod error ::missing-constructor-arity
   [err {:keys [args class] :as ast}]
-  (throw! "Could not find constructor for " (clr-type class)
+  (throw! "Could not find constructor for " (ast-type class)
           " taking " (count args)
           " arguments while analyzing form " (user-form ast)))
 
 (defmethod error ::missing-constructor
   [err {:keys [args class] :as ast}]
-  (throw! "Could not find constructor for " (clr-type class)
-          " with args " (mapv clr-type args)
+  (throw! "Could not find constructor for " (ast-type class)
+          " with args " (mapv ast-type args)
           " while analyzing form " (user-form ast)))
 
 (defmethod error ::missing-static-zero-arity
@@ -49,34 +49,34 @@
 (defmethod error ::missing-static-method
   [err {:keys [m-or-f method args target] :as ast}]
   (throw! "Could not find static method " (or m-or-f method)
-          " with args " (mapv clr-type args)
+          " with args " (mapv ast-type args)
           " for type " (:val target) ;; TODO is this OK?
           " while analyzing form " (user-form ast)))
 
 (defmethod error ::missing-instance-zero-arity
   [err {:keys [field m-or-f target] :as ast}]
   (throw! "Could not find instance method, field, or property " (or m-or-f field)
-          " for type " (clr-type target)
+          " for type " (ast-type target)
           " while analyzing form " (user-form ast)))
 
 (defmethod error ::missing-instance-field
   [err {:keys [field m-or-f target] :as ast}]
   (throw! "Could not find instance field, or property " (or m-or-f field)
-          " for type " (clr-type target)
+          " for type " (ast-type target)
           " while analyzing form " (user-form ast)))
 
 (defmethod error ::missing-instance-method
   [err {:keys [method args target] :as ast}]
   (throw! "Could not find instance method " method
-          " with args " (mapv clr-type args)
-          " for type " (clr-type target)
+          " with args " (mapv ast-type args)
+          " for type " (ast-type target)
           " while analyzing form " (user-form ast)))
 
 (defmethod error ::missing-instance-method-arity
   [err {:keys [method args target] :as ast}]
   (throw! "Could not find overload of instance method " method
           " taking " (count args) " arguments"
-          " for type " (clr-type target)
+          " for type " (ast-type target)
           " while analyzing form " (user-form )))
 
 (defmethod error ::var-bad-arity

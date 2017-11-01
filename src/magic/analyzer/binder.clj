@@ -124,7 +124,7 @@
   #_
   (defn better-function-member
     [a p q]
-    (let [a-types (map clr-type args)
+    (let [a-types (map ast-type args)
           p-types (->> p .GetParameters (map #(.ParameterType %)))
           q-tyqes (->> p .GetParameters (map #(.ParameterType %)))]
       ))
