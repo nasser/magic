@@ -11,6 +11,6 @@
               "/Users/nasser/Projects/illness/bin/Release/Mono.Cecil.dll"
               "/Users/nasser/Projects/illness/bin/Release/Mono.Options.dll"
               "/Users/nasser/Projects/illness/bin/Release/Illness.exe"]
- :dependencies [[:github nasser/mage "master"]
+ :dependencies [[:maven nasser/mage "0.0.2-SNAPSHOT"]
                 [:github nasser/test.check "master"]
                 [:maven org.clojure/tools.analyzer "0.6.9"]]}
