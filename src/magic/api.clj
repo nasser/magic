@@ -1,7 +1,6 @@
 (ns magic.api
   (:refer-clojure :exclude [compile defn])
-  (:require [clojure.core :as c]
-            [magic.analyzer :as ana]
+  (:require [magic.analyzer :as ana]
             [magic.analyzer.types :refer [tag]]
             [magic.core :as magic]
             [magic.faster :refer [faster-type]]
@@ -11,7 +10,7 @@
              [lift-vars :refer [lift-vars]]])
   (:import [clojure.lang RT]))
 
-(c/defn compile-asm
+(clojure.core/defn compile-asm
   ([exprs]
    (compile-asm "magic.compile" exprs))
   ([asm-name exprs]
@@ -23,7 +22,7 @@
         il/emit!
         ::il/assembly-builder)))
 
-(c/defn compile-fn
+(clojure.core/defn compile-fn
   "Compile fn form using MAGIC, emit binary to current ClojureCLR compilation context
    and return constructor form."
   ([expr] (compile-fn expr (magic/get-compilers)))
@@ -59,10 +58,10 @@
     (.importClass *ns* (RT/classForName (str ftype)))
     `(. ~ftype ~'invoke ~@ks)))
 
-(c/defn bind-spells! [spells]
+(clojure.core/defn bind-spells! [spells]
   (alter-var-root #'magic/*spells* (constantly spells)))
 
-(c/defn bind-basic-spells! []
+(clojure.core/defn bind-basic-spells! []
   (bind-spells! [lift-vars]))
 
 ;; yolo
