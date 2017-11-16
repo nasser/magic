@@ -19,68 +19,68 @@ Strategy
 --------
 MAGIC consumes AST nodes from [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr). It turns those AST nodes into [MAGE](https://github.com/nasser/mage) byte code to be compiled into executable MSIL. By using the existing ClojureCLR reader and building on [`clojure.tools.analyzer`](https://github.com/clojure/tools.analyzer), we avoid rewriting most of what is already a high performance, high quality code. By using MAGE, we are granted the full power of Clojure to reason about generating byte code without withholding any functionality of the CLR.
 
-### Symbolizers
-Clojure forms are turned into MAGE byte code using *symbolizers*. A symbolizer is a function that transforms a single AST node into MAGE byte code. For example, a static property like [`DateTime/Now`](https://msdn.microsoft.com/en-us/library/system.datetime.now(v=vs.110).aspx) would be analyzed by [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr) into a hash map with a `:property` containing the correct [`PropertyInfo`](https://msdn.microsoft.com/en-us/library/system.reflection.propertyinfo(v=vs.110).aspx) object. The symbolizer looks like this:
+### Compilers
+In MAGIC parlance, a *compiler* is a function that transforms a single AST node into MAGE byte code. Previous versions of MAGIC called these *symbolizers* but that term is no longer used. For example, a static property like [`DateTime/Now`](https://msdn.microsoft.com/en-us/library/system.datetime.now(v=vs.110).aspx) would be analyzed by [`clojure.tools.analyzer.clr`](https://github.com/nasser/tools.analyzer.clr) into a hash map with a `:property` containing the correct [`PropertyInfo`](https://msdn.microsoft.com/en-us/library/system.reflection.propertyinfo(v=vs.110).aspx) object. The compiler looks like this:
 
 ```clojure
-(defn static-property-symbolizer
+(defn static-property-compiler
   "Symbolic bytecode for static properties"
-  [{:keys [property] :as ast} symbolizers]
+  [{:keys [property] :as ast} compilers]
   (il/call (.GetGetMethod property)))
 ```
 
 It extracts the `PropertyInfo` from the `:property` key in the AST, computes the [getter method](https://msdn.microsoft.com/en-us/library/e17dw503(v=vs.110).aspx), and returns the [MAGE byte code for a method invocation](https://msdn.microsoft.com/en-us/library/system.reflection.emit.opcodes.call(v=vs.110).aspx) of that method.
 
-Note that this is not a side-effecting function, i.e. it does no actual byte code emission. It merely returns the *symbolic byte code* to implement the semantics of static property retrieval as pure Clojure data, and MAGE will perform the actual generation of runnable code as a final step. This makes symbolizers easier to write and test interactively in a REPL.
+Note that this is not a side-effecting function, i.e. it does no actual byte code emission. It merely returns the *symbolic byte code* to implement the semantics of static property retrieval as pure Clojure data, and MAGE will perform the actual generation of runnable code as a final step. This makes compilers easier to write and test interactively in a REPL.
 
-Note also that the symbolizer takes an additional argument `symbolizers`, though it makes no use of it. `symbolizers` is a map of keywords identifying AST node types (the `:op` key in the map `tools.analyzer` produces) to symbolizer functions. The basic one built into MAGIC looks like 
+Note also that the compiler takes an additional argument `compilers`, though it makes no use of it. `compilers` is a map of keywords identifying AST node types (the `:op` key in the map `tools.analyzer` produces) to compiler functions. The basic one built into MAGIC looks like 
 
 ```clojure
 
-(def base-symbolizers
-  {:const               #'const-symbolizer
-   :do                  #'do-symbolizer
-   :fn                  #'fn-symbolizer
-   :let                 #'let-symbolizer
-   :local               #'local-symbolizer
-   :binding             #'binding-symbolizer
+(def base-compilers
+  {:const               #'const-compiler
+   :do                  #'do-compiler
+   :fn                  #'fn-compiler
+   :let                 #'let-compiler
+   :local               #'local-compiler
+   :binding             #'binding-compiler
    ...
 ```
 
-Every symbolizer is passed such a map, and is expected it pass it down when recursively symbolizing. The symbolizer for `(do ...)` expressions does exactly this
+Every compiler is passed such a map, and is expected it pass it down when recursively compiling. The compiler for `(do ...)` expressions does exactly this
 
 ```clojure
-(defn do-symbolizer
-  [{:keys [statements ret]} symbolizers]
-  [(map #(symbolize % symbolizers) statements)
-   (symbolize ret symbolizers)])
+(defn do-compiler
+  [{:keys [statements ret]} compilers]
+  [(map #(compile % compilers) statements)
+   (compile ret compilers)])
 ```
 
-`do` expressions analyze to hash maps containing `:statements` and `:ret` keys referring to all expressions except the last, and the last expression respectively. The `do` symbolizer recursively symbolizes all of these expression, passing its `symbolizers` argument to them.
+`do` expressions analyze to hash maps containing `:statements` and `:ret` keys referring to all expressions except the last, and the last expression respectively. The `do` compiler recursively compiles all of these expression, passing its `compilers` argument to them.
 
-Early versions of MAGIC used a multi method in place of this symbolizer map, but the map has several advantages. Emission can be controlled from the top level by passing in a different map. For example, symbolizers can be replaced:
+Early versions of MAGIC used a multi method in place of this compiler map, but the map has several advantages. Emission can be controlled from the top level by passing in a different map. For example, compilers can be replaced:
 
 ```clojure
-(binding [magic/*initial-symbolizers*
-          (merge magic/base-symbolizers
-                :let #'my-namespace/other-let-symbolizer)]
+(binding [magic/*initial-compilers*
+          (merge magic/base-compilers
+                :let #'my-namespace/other-let-compiler)]
 (magic/compile-fn '(fn [a] (map inc a))))
 ```
 
 or updated
 
 ```clojure
-(binding [magic/*initial-symbolizers*
-          (update magic/base-symbolizers
-                :let (fn [old-let-symbolizer]
-                       (fn [ast symbolizers]
+(binding [magic/*initial-compilers*
+          (update magic/base-compilers
+                :let (fn [old-let-compiler]
+                       (fn [ast compilers]
                          (if-not (condition? ast)
-                           (old-let-symbolizer ast symbolizers)
-                           (my-namespace/other-let-symbolizer ast symbolizers)))))]
+                           (old-let-compiler ast compilers)
+                           (my-namespace/other-let-compiler ast compilers)))))]
 (magic/compile-fn '(fn [a] (map inc a))))
 ```
 
-Additionally, symbolizers can change this map *before they pass it to their children* if they need to. This can be used to tersely implement optimizations, and some Clojure semantics depend on it. `magic.core/let-symbolizer` implements symbol binding using this mechanism.
+Additionally, compilers can change this map *before they pass it to their children* if they need to. This can be used to tersely implement optimizations, and some Clojure semantics depend on it. `magic.core/let-compiler` implements symbol binding using this mechanism.
 
 Rationale and History
 ---------------------
