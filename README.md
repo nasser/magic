@@ -4,7 +4,7 @@ Morgan And Grand Iron Clojure
 
 A functional Clojure compiler library and the start of a standalone Clojure implementation for the CLR.
 
-For more information please read this blog post - [The Morgan And Grand Iron Clojure Compiler](http://nas.sr/magic/)
+For deeper analysis follow the [developer's blog](http://nas.sr/magic/).
 
 Status
 ------
