@@ -629,8 +629,12 @@
 
 (defn local-compiler
   [{:keys [name local] :as ast} compilers]
-  (if (= local :arg)
+  (cond
+    (= local :arg)
     (load-argument ast)
+    (= local :fn)
+    (load-argument-standard 0)
+    :else
     (throw! "Local " name " not an argument and could not be compiled")))
 
 (defn implementing-interface [t bm]
@@ -646,14 +650,19 @@
 
 (defn invoke-compiler
   [{:keys [fn args] :as ast} compilers]
-  (let [fn-tag (-> fn :var tag)
+  (let [fn-op (:op fn)
+        fn-tag (-> fn :var tag)
         fn-type (var-type fn)
         arg-types (map ast-type args)
-        best-method (select-method (filter #(= (.Name %) "invoke")
-                                            (.GetMethods fn-type))
-                                    arg-types)
-        param-types (map #(.ParameterType %) (.GetParameters best-method))
-        interface-match (implementing-interface fn-type best-method)]
+        ;; TODO this is hacky and gross
+        best-method (when fn-type
+                      (select-method (filter #(= (.Name %) "invoke")
+                                             (.GetMethods fn-type))
+                                     arg-types))
+        param-types (when best-method
+                      (map #(.ParameterType %) (.GetParameters best-method)))
+        interface-match (when best-method
+                          (implementing-interface fn-type best-method))]
     [(compile fn compilers)
      (if interface-match
        [(il/castclass interface-match)

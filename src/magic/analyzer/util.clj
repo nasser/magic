@@ -29,8 +29,7 @@
   "The type of the instance the var is associated with"
   [ast]
   (if-let [v (var-reference ast)]
-    (-> v deref type)
-    []))
+    (-> v deref type)))
 
 (defn var-fixed-arities
   "Fixed arities a var supports"

@@ -212,9 +212,13 @@
              :tag)
         (let [arg-types (map ast-type args)
               target-interfaces (var-interfaces fn)
-              invokes (filter #(= (.Name %) "invoke")
-                              (.GetMethods (var-type fn)))
-              exact-match (select-method invokes arg-types)]
+              ;; TODO this is hacky and gross
+              vt (var-type fn)
+              invokes (when vt
+                        (filter #(= (.Name %) "invoke")
+                                (.GetMethods vt)))
+              exact-match (when invokes
+                            (select-method invokes arg-types))]
           (if exact-match
             (.ReturnType exact-match)
             Object))
