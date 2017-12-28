@@ -15,6 +15,10 @@ author:
 # Gems
 plugins:
   - jekyll-mermaid
+  - jekyll-paginate
+
+paginate: 2
+paginate_path: "/:num/"
 
 #Others
 markdown: kramdown

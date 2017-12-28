@@ -4,7 +4,7 @@ title: {{ site.name }}
 ---
 
 <div id="home">
-  {% for post in site.posts %}
+  {% for post in paginator.posts %}
     {% if post.private != true %}
       <h1>{{ post.title }} <a href="{{ site.baseurl }}{{ post.url }}">{{ post.date | date_to_string }}</a></h1>
       {{ post.content }}
@@ -13,4 +13,15 @@ title: {{ site.name }}
       {% endif %}
     {% endif %}
   {% endfor %}
+</div>
+
+<!-- Pagination links -->
+<div class="pagination">
+  {% if paginator.previous_page %}
+    <a href="{{ paginator.previous_page_path }}" class="previous">←</a>
+  {% endif %}
+  <span class="page_number ">{{ paginator.page }} / {{ paginator.total_pages }}</span>
+  {% if paginator.next_page %}
+    <a href="{{ paginator.next_page_path }}" class="next">→</a>
+  {% endif %}
 </div>
