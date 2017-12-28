@@ -1,3 +1,11 @@
 div.mermaid {
   text-align: center;
 }
+
+video {
+  max-width: 100%;
+}
+
+.pagination {
+  text-align: center;
+}
