@@ -325,7 +325,15 @@
           (il/call (interop/method RT "count" Object))]
          )])))
 
-
+(defintrinsic clojure.core/make-array
+  (fn [{[first-arg] :args}]
+    (when (and (= :const (:op first-arg))
+               (= :class (:type first-arg)))
+      (.MakeArrayType (:val first-arg))))
+  (fn intrinsic-make-array-compiler
+    [{[type-arg len-arg] :args} type compilers]
+    [(magic/compile len-arg compilers)
+     (il/newarr (:val type-arg))]))
 
 ;;;; array functions
 ;; aclone
@@ -337,7 +345,6 @@
 ;; aset-*
 ;; *-array
 ;; into-array
-;; make-array
 ;; nth
 ;; to-array
 ;; to-array-2d
