@@ -5,6 +5,8 @@ tagline:      A high-performance Clojure compiler library targeting the Common L
 baseurl:      "http://nas.sr/magic"
 future: true
 
+repo_url: https://github.com/nasser/magic
+
 # paginate:     5
 
 # About/contact
