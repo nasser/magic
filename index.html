@@ -20,10 +20,10 @@ title: {{ site.name }}
 <!-- Pagination links -->
 <div class="pagination">
   {% if paginator.previous_page %}
-    <a href="{{ paginator.previous_page_path }}" class="previous">←</a>
+    <a href="{{ paginator.previous_page_path | prepend: site.baseurl }}" class="previous">←</a>
   {% endif %}
   <span class="page_number ">{{ paginator.page }} / {{ paginator.total_pages }}</span>
   {% if paginator.next_page %}
-    <a href="{{ paginator.next_page_path }}" class="next">→</a>
+    <a href="{{ paginator.next_page_path | prepend: site.baseurl }}" class="next">→</a>
   {% endif %}
 </div>
