@@ -3,13 +3,7 @@
  :author "Ramsey Nasser"
  :source-paths ["src"]
  :references ["references/Constants.dll"
-              "references/Interfaces.dll"
-              "/Users/nasser/Projects/illness/bin/Release/ICSharpCode.Decompiler.dll"
-              "/Users/nasser/Projects/illness/bin/Release/ICSharpCode.NRefactory.CSharp.dll"
-              "/Users/nasser/Projects/illness/bin/Release/ICSharpCode.NRefactory.dll"
-              "/Users/nasser/Projects/illness/bin/Release/Mono.Cecil.dll"
-              "/Users/nasser/Projects/illness/bin/Release/Mono.Options.dll"
-              "/Users/nasser/Projects/illness/bin/Release/Illness.exe"]
+              "references/Interfaces.dll"]
  :dependencies [[:maven nasser/mage "0.0.2-SNAPSHOT"]
                 [:github nasser/test.check "master"]
                 [:maven org.clojure/tools.analyzer "0.6.9"]]}
