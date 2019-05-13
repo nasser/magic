@@ -3,8 +3,7 @@
   (:require 
     [magic.core :as magic]
     [magic.analyzer :as ana]
-    [mage.core :as il]
-    [magic.tests-generative :as g]))
+    [mage.core :as il]))
 
 (defn compile
   "Compile file to file.dll using magic"
