@@ -4,7 +4,6 @@
  :source-paths ["src"]
  :references ["references/Constants.dll"
               "references/Interfaces.dll"
-              "OpenTK.dll"
               "/Users/nasser/Projects/illness/bin/Release/ICSharpCode.Decompiler.dll"
               "/Users/nasser/Projects/illness/bin/Release/ICSharpCode.NRefactory.CSharp.dll"
               "/Users/nasser/Projects/illness/bin/Release/ICSharpCode.NRefactory.dll"
