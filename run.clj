@@ -18,6 +18,7 @@
           magic/compile)))
   (println (str "Built " file ".dll")))
 
+#_
 (defn tests
   "Run analysis tests"
   []

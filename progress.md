@@ -9,13 +9,13 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>:static-method</code></td>
   <td><code>(Foo/Bar a b c)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:instance-method</code></td>
   <td><code>(.Bar foo a b c)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:static-field</code></td>
@@ -43,21 +43,21 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
       <code>(.-qux foo)</code>
   </td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:dynamic-method</code></td>
   <td><code>(.quz x a b c)</code>
   </td>
-  <td>   </td>
-  <td>   </td>
+  <td> ✔ </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:dynamic-zero-arity</code></td>
   <td><code>(.quz x)</code>
   </td>
-  <td>   </td>
-  <td>   </td>
+  <td> ✔ </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:dynamic-field</code></td>
@@ -78,31 +78,31 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
       <code>"7"</code>
   </td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:vector</code></td>
   <td><code>[1 2 3]</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:map</code></td>
   <td><code>{:foo "bar"}</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:set</code></td>
   <td><code>#{1 2 3 4}</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:local</code></td>
   <td><code>(let [a 5] <strong>a</strong>)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:var</code></td>
@@ -114,13 +114,13 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>:do</code></td>
   <td><code>(do a b c)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:if</code></td>
   <td><code>(if true then else)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:new</code></td>
@@ -149,25 +149,25 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>:set!</code></td>
   <td><code>(set! (.foo bar) 5)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:try</code></td>
   <td><code>(try (foo) (catch System.Exception e e))</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:catch</code></td>
   <td><code>(try (foo) <strong>(catch System.Exception e e)</strong>)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:throw</code></td>
   <td><code>(throw (System.Exception. "foo"))</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:letfn</code></td>
@@ -179,19 +179,19 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>:let</code></td>
   <td><code>(let [a 5] a)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:loop</code></td>
   <td><code>(loop [a 1] (recur (inc a)))</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:recur</code></td>
   <td><code>(loop [a 1] <strong>(recur (inc a)</strong>))</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:binding</code></td>
@@ -203,13 +203,13 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>:fn</code></td>
   <td><code>(fn [x] x)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:fn-method</code></td>
   <td><code>(fn ([x] x))</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:def</code></td>
@@ -221,7 +221,7 @@ The goal of MAGIC is to compile all of Clojure into MSIL bytecode. To do this, i
   <td><code>:invoke</code></td>
   <td><code>(str 1 2)</code></td>
   <td> ✔ </td>
-  <td>   </td>
+  <td> ✔ </td>
 </tr>
 <tr>
   <td><code>:the-var</code></td>

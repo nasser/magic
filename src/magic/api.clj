@@ -7,7 +7,8 @@
             [mage.core :as il]
             magic.intrinsics
             [magic.spells
-             [lift-vars :refer [lift-vars]]])
+             [lift-vars :refer [lift-vars]]
+             [dynamic-interop :refer [dynamic-interop]]])
   (:import [clojure.lang RT]))
 
 (clojure.core/defn compile-asm
@@ -62,7 +63,7 @@
   (alter-var-root #'magic/*spells* (constantly spells)))
 
 (clojure.core/defn bind-basic-spells! []
-  (bind-spells! [lift-vars]))
+  (bind-spells! [lift-vars dynamic-interop]))
 
 ;; yolo
-(bind-spells! [lift-vars])
+(bind-spells! [lift-vars dynamic-interop])
