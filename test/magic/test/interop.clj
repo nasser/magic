@@ -20,4 +20,10 @@
 
 (deftest constructor
   (cljclr=magic
-   (.ToString (Version. 1 2 3))))
+   (.ToString (Version. 1 2 3))
+   (.ToString (Version.))
+   (.ToString (Guid. "ca761232ed4211cebacd00aa0057b223"))))
+
+(deftest init-object
+  (cljclr=magic
+   (.ToString (Guid.))))
