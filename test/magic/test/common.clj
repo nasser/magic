@@ -3,4 +3,4 @@
   (:use clojure.test))
 
 (defmacro cljclr=magic [& exprs]
-  `(do ~@(map (fn [expr] `(is (= ~expr (m/eval ~expr)))) exprs)))
+  `(do ~@(map (fn [expr] `(is (= (eval (quote ~expr)) (m/eval (quote ~expr))))) exprs)))
