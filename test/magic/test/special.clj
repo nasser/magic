@@ -91,80 +91,82 @@
        90
        (finally
          (monitor-exit lock))))))
-(cljclr=magic
- (try 1)
- (try 1 (catch Exception e 2))
- (try 1 (catch Exception e 2) (finally 3))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch IndexOutOfRangeException e 45)
-   (finally 99))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch IndexOutOfRangeException e 45)
-   (catch IndexOutOfRangeException e 46)
-   (catch IndexOutOfRangeException e 47))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch IndexOutOfRangeException e 45)
-   (catch IndexOutOfRangeException e 46)
-   (catch IndexOutOfRangeException e 47)
-   (finally 99))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch Exception e 10)
-   (catch IndexOutOfRangeException e 45))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch Exception e 10)
-   (catch IndexOutOfRangeException e 45)
-   (finally 99))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch Exception e 10)
-   (catch IndexOutOfRangeException e 45))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch Exception e 10)
-   (catch IndexOutOfRangeException e 45)
-   (finally 99))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch Exception e 10)
-   (catch Exception e 11)
-   (catch Exception e 12)
-   (catch Exception e 13)
-   (catch IndexOutOfRangeException e 45))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch Exception e 10)
-   (catch Exception e 11)
-   (catch Exception e 12)
-   (catch Exception e 13)
-   (catch IndexOutOfRangeException e 45)
-   (finally 99))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch IndexOutOfRangeException e 45)
-   (catch Exception e 10))
- (try
-   (nth Type/EmptyTypes 7)
-   (catch IndexOutOfRangeException e 45)
-   (catch Exception e 10)
-   (finally 99))
- (try
-   (throw (Exception.))
-   (catch IndexOutOfRangeException e 45)
-   (catch Exception e 10))
- (try
-   (throw (Exception.))
-   (catch Exception e 10)
-   (catch IndexOutOfRangeException e 45))
- (try
+
+(deftest try-catch-finally-throw-exprs
+  (cljclr=magic
+   (try 1)
+   (try 1 (catch Exception e 2))
+   (try 1 (catch Exception e 2) (finally 3))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch IndexOutOfRangeException e 45)
+     (finally 99))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch IndexOutOfRangeException e 45)
+     (catch IndexOutOfRangeException e 46)
+     (catch IndexOutOfRangeException e 47))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch IndexOutOfRangeException e 45)
+     (catch IndexOutOfRangeException e 46)
+     (catch IndexOutOfRangeException e 47)
+     (finally 99))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch Exception e 10)
+     (catch IndexOutOfRangeException e 45))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch Exception e 10)
+     (catch IndexOutOfRangeException e 45)
+     (finally 99))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch Exception e 10)
+     (catch IndexOutOfRangeException e 45))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch Exception e 10)
+     (catch IndexOutOfRangeException e 45)
+     (finally 99))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch Exception e 10)
+     (catch Exception e 11)
+     (catch Exception e 12)
+     (catch Exception e 13)
+     (catch IndexOutOfRangeException e 45))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch Exception e 10)
+     (catch Exception e 11)
+     (catch Exception e 12)
+     (catch Exception e 13)
+     (catch IndexOutOfRangeException e 45)
+     (finally 99))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch IndexOutOfRangeException e 45)
+     (catch Exception e 10))
+   (try
+     (nth Type/EmptyTypes 7)
+     (catch IndexOutOfRangeException e 45)
+     (catch Exception e 10)
+     (finally 99))
+   (try
+     (throw (Exception.))
+     (catch IndexOutOfRangeException e 45)
+     (catch Exception e 10))
+   (try
+     (throw (Exception.))
+     (catch Exception e 10)
+     (catch IndexOutOfRangeException e 45))
    (try
      (try
-       (throw (Exception.))
+       (try
+         (throw (Exception.))
+         (catch IndexOutOfRangeException e 45))
        (catch IndexOutOfRangeException e 45))
-     (catch IndexOutOfRangeException e 45))
-   (catch Exception e 10)
-   (catch IndexOutOfRangeException e 45)))
+     (catch Exception e 10)
+     (catch IndexOutOfRangeException e 45))))
