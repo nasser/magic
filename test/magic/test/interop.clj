@@ -11,6 +11,10 @@
    Math/PI
    Type/EmptyTypes))
 
+(deftest static-properties
+  (cljclr=magic
+   System.Text.Encoding/ASCII))
+
 (deftest zero-arity-instance-member
   (cljclr=magic
    (.Length "hello")
