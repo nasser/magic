@@ -25,8 +25,7 @@
 (deftest instance-method
   (cljclr=magic
    (.Substring "hello world" 2 4)
-   (.Substring "hello world" (int 2) (int 4))
-   (.Substring "hello world" 2 4)))
+   (.Substring "hello world" (int 2) (int 4))))
 
 (deftest constructor
   (cljclr=magic
