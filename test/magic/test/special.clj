@@ -80,3 +80,14 @@
              ([x] (* x 2))
              ([x y] (* x y)))]
      (+ (f 80) (f 87 11)))))
+
+;; this just tests that the monitor forms compile
+;;it does not test their semantics!
+(deftest monitors
+  (cljclr=magic
+   (let [lock (Object.)]
+     (try
+       (monitor-enter lock)
+       90
+       (finally
+         (monitor-exit lock))))))
