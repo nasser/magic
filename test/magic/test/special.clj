@@ -50,8 +50,10 @@
    (do)
    (do 1 2 3)
    (let [sb (System.Text.StringBuilder.)]
-     [(do 1 (.Append sb "hello") 2 99) (.ToString sb)])
-   ))
+      (+
+       (do 1 (.Append sb "hello") 2 (.Append sb "world") 99)
+       (.Length (.ToString sb))))))
+
 
 (deftest try-catch-throw
   (cljclr=magic
