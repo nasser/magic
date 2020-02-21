@@ -74,6 +74,16 @@
    (inc (inc (inc 90)))
    (map inc (range 10))))
 
+(deftest var-expr
+  (cljclr=magic
+   str
+   +))
+
+(deftest the-var-expr
+  (cljclr=magic
+   (var clojure.core/str)
+   (var clojure.core/+)))
+
 (deftest fn-expr
   (cljclr=magic
    (let [f (fn [x] (* x 2))]
