@@ -1,4 +1,6 @@
-﻿using System;
+using System;
+using System.Reflection;
+using System.Linq;
 
 namespace Magic
 {
@@ -23,11 +25,13 @@ namespace Magic
         // (.name o args)
         public static object InvokeMember(object o, string name, object[] args)
         {
-            // this binds too tight, does not eg convert int to long
             var argumentTypes = new Type[args.Length];
             for (int i = 0; i < args.Length; i++)
                 argumentTypes[i] = args[i].GetType();
-            var method = o.GetType().GetMethod(name, argumentTypes);
+            // var method = o.GetType().GetMethod(name, argumentTypes);
+            var methods = o.GetType().GetMethods().Where(m => m.Name == name).ToArray();
+            Object state;
+            var method = Type.DefaultBinder.BindToMethod(BindingFlags.Public|BindingFlags.Instance,methods,ref args,null,null,null,out state);
             if (method != null)
                 return method.Invoke(o, args);
             throw new Exception($"Could not invoke member method `{name}` on target {o.ToString()} with argument types { String.Join<Type>(", ", argumentTypes) }.");
