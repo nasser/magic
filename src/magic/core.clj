@@ -51,13 +51,9 @@
     (load-argument-address arg-id)
     (load-argument-standard arg-id)))
 
-;; TODO keep an eye on this
-;; TODO il/ldarga, il/ldarga-s for references to args
 (defn reference-to-type [t]
   (when (.IsValueType t)
-    (let [local (il/local t)]
-      [(il/stloc local)
-       (il/ldloca local)])))
+    (il/box t)))
 
 (defn reference-to-argument [{:keys [arg-id] :as ast}]
   (if (.IsValueType (ast-type ast))
