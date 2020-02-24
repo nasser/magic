@@ -2,7 +2,7 @@
   (:require [magic.analyzer
              [util :refer [throw! var-interfaces] :as util]
              [reflection :refer [find-method]]])
-  (:import [System.Reflection Binder BindingFlags MethodInfo]))
+  (:import [System.Reflection Binder BindingFlags MethodInfo MethodBase]))
 
 ;; TODO warn on truncate?
 (defn convertible? [from to]
@@ -60,23 +60,7 @@
                    param-types
                    arg-types)))))
 
-(def binder
-  (proxy [Binder]
-    []
-    (SelectMethod
-      [flags methods arg-types modifiers]
-      (let [best-methods (filter #(signature-match? % arg-types) methods)]
-        (if (= 1 (count best-methods))
-          (first best-methods)
-          (->> best-methods
-               (sort closer-sort)
-               first))))))
-;;; TODO
-;; BindToMethod
-;; BindToField
-;; ReorderArgumentArray
-;; SelectProperty
-;; ChangeType
+(def binder Magic.Binder/Shared)
 
 (defn select-method
   ([methods arg-types]
@@ -85,7 +69,7 @@
    (.SelectMethod
      binder
      flags
-     (into-array methods)
+     (into-array MethodBase methods)
      (into-array Type arg-types)
      modifiers)))
 

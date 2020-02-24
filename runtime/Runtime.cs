@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Reflection;
 using System.Linq;
 
@@ -31,10 +31,10 @@ namespace Magic
             // var method = o.GetType().GetMethod(name, argumentTypes);
             var methods = o.GetType().GetMethods().Where(m => m.Name == name).ToArray();
             Object state;
-            var method = Type.DefaultBinder.BindToMethod(BindingFlags.Public|BindingFlags.Instance,methods,ref args,null,null,null,out state);
+            var method = Binder.Shared.BindToMethod(BindingFlags.Public|BindingFlags.Instance,methods,ref args,null,null,null,out state);
             if (method != null)
                 return method.Invoke(o, args);
-            throw new Exception($"Could not invoke member method `{name}` on target {o.ToString()} with argument types { String.Join<Type>(", ", argumentTypes) }.");
+            throw new Exception($"Could not invoke member method `{name}` on target {o.ToString()} ({o.GetType()}) with argument types { String.Join<Type>(", ", argumentTypes) }.");
         }
     }
 }
