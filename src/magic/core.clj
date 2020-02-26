@@ -426,8 +426,7 @@
 
 (defn set-compiler
   [{:keys [items]} compilers]
-  [(load-constant (int (count items)))
-   (prepare-array items compilers)
+  [(prepare-array items compilers)
    (il/call (interop/method clojure.lang.RT "set" |System.Object[]|))])
 
 (defn map-compiler
