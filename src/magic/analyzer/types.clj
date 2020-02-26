@@ -131,6 +131,10 @@
 (defmethod ast-type :default [ast]
   (throw! "ast-type not implemented for :op " (:op ast) " while analyzing " (-> ast :raw-forms first pr-str)))
 
+(defmethod ast-type :fn
+  [ast]
+  clojure.lang.IFn ;; TODO optimize this, use generic magic function types
+  )
 
 (defmethod ast-type :dynamic-zero-arity [_] Object)
 
