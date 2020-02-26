@@ -277,7 +277,11 @@
 (defmethod load-constant SByte [k]
   (load-integer k))
 
-;; TODO BigInt vs BigInteger?
+(defmethod load-constant clojure.lang.Ratio [r]
+  [(load-constant (str r))
+   (il/call (interop/method clojure.lang.RT "readString" String))
+   (il/castclass clojure.lang.Ratio)])
+
 (defmethod load-constant clojure.lang.BigInt [k]
   (if (nil? (.Bipart k))
     [(load-constant (.Lpart k))
