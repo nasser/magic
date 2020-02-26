@@ -774,7 +774,7 @@
     (let [ret-true (il/label)]
       [(map (fn [arity]
               [(il/ldarg-1)
-               (load-constant arity)
+               (load-constant (int arity))
                (il/beq ret-true)])
             arities)
        (il/ldc-i4-0)
