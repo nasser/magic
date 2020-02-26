@@ -175,13 +175,13 @@
     (or (type (:val ast)) Object))) ;; nil -> Object
 
 (defmethod ast-type :vector [ast]
-  clojure.lang.IPersistentVector)
+  clojure.lang.APersistentVector)
 
 (defmethod ast-type :set [ast]
-  clojure.lang.IPersistentSet)
+  clojure.lang.APersistentSet)
 
 (defmethod ast-type :map [ast]
-  clojure.lang.IPersistentMap)
+  clojure.lang.APersistentMap)
 
 (defmethod ast-type :static-method [ast]
   (-> ast :method .ReturnType))
