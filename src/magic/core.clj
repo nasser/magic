@@ -798,10 +798,7 @@
 (defn gen-fn-name [n]
   (string/replace
     (str (gensym
-           (str "magic$$"
-                *ns* "$$"
-                (or n "--anonymous--")
-                "$$")))
+           (str *ns* "$" (or n "fn") "$")))
     "."
     "$"))
 
