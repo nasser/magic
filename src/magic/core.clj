@@ -421,8 +421,7 @@
 
 (defn vector-compiler
   [{:keys [items]} compilers]
-  [(load-constant (int (count items)))
-   (prepare-array items compilers)
+  [(prepare-array items compilers)
    (il/call (interop/method clojure.lang.RT "vector" |System.Object[]|))])
 
 (defn set-compiler
