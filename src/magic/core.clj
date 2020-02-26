@@ -84,24 +84,24 @@
   (cond
     (nil? from)
     nil
-    
+
     ;; do nothing if the types are the same
     (= from to)
     nil
-    
+
     ;; cannot convert nil to value type
     (and (nil? from) (.IsValueType to))
     (throw (Exception. (str "Cannot convert nil to value type " to)))
-    
+
     ;; TODO truthiness
     (and (.IsValueType from)
          (= to Boolean))
     [(il/pop)
      (il/ldc-i4-1)]
-    
+
     (and
-      (= from Object)
-      (= to Boolean))
+     (= from Object)
+     (= to Boolean))
     (let [isbool (il/label)
           fls (il/label)
           end (il/label)]
@@ -119,13 +119,13 @@
        isbool
        (il/unbox-any Boolean)
        end])
-    
+
     (= to Boolean)
     [(il/ldnull)
      (il/ceq)
      (il/ldc-i4-0)
      (il/ceq)]
-    
+
     (and (= from Boolean)
          (= to Object))
     (let [istrue (il/label)
@@ -136,31 +136,31 @@
        istrue
        (il/ldsfld (interop/field Magic.Constants "True"))
        end])
-    
+
     ;; convert void to nil
     ;; TODO is this a terrible idea?
     (and (= System.Void from) (not (.IsValueType to)))
     (il/ldnull)
-    
+
     (and (= System.Void from) (.IsValueType to))
     (throw (Exception. (str "Cannot convert void to value type " to)))
-    
+
     ;; use user defined implicit conversion if it exists
     (interop/method to "op_Implicit" from)
     (il/call (interop/method to "op_Implicit" from))
-    
+
     ;; use user defined explicit conversion if it exists
     (interop/method to "op_Explicit" from)
     (il/call (interop/method to "op_Explicit" from))
-    
+
     ;; use intrinsic conv opcodes from primitive to primitive
     (and (.IsPrimitive from) (.IsPrimitive to))
     (intrinsic-conv to)
-    
+
     ;; box valuetypes to objects
     (and (.IsValueType from) (= to Object))
     (il/box from)
-    
+
     ;; RT casts
     (and (= from Object) (= to Single))
     (il/call (if *unchecked-math*
@@ -178,35 +178,34 @@
     (il/call (if *unchecked-math*
                (interop/method RT "uncheckedLongCast" from)
                (interop/method RT "longCast" from)))
-    
+
     ;; unbox objects to valuetypes
     (and (= from Object) (.IsValueType to))
-    #_
-    (let [fail (il/label)
-          end (il/label)]
-      [(il/dup)
-       (il/isinst to)
-       (il/brfalse fail)
-       (il/unbox-any to)
-       (il/br end)
-       fail
-       (il/callvirt (interop/method Object "GetType"))
-       (il/callvirt (interop/method Type "get_FullName"))
-       (il/ldstr (str " to " to))
-       (il/call (interop/method String "Concat" String String))
-       (il/newobj (interop/constructor InvalidCastException String))
-       (il/throw)
-       end])
+    #_(let [fail (il/label)
+            end (il/label)]
+        [(il/dup)
+         (il/isinst to)
+         (il/brfalse fail)
+         (il/unbox-any to)
+         (il/br end)
+         fail
+         (il/callvirt (interop/method Object "GetType"))
+         (il/callvirt (interop/method Type "get_FullName"))
+         (il/ldstr (str " to " to))
+         (il/call (interop/method String "Concat" String String))
+         (il/newobj (interop/constructor InvalidCastException String))
+         (il/throw)
+         end])
     (il/unbox-any to)
-    
+
     ;; castclass if to is a subclass of from
     (.IsSubclassOf to from)
     (il/castclass to)
-    
+
     ;; do nothing if converting to super class
     (.IsSubclassOf from to)
     nil
-    
+
     ;; emit ToString when possible
     (= to String)
     [(reference-to-type from)
@@ -214,8 +213,8 @@
         il/call
         il/callvirt)
       (interop/method from "ToString"))]
-    
-    
+
+
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
 
