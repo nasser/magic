@@ -43,7 +43,7 @@
     (= k 0)  (il/ldc-i4-0)
     (= k 1)  (il/ldc-i4-1)
     (= k -1) (il/ldc-i4-m1)
-    (< k 128) (il/ldc-i4-s (byte k))
+    (and (pos? k) (< k 128)) (il/ldc-i4-s (byte k))
     :else (il/ldc-i4 (int k))))
 
 (defn load-argument [{:keys [arg-id by-ref?]}]
