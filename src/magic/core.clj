@@ -810,28 +810,36 @@
     "$"))
 
 (defn fn-compiler
-  [{:keys [local methods raw-forms] :as ast} compilers]
-  (let [arities (map :fixed-arity methods)
-        param-types (->> methods
-                         (map :params)
-                         (mapcat #(vector (map non-void-ast-type %)
-                                          (map (constantly Object) %))))
-        return-types (->> methods
-                          (mapcat #(vector
-                                     (or (-> % :form first meta :tag types/resolve)
-                                         (-> % :body non-void-ast-type))
-                                     Object)))
-        interfaces (map #(interop/generic-type "Function" (conj %1 %2))
-                        param-types
-                        return-types)]
-    (il/type
-      (gen-fn-name (:form local))
-      TypeAttributes/Public
-      interfaces
-      clojure.lang.AFunction
-      [default-constructor
-       (has-arity-method arities)
-       (map #(compile % compilers) methods)])))
+  [{:keys [local methods raw-forms top-level] :as ast} compilers]
+  (if top-level
+    (let [arities (map :fixed-arity methods)
+          param-types (->> methods
+                           (map :params)
+                           (mapcat #(vector (map non-void-ast-type %)
+                                            (map (constantly Object) %))))
+          return-types (->> methods
+                            (mapcat #(vector
+                                      (or (-> % :form first meta :tag types/resolve)
+                                          (-> % :body non-void-ast-type))
+                                      Object)))
+          interfaces (map #(interop/generic-type "Magic.Function" (conj %1 %2))
+                          param-types
+                          return-types)]
+      (il/type
+       (gen-fn-name (:form local))
+       TypeAttributes/Public
+       interfaces
+       clojure.lang.AFunction
+       [default-constructor
+         (has-arity-method arities)
+         (map #(compile % compilers) methods)]))
+    ;; closure (eventually)
+    (let [fn-body (-> ast 
+                      (assoc :top-level true)
+                      (fn-compiler compilers))
+          generated-type (::il/type-builder (il/emit! fn-body))
+          ctor (interop/constructor generated-type)]
+      (il/newobj ctor))))
 
 (defn fn-method-compiler
   [{:keys [body params form] {:keys [ret statements]} :body} compilers]
