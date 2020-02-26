@@ -297,8 +297,6 @@
     (list true false nil)
     '(true false nil)
     (list 1 2.5 2/3 "ab" \x 'cd :kw)
-    '(1 2.5 2/3 "ab" \x cd :kw)
-    (list (list 1 2) [3 4] {:a 1 :b 2} #{:c :d})
     '((1 2) [3 4] {:a 1 :b 2} #{:c :d})
 
       ; evaluation
