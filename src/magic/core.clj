@@ -246,6 +246,16 @@
 (defmethod load-constant nil [k]
   (il/ldnull))
 
+(defmethod load-constant clojure.lang.PersistentList+EmptyList [k]
+  (il/ldsfld (interop/field clojure.lang.PersistentList "EMPTY")))
+
+(defmethod load-constant System.Text.RegularExpressions.Regex [re]
+  [(il/ldstr (str re))
+   (il/newobj (interop/constructor System.Text.RegularExpressions.Regex String))])
+
+(defmethod load-constant Char [c]
+  (il/ldc-i4 (int c)))
+
 (defmethod load-constant String [k]
   (il/ldstr k))
 
