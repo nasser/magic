@@ -206,6 +206,14 @@
     (.IsSubclassOf from to)
     nil
 
+    (and (.IsValueType from)
+         (.IsAssignableFrom to from))
+    [(reference-to-type from)
+     (il/box from)]
+    
+    (.IsAssignableFrom to from)
+    nil
+
     ;; emit ToString when possible
     (= to String)
     [(reference-to-type from)
