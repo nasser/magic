@@ -208,26 +208,29 @@
 (defmethod ast-type :invoke
   [{:keys [fn args]}]
   (resolve
-    (or (->> fn
-             :meta
-             :arglists
-             (filter #(= (count %) (count args)))
-             first
-             meta
-             :tag)
-        (let [arg-types (map ast-type args)
-              target-interfaces (var-interfaces fn)
+   (or (->> fn
+            :meta
+            :tag)
+       (->> fn
+            :meta
+            :arglists
+            (filter #(= (count %) (count args)))
+            first
+            meta
+            :tag)
+       (let [arg-types (map ast-type args)
+             target-interfaces (var-interfaces fn)
               ;; TODO this is hacky and gross
-              vt (var-type fn)
-              invokes (when vt
-                        (filter #(= (.Name %) "invoke")
-                                (.GetMethods vt)))
-              exact-match (when invokes
-                            (select-method invokes arg-types))]
-          (if exact-match
-            (.ReturnType exact-match)
-            Object))
-        Object)))
+             vt (var-type fn)
+             invokes (when vt
+                       (filter #(= (.Name %) "invoke")
+                               (.GetMethods vt)))
+             exact-match (when invokes
+                           (select-method invokes arg-types))]
+         (if exact-match
+           (.ReturnType exact-match)
+           Object))
+       Object)))
 
 (defmethod ast-type :new [ast]
   (:type ast))
