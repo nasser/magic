@@ -58,8 +58,10 @@
 (deftest try-catch-throw
   (cljclr=magic
    (try 90 (catch Exception e 89))
-   (try (throw (Exception. "oops")) 90 (catch Exception e 89)))
-  )
+   (try (throw (Exception. "oops")) 90 (catch Exception e 89))
+   (try 1 (catch Exception e (clojure.lang.RT/load "hello")))
+   (try 1 (catch Exception e (throw e)))
+   (type (try 1 (catch Exception e (throw e)))) ) )
 
 (deftest set!-expr
   (cljclr=magic
