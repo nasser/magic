@@ -241,7 +241,7 @@
        items)))
 
 (defmethod load-constant :default [k]
-  (throw! "load-constant not implemented for " (type k)))
+  (throw! "load-constant not implemented for " k " (" (type k) ")" ))
 
 (defmethod load-constant nil [k]
   (il/ldnull))
