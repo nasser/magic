@@ -899,6 +899,8 @@
 
 (defn throw-compiler
   [{:keys [exception]} compilers]
+  (when-not exception
+    (throw (Exception. "throw must take an argument outside of a catch")))
   [(compile exception compilers)
    (il/throw)])
 

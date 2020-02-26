@@ -123,11 +123,15 @@
    :children [:target]})
 
 (defn parse-throw
-  [[_ throw :as form] env]
+  [[_ exception :as form] env]
+  (when (> (count form) 2)
+    (throw (ex-info (str "Wrong number of args to throw, had: " (dec (count form)))
+                    (merge {:form form}
+                           (-source-info form env)))))
   {:op        :throw
    :env       env
    :form      form
-   :exception (when throw (ana/analyze throw (ctx env :ctx/expr)))
+   :exception (when exception (ana/analyze exception (ctx env :ctx/expr)))
    :children  [:exception]})
 
 (defn parse
