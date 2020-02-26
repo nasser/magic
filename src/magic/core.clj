@@ -286,7 +286,7 @@
 
 (defmethod load-constant clojure.lang.Ratio [r]
   [(load-constant (str r))
-   (il/call (interop/method clojure.lang.RT "readString" String))
+   (il/call (interop/method clojure.lang.LispReader "MatchNumber" String))
    (il/castclass clojure.lang.Ratio)])
 
 (defmethod load-constant clojure.lang.BigInt [k]
@@ -294,7 +294,7 @@
     [(load-constant (.Lpart k))
      (il/call (interop/method clojure.lang.BigInt "fromLong" Int64))]
     [(load-constant (str k "N"))
-     (il/call (interop/method clojure.lang.RT "readString" String))
+     (il/call (interop/method clojure.lang.LispReader "MatchNumber" String))
      (il/castclass clojure.lang.BigInt)]))
 
 (defmethod load-constant Single [k]
