@@ -431,9 +431,8 @@
 
 (defn map-compiler
   [{:keys [keys vals]} compilers]
-  [(load-constant (int (+ (count keys) (count vals))))
-   (prepare-array (interleave keys vals) compilers)
-   (il/call (interop/method clojure.lang.PersistentArrayMap "createWithCheck" |System.Object[]|))])
+  [(prepare-array (interleave keys vals) compilers)
+   (il/call (interop/method clojure.lang.RT "mapUniqueKeys" |System.Object[]|))])
 
 (defn quote-compiler
   [{:keys [expr]} compilers]
