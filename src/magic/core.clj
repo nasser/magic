@@ -297,6 +297,10 @@
      (il/call (interop/method clojure.lang.LispReader "MatchNumber" String))
      (il/castclass clojure.lang.BigInt)]))
 
+(defmethod load-constant clojure.lang.BigDecimal [k]
+  [(il/ldstr (str k))
+   (il/call (interop/method clojure.lang.BigDecimal "Parse" String))])
+
 (defmethod load-constant Single [k]
   (il/ldc-r4 k))
 
