@@ -292,7 +292,7 @@
     ; #'collect-vars
     ; #'cleanup
     #'elide-meta
-    #'warn-earmuff
+    ; #'warn-earmuff
     #'collect-vars
     ; #'collect-closed-overs
     ; #'add-binding-atom
