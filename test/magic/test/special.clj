@@ -1,5 +1,6 @@
 (ns magic.test.special
-  (:use clojure.test magic.test.common))
+  (:require [clojure.test :refer [deftest]])
+  (:use magic.test.common))
 
 (deftest if-expr
   (cljclr=magic

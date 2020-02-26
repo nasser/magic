@@ -1,5 +1,6 @@
 (ns magic.test.interop
-  (:use clojure.test magic.test.common))
+  (:require [clojure.test :refer [deftest]])
+  (:use magic.test.common))
 
 (deftest static-methods
   (cljclr=magic

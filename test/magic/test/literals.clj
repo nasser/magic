@@ -1,5 +1,6 @@
 (ns magic.test.literals
-  (:use clojure.test magic.test.common))
+  (:require [clojure.test :refer [deftest]])
+  (:use magic.test.common))
 
  (deftest constants
    (cljclr=magic 2)

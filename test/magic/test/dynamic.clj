@@ -1,5 +1,6 @@
 (ns magic.test.dynamic
-  (:use clojure.test magic.test.common))
+  (:require [clojure.test :refer [deftest]])
+  (:use magic.test.common))
 
 ;; using identity to drop type information
 
@@ -13,5 +14,5 @@
 (deftest method-invocation
   (cljclr=magic
    (.Substring (identity "hello") 2 3)
+   (.Substring (identity "hello") 2.5 3.2)
    (.Substring (identity "hello") (int 2) (int 3))))
-
