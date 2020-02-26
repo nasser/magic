@@ -8,7 +8,8 @@
    (if 1 2 3)
    (if "hello" 2 3)
    (if true 1)
-   (if false 1)))
+   (if false 1)
+   (if (< 10 1) 2 (clojure.lang.RT/load "run"))))
 
 (deftest let-expr
   (cljclr=magic
