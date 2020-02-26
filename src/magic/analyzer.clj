@@ -122,12 +122,21 @@
    :target   (ana/analyze target (ctx env :ctx/expr))
    :children [:target]})
 
+(defn parse-throw
+  [[_ throw :as form] env]
+  {:op        :throw
+   :env       env
+   :form      form
+   :exception (when throw (ana/analyze throw (ctx env :ctx/expr)))
+   :children  [:exception]})
+
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
   [form env]
   ((case (first form)
      monitor-enter        parse-monitor-enter
      monitor-exit         parse-monitor-exit
+     throw                parse-throw
      #_:else              ana/-parse)
    form env))
 

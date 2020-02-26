@@ -897,6 +897,11 @@
        (when-not (= expr-type System.Void)
          (il/ldloc try-local))])))
 
+(defn throw-compiler
+  [{:keys [exception]} compilers]
+  [(compile exception compilers)
+   (il/throw)])
+
 (defn catch-compiler
   [{:keys [class local body]} compilers]
   (let [catch-local-name (:name local)
@@ -910,16 +915,18 @@
                     (if by-ref?
                       (il/ldloca catch-local)
                       (il/ldloc catch-local))
-                    (compile ast compilers)))})]
+                    (compile ast compilers)))
+                :throw
+                (fn catch-throw-compiler
+                  [{:keys [exception] :as ast} cmplrs]
+                  (if-not exception
+                    (il/rethrow)
+                    (throw-compiler ast cmplrs)))
+                })]
     (il/catch
-      (-> class :val)
-      [(il/stloc catch-local)
-       (compile body specialized-compilers)])))
-
-(defn throw-compiler
-  [{:keys [exception]} compilers]
-  [(compile exception compilers)
-   (il/throw)])
+     (-> class :val)
+     [(il/stloc catch-local)
+      (compile body specialized-compilers)])))
 
 (defn monitor-enter-compiler
   [{:keys [target]} compilers]
