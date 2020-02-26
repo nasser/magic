@@ -316,21 +316,41 @@
    (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
 
 (defmethod load-constant
-  clojure.lang.PersistentList [v]
+  clojure.lang.IPersistentList [v]
   [(new-array (map (fn [c] [(load-constant c)
                             (convert (type c) Object)])
                    v))
    (il/castclass System.Collections.IList)
    (il/call (interop/method clojure.lang.PersistentList "create" System.Collections.IList))
-   (il/castclass clojure.lang.PersistentList)])
+   (il/castclass clojure.lang.IPersistentList)])
 
 (defmethod load-constant
-  clojure.lang.PersistentVector [v]
+  clojure.lang.APersistentVector [v]
   [(new-array (map (fn [c] [(load-constant c)
                             (convert (type c) Object)])
                    v))
    (il/call (interop/method clojure.lang.RT "vector" System.Object|[]|))
-   (il/castclass clojure.lang.PersistentVector)])
+   (il/castclass clojure.lang.APersistentVector)])
+
+(defmethod load-constant
+  clojure.lang.APersistentSet [v]
+  [(new-array (map (fn [c] [(load-constant c)
+                            (convert (type c) Object)])
+                   v))
+   (il/call (interop/method clojure.lang.RT "set" System.Object|[]|))
+   (il/castclass clojure.lang.APersistentSet)])
+
+(defmethod load-constant
+  clojure.lang.APersistentMap [v]
+  [(new-array (map
+               (fn [[k v]]
+                 [(load-constant k)
+                  (convert (type k) Object)
+                  (load-constant v)
+                  (convert (type v) Object)                  ])
+               v))
+   (il/call (interop/method clojure.lang.RT "mapUniqueKeys" System.Object|[]|))
+   (il/castclass clojure.lang.APersistentMap)])
 
 (defn load-var [v]
   (let [nsname  (.. v Namespace Name ToString)
