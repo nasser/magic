@@ -287,7 +287,8 @@
     [(load-constant (.Lpart k))
      (il/call (interop/method clojure.lang.BigInt "fromLong" Int64))]
     [(load-constant (str k "N"))
-     (il/call (interop/method clojure.lang.RT "readString" String))]))
+     (il/call (interop/method clojure.lang.RT "readString" String))
+     (il/castclass clojure.lang.BigInt)]))
 
 (defmethod load-constant Single [k]
   (il/ldc-r4 k))
