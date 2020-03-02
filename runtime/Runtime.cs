@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Reflection;
 using System.Linq;
 
@@ -10,15 +10,20 @@ namespace Magic
         public static object SetMember(object o, string name, object value)
         {
             var oType = o.GetType();
+            var valueType = value.GetType();
             var field = oType.GetField(name);
             if (field != null)
             {
+                if(field.FieldType.IsPrimitive && valueType.IsPrimitive)
+                    value = Convert.ChangeType(value, field.FieldType);
                 field.SetValue(o, value);
                 return value;
             }
             var property = oType.GetProperty(name);
             if (property != null)
             {
+                if(property.PropertyType.IsPrimitive && valueType.IsPrimitive)
+                    value = Convert.ChangeType(value, property.PropertyType);
                 property.SetValue(o, value);
                 return value;
             }
