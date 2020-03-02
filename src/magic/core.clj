@@ -269,6 +269,12 @@
 (defmethod load-constant Int32 [k]
   (load-integer k))
 
+(defmethod load-constant Int16 [k]
+  (il/ldc-i4 (int k)))
+
+(defmethod load-constant UInt16 [k]
+  (il/ldc-i4 (int k)))
+
 (defmethod load-constant Int64 [k]
   (il/ldc-i8 k))
 
