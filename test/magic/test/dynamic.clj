@@ -16,3 +16,10 @@
    (.Substring (identity "hello") 2 3)
    (.Substring (identity "hello") 2.5 3.2)
    (.Substring (identity "hello") (int 2) (int 3))))
+
+(deftest field-read
+  (cljclr=magic
+   (let [xx (identity (System.Security.Cryptography.CspParameters.))]
+     (.KeyContainerName xx))
+   (let [xx (identity (System.Security.Cryptography.CspParameters.))]
+     (.KeyNumber xx))))
