@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 using System.Linq;
 
@@ -6,6 +6,25 @@ namespace Magic
 {
     public static class Dispatch
     {
+        // (set! (.name o) value)
+        public static object SetMember(object o, string name, object value)
+        {
+            var oType = o.GetType();
+            var field = oType.GetField(name);
+            if (field != null)
+            {
+                field.SetValue(o, value);
+                return value;
+            }
+            var property = oType.GetProperty(name);
+            if (property != null)
+            {
+                property.SetValue(o, value);
+                return value;
+            }
+            throw new Exception($"Could not set member `{name}` on target {o.ToString()}, no such member exists.");
+        }
+        
         // (.name o)
         public static object InvokeZeroArityMember(object o, string name)
         {

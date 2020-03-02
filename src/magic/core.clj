@@ -778,7 +778,16 @@
          (convert (ast-type val) (.PropertyType property))
          (il/call (.GetSetMethod property))
          (if value-used?
-           (il/ldloc v))]))))
+           (il/ldloc v))])
+      (= target-op :dynamic-zero-arity)
+      [(compile-reference-to target' compilers)
+       (load-constant (str (-> target :m-or-f)))
+       (compile val compilers)
+       (convert (ast-type val) Object)
+       (il/call (magic.interop/method Magic.Dispatch "SetMember" Object String Object))
+       (convert Object (ast-type val))
+       (when-not value-used?
+         (il/pop))])))
 
 (defn has-arity-method
   "Symbolic bytecode for the IFnArity.HasArity method"
