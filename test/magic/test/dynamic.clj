@@ -33,6 +33,10 @@
    (let [xx (identity (System.Security.Cryptography.CspParameters.))]
      (set! (.KeyContainerName xx) "Hello!")
      (.KeyContainerName xx))
-   (let [xx (identity (System.Security.Cryptography.CspParameters.))]
-     (set! (.KeyNumber xx) 99)
-     (.KeyNumber xx))))
+   ;; works in MAGIC because we convert more consistently
+   ;; fails in ClojureCLR because Int64 cannot be converted to Int32
+   ;; in this context
+   #_
+     (let [xx (identity (System.Security.Cryptography.CspParameters.))]
+       (set! (.KeyNumber xx) 99)
+       (.KeyNumber xx))))
