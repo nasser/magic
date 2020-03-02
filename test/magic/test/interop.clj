@@ -28,6 +28,12 @@
    (.Substring "hello world" 2 4)
    (.Substring "hello world" (int 2) (int 4))))
 
+(deftest instance-fields
+  (let [xx (System.Security.Cryptography.CspParameters.)]
+    (.KeyContainerName xx))
+  (let [xx (System.Security.Cryptography.CspParameters.)]
+    (.KeyNumber xx)))
+
 (deftest constructor
   (cljclr=magic
    (Version. 1 2 3)
