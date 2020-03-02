@@ -23,3 +23,12 @@
      (.KeyContainerName xx))
    (let [xx (identity (System.Security.Cryptography.CspParameters.))]
      (.KeyNumber xx))))
+
+(deftest field-set
+  (cljclr=magic
+   (let [xx (identity (System.Security.Cryptography.CspParameters.))]
+     (set! (.KeyContainerName xx) "Hello!")
+     (.KeyContainerName xx))
+   (let [xx (identity (System.Security.Cryptography.CspParameters.))]
+     (set! (.KeyNumber xx) 99)
+     (.KeyNumber xx))))
