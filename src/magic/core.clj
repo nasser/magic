@@ -505,27 +505,16 @@
 (defn dynamic-field-compiler
   "Symbolic bytecode for dynamic fields"
   [{:keys [field target]} compilers]
-  (let [target-local (il/local)
-        target-type (il/local Type)
-        reflected-field (il/local FieldInfo)
-        valid-field (il/label)]
-    [(compile-reference-to target compilers)
-     (il/stloc target-local)
-     (il/ldloc target-local)
-     (il/callvirt (interop/method Object "GetType"))
-     (il/stloc target-type)
-     (il/ldloc target-type)
-     (load-constant (str field))
-     (il/callvirt (interop/method Type "GetField" String))
-     (il/stloc reflected-field)
-     (il/ldloc reflected-field)
-     (il/brtrue valid-field)
-     (il/ldnull)
-     valid-field
-     (il/ldloc reflected-field)
-     (il/ldloc target-local)
-     (il/callvirt (interop/method FieldInfo "GetValue" Object))
-     ]))
+  [(compile-reference-to target compilers)
+   (load-constant (str field))
+   (il/call (interop/method Magic.Dispatch "InvokeZeroArityMember" Object String))])
+
+(defn dynamic-zero-arity-compiler
+  "Symbolic bytecode for dynamic fields"
+  [{:keys [:m-or-f target]} compilers]
+  [(compile-reference-to target compilers)
+   (load-constant (str m-or-f))
+   (il/call (interop/method Magic.Dispatch "InvokeZeroArityMember" Object String))])
 
 (defn static-method-compiler
   "Symbolic bytecode for static methods"
@@ -1008,6 +997,7 @@
    :static-field        #'static-field-compiler
    :instance-field      #'instance-field-compiler
    :dynamic-field       #'dynamic-field-compiler
+   :dynamic-zero-arity  #'dynamic-zero-arity-compiler
    :static-method       #'static-method-compiler
    :instance-method     #'instance-method-compiler
    :initobj             #'initobj-compiler
