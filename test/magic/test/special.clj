@@ -186,3 +186,18 @@
        (catch IndexOutOfRangeException e 45))
      (catch Exception e 10)
      (catch IndexOutOfRangeException e 45))))
+
+(deftest quote-exprs
+  (cljclr=magic
+   (quote (+ 1 2 4 5))
+   (quote (+ 1 "2" 4 "5"))
+   (quote (+ a b c d))
+   (quote [1 2 3 4])
+   (quote ["1" 2 "3" 4])
+   (quote [a b c d])
+   (quote {:foo 1 :bar 2})
+   (quote {:foo a :bar 2})
+   (quote {a b c d})
+   (quote #{1 2 3 4})
+   (quote #{"1" 2 "3" 4})
+   (quote #{a b c d})))

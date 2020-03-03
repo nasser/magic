@@ -214,6 +214,9 @@
     (.IsAssignableFrom to from)
     nil
 
+    (.IsAssignableFrom from to)
+    (il/castclass to)
+
     ;; emit ToString when possible
     (= to String)
     [(reference-to-type from)
@@ -334,40 +337,42 @@
 
 (defmethod load-constant
   clojure.lang.IPersistentList [v]
-  [(new-array (map (fn [c] [(load-constant c)
-                            (convert (type c) Object)])
-                   v))
-   (il/castclass System.Collections.IList)
-   (il/call (interop/method clojure.lang.PersistentList "create" System.Collections.IList))
-   (il/castclass clojure.lang.IPersistentList)])
+  (let [method (interop/method clojure.lang.PersistentList "create" System.Collections.IList)]
+    [(new-array (map (fn [c] [(load-constant c)
+                              (convert (type c) Object)])
+                     v))
+     (il/castclass System.Collections.IList)
+     (il/call method)
+     (convert (.ReturnType method) (types/data-structure-types :seq))]))
 
 (defmethod load-constant
   clojure.lang.APersistentVector [v]
-  [(new-array (map (fn [c] [(load-constant c)
-                            (convert (type c) Object)])
-                   v))
-   (il/call (interop/method clojure.lang.RT "vector" System.Object|[]|))
-   (il/castclass clojure.lang.APersistentVector)])
+  (let [method (interop/method clojure.lang.RT "vector" System.Object|[]|)]
+    [(new-array (map (fn [c] [(load-constant c)
+                              (convert (type c) Object)])
+                     v))
+     (il/call method)
+     (convert (.ReturnType method) (types/data-structure-types :vector))]))
 
 (defmethod load-constant
   clojure.lang.APersistentSet [v]
-  [(new-array (map (fn [c] [(load-constant c)
-                            (convert (type c) Object)])
-                   v))
-   (il/call (interop/method clojure.lang.RT "set" System.Object|[]|))
-   (il/castclass clojure.lang.APersistentSet)])
+  (let [method (interop/method clojure.lang.RT "set" System.Object|[]|)]
+    [(new-array (map (fn [c] [(load-constant c)
+                              (convert (type c) Object)])
+                     v))
+     (il/call method)
+     (convert (.ReturnType method) (types/data-structure-types :set))]))
 
 (defmethod load-constant
   clojure.lang.APersistentMap [v]
-  [(new-array (map
-               (fn [[k v]]
+  (let [method (interop/method clojure.lang.RT "mapUniqueKeys" System.Object|[]|)]
+    [(->> (interleave (keys v) (vals v))
+          (map (fn [k]
                  [(load-constant k)
-                  (convert (type k) Object)
-                  (load-constant v)
-                  (convert (type v) Object)                  ])
-               v))
-   (il/call (interop/method clojure.lang.RT "mapUniqueKeys" System.Object|[]|))
-   (il/castclass clojure.lang.APersistentMap)])
+                  (convert (type k) Object) ]))
+          new-array)
+     (il/call method)
+     (convert (.ReturnType method) (types/data-structure-types :map))]))
 
 (defn load-var [v]
   (let [nsname  (.. v Namespace Name ToString)
@@ -457,20 +462,25 @@
   (load-constant val))
 
 (defn vector-compiler
-  [{:keys [items]} compilers]
-  [(prepare-array items compilers)
-   (il/call (interop/method clojure.lang.RT "vector" |System.Object[]|))])
+  [{:keys [items] :as ast} compilers]
+  (let [method (interop/method clojure.lang.RT "vector" |System.Object[]|)]
+    [(prepare-array items compilers)
+     (il/call method)
+     (convert (.ReturnType method) (ast-type ast))]))
 
 (defn set-compiler
-  [{:keys [items]} compilers]
-  [(prepare-array items compilers)
-   (il/call (interop/method clojure.lang.RT "set" |System.Object[]|))])
+  [{:keys [items] :as ast} compilers]
+  (let [method (interop/method clojure.lang.RT "set" |System.Object[]|)]
+    [(prepare-array items compilers)
+     (il/call method)
+     (convert (.ReturnType method) (ast-type ast))]))
 
 (defn map-compiler
-  [{:keys [keys vals]} compilers]
-  [(prepare-array (interleave keys vals) compilers)
-   (il/call (interop/method clojure.lang.RT "mapUniqueKeys" |System.Object[]|))
-   (il/castclass clojure.lang.APersistentMap)])
+  [{:keys [keys vals] :as ast} compilers]
+  (let [method (interop/method clojure.lang.RT "mapUniqueKeys" |System.Object[]|)]
+    [(prepare-array (interleave keys vals) compilers)
+     (il/call method)
+     (convert (.ReturnType method) (ast-type ast))]))
 
 (defn quote-compiler
   [{:keys [expr]} compilers]

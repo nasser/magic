@@ -160,8 +160,17 @@
     System.Void
     (ast-type val)))
 
+(def data-structure-types
+  {:seq clojure.lang.IPersistentList
+   :vector clojure.lang.APersistentVector
+   :set clojure.lang.APersistentSet
+   :map clojure.lang.APersistentMap})
+
 (defmethod ast-type :quote
-  [{:keys [expr] :as ast}] (ast-type expr))
+  [{:keys [expr] :as ast}]
+  (or 
+   (data-structure-types (:type expr))
+   (ast-type expr)))
 
 (defmethod ast-type :maybe-class
   [{:keys [class] :as ast}]
