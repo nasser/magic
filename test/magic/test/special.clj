@@ -201,3 +201,14 @@
    (quote #{1 2 3 4})
    (quote #{"1" 2 "3" 4})
    (quote #{a b c d})))
+
+(deftest with-meta-exprs
+  (cljclr=magic
+   (let [xx (* 9 Math/PI) jj ^{:meta "data" :expr xx} [1 2 3 4]]
+     jj)
+   (let [xx (* 9 Math/PI) jj ^{:meta "data" :expr xx} [1 2 3 4]]
+     (meta jj))
+   (let [jj ^{:meta "data"} [1 2 3 4]] jj)
+   (let [jj ^{:meta "data"} [1 2 3 4]] (meta jj))
+   (let [jj ^{:meta "data"} {:foo 12}] jj)
+   (let [jj ^{:meta "data"} {:foo 12}] (meta jj))))

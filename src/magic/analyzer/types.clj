@@ -196,6 +196,9 @@
 (defmethod ast-type :map [ast]
   clojure.lang.APersistentMap)
 
+(defmethod ast-type :with-meta [{:keys [expr]}]
+  clojure.lang.IObj) ;; ??
+
 (defmethod ast-type :static-method [ast]
   (-> ast :method .ReturnType))
 

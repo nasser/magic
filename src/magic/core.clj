@@ -587,6 +587,18 @@
             (interop/parameter-types constructor)))
      (il/newobj constructor)]))
 
+(defn with-meta-compiler
+  "Symbolic bytecode for expressions wrapped in with-meta"
+  [{:keys [expr meta] :as ast} compilers]
+  (let [expr-type (ast-type expr)
+        meta-type (ast-type meta)]
+    [(compile expr compilers)
+     ; (convert expr-type clojure.lang.IObj)
+     (il/castclass clojure.lang.IObj)
+     (compile meta compilers)
+     (convert meta-type clojure.lang.IPersistentMap)
+     (il/callvirt (interop/method clojure.lang.IObj "withMeta" clojure.lang.IPersistentMap))]))
+
 (defn let-compiler
   [{:keys [bindings body loop-id] :as ast} compilers]
   (let [;; uniqued names -> il/locals
@@ -1017,6 +1029,7 @@
    :instance-method     #'instance-method-compiler
    :initobj             #'initobj-compiler
    :new                 #'new-compiler
+   :with-meta           #'with-meta-compiler
    :intrinsic           #'intrinsic-compiler
    })
 
