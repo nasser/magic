@@ -469,7 +469,8 @@
 (defn map-compiler
   [{:keys [keys vals]} compilers]
   [(prepare-array (interleave keys vals) compilers)
-   (il/call (interop/method clojure.lang.RT "mapUniqueKeys" |System.Object[]|))])
+   (il/call (interop/method clojure.lang.RT "mapUniqueKeys" |System.Object[]|))
+   (il/castclass clojure.lang.APersistentMap)])
 
 (defn quote-compiler
   [{:keys [expr]} compilers]
