@@ -728,6 +728,10 @@
   [(load-var var)
    (get-var var)])
 
+(defn the-var-compiler
+  [{:keys [var] :as ast} compilers]
+  [(load-var var)])
+
 
 (defn set!-compiler
   [{:keys [target val] :as ast} compilers]
@@ -995,7 +999,7 @@
    :binding             #'binding-compiler
    :invoke              #'invoke-compiler
    :var                 #'var-compiler
-   :the-var             #'var-compiler
+   :the-var             #'the-var-compiler
    :set!                #'set!-compiler
    :try                 #'try-compiler
    :catch               #'catch-compiler
