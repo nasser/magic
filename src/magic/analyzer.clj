@@ -134,6 +134,27 @@
    :exception (when exception (ana/analyze exception (ctx env :ctx/expr)))
    :children  [:exception]})
 
+(defn parse-case*
+  [[_ sym shift mask default imap switch-type mode skip-check :as form] env]
+  (let [switch-values (->> imap keys vec)
+        tests (->> imap vals (map first) vec)
+        expressions (->> imap vals (map last) (map #(ana/analyze % (ctx env :ctx/expr))) vec)]
+    {:op :case
+     :env env
+     :form form
+     :local (ana/analyze (with-meta sym {}) (ctx env :ctx/expr))
+     :shift shift
+     :mask mask
+     :default (ana/analyze default (ctx env :ctx/expr))
+     :imap imap
+     :switch-type switch-type
+     :mode mode
+     :skip-check skip-check
+     :switch-values switch-values
+     :tests tests
+     :expressions expressions
+     :children [:local :default :expressions]}))
+
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
   [form env]
@@ -141,6 +162,7 @@
      monitor-enter        parse-monitor-enter
      monitor-exit         parse-monitor-exit
      throw                parse-throw
+     case*                parse-case*
      #_:else              ana/-parse)
    form env))
 
@@ -179,7 +201,14 @@
                (cond
 
                 macro?
-                (let [res (apply v form (:locals env) (rest form))] ; (m &form &env & args)
+                (let [res' (apply v form (:locals env) (rest form)) ; (m &form &env & args)
+                      ;; the case macro in the standard library explicitly tags
+                      ;; the local it generates as object which messes up type flow
+                      ;; we remove the tag here
+                      res (if (= v #'clojure.core/case)
+                            (let [[head bindings body] res']
+                              `(~head ~(update bindings 0 #(with-meta % {})) ~body))
+                            res')] 
                   (update-ns-map!)
                   (if (obj? res)
                     (vary-meta res merge (meta form))

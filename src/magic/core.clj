@@ -996,6 +996,108 @@
   [{:keys [original type il-fn]} compilers]
   (il-fn original type compilers))
 
+
+(defn case-compiler
+  [{:keys [shift mask default switch-type local mode skip-check switch-values tests expressions] :as ast} compilers]
+  (let [smallest-switch-value (apply min switch-values)
+        largest-switch-value (apply max switch-values)
+        labels (vec (repeatedly (count switch-values) #(il/label)))
+        ;; idk why we need two labels here, this looks like a MAGE bug
+        default-label (il/label)
+        default-label2 (il/label)
+        return-label (il/label)
+        label-map (zipmap (map #(- % smallest-switch-value) switch-values) labels)
+        jump-table-size (inc (- largest-switch-value smallest-switch-value))
+        jump-table (map #(if-let [clause-label (label-map %)]
+                           clause-label
+                           default-label)
+                        (range jump-table-size))
+        expr-type (ast-type ast)
+        local-type (ast-type local)
+        match-value-il
+        (case mode
+          :int
+          [(if (types/integer-type? local-type)
+             [(compile local compilers)
+              (convert local-type Int32)]
+             [(compile local compilers)
+              (il/call (interop/method clojure.lang.Util "IsNonCharNumeric" Object))
+              (il/brfalse default-label2)
+              (compile local compilers)
+              (convert local-type Int32)])]
+          (:hash-equiv :hash-identity)
+          [(compile local compilers)
+           (convert local-type Object)
+           (il/call (interop/method clojure.lang.Util "hash" Object))])
+        switch-body-il
+        (case mode
+          :int
+          (map
+           (fn [label test expression]
+             [label
+              (when-not (= local-type Int32)
+                [(compile local compilers)
+                 (convert local-type Object)
+                 (load-constant test)
+                 (convert (type test) Object)
+                 (il/call (interop/method clojure.lang.Util "equiv" Object Object))
+                 (il/brfalse default-label2)])
+              (compile expression compilers)
+              (convert (ast-type expression) expr-type)
+              (il/br return-label)])
+           labels
+           tests
+           expressions)
+          :hash-identity
+          (map
+           (fn [label test expression]
+             [label
+              (compile local compilers)
+              (load-constant test)
+              (il/ceq)
+              (il/brfalse default-label2)
+              (compile expression compilers)
+              (convert (ast-type expression) expr-type)
+              (il/br return-label)])
+           labels
+           tests
+           expressions)
+          :hash-equiv
+          (map
+           (fn [label test expression]
+             [label
+              (compile local compilers)
+              (convert local-type Object)
+              (load-constant test)
+              (convert (type test) Object)
+              (il/call (interop/method clojure.lang.Util "equiv" Object Object))
+              (il/brfalse default-label2)
+              (compile expression compilers)
+              (convert (ast-type expression) expr-type)
+              (il/br return-label)])
+           labels
+           tests
+           expressions)
+          )]
+    [match-value-il
+     (when (pos? shift)
+       [(load-constant (int shift))
+        (il/shr)])
+     (when (pos? mask)
+       [(load-constant (int mask))
+        (il/and)])
+     (when (pos? smallest-switch-value)
+       [(load-constant (int smallest-switch-value))
+        (il/sub)])
+     (il/switch jump-table)
+     (il/br default-label2)
+     switch-body-il
+     default-label ;; this looks like a MAGE bug
+     default-label2
+     (compile default compilers)
+     (convert (ast-type default) expr-type)
+     return-label]))
+
 (def base-compilers
   {:const               #'const-compiler
    :do                  #'do-compiler
@@ -1031,7 +1133,7 @@
    :new                 #'new-compiler
    :with-meta           #'with-meta-compiler
    :intrinsic           #'intrinsic-compiler
-   })
+   :case                #'case-compiler})
 
 (def ^:dynamic *spells* [])
 

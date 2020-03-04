@@ -117,8 +117,15 @@
 (def numeric
   (set numeric-promotion-order))
 
+(defn numeric-type? [t]
+  (numeric t))
+
 (def integer
   (disj numeric Single Double))
+
+(defn integer-type? [t]
+  (integer t))
+
 
 (defn best-numeric-promotion [types]
   (and (or (every? numeric types) nil)
@@ -153,6 +160,13 @@
 (defmethod ast-type :do
   [{:keys [ret] :as ast}]
   (ast-type ret))
+
+(defmethod ast-type :case
+  [{:keys [expressions default] :as ast}]
+  (let [result-types (into #{(ast-type default)} (map ast-type expressions))]
+    (if (= 1 (count result-types))
+      (first result-types)
+      Object)))
 
 (defmethod ast-type :set!
   [{:keys [val] {:keys [context]} :env}]
