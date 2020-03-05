@@ -1095,7 +1095,7 @@
      (when (pos? mask)
        [(load-constant (int mask))
         (il/and)])
-     (when (pos? smallest-switch-value)
+     (when-not (zero? smallest-switch-value)
        [(load-constant (int smallest-switch-value))
         (il/sub)])
      (il/switch jump-table)
