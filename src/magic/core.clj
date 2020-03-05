@@ -1017,10 +1017,15 @@
         match-value-il
         (case mode
           :int
-          [(if (types/integer-type? local-type)
+          [(cond
+             (types/integer-type? local-type)
              [(compile local compilers)
               (convert local-type Int32)]
+             (= Char local-type)
+             (il/br default-label2)
+             :else
              [(compile local compilers)
+              (convert local-type Object)
               (il/call (interop/method clojure.lang.Util "IsNonCharNumeric" Object))
               (il/brfalse default-label2)
               (compile local compilers)
