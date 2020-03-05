@@ -1041,13 +1041,14 @@
            (fn [label test expression]
              [label
               (when-not (= local-type Int32)
-                (let [well-typed-equiv (interop/method clojure.lang.Util "equiv" local-type (type test))]
+                (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (type test))
+                                       (interop/method clojure.lang.Util "equiv" Object Object))
+                      parameter-types (->> equiv-method .GetParameters (map #(.ParameterType %)))]
                   [(compile local compilers)
-                   (when-not well-typed-equiv (convert local-type Object))
+                   (convert local-type (first parameter-types))
                    (load-constant test)
-                   (when-not well-typed-equiv (convert (type test) Object))
-                   (il/call (or well-typed-equiv
-                                (interop/method clojure.lang.Util "equiv" Object Object)))
+                   (convert (type test) (last parameter-types))
+                   (il/call equiv-method)
                    (il/brfalse default-label2)]))
               (compile expression compilers)
               (convert (ast-type expression) expr-type)
@@ -1072,14 +1073,15 @@
           :hash-equiv
           (map
            (fn [label test expression]
-             (let [well-typed-equiv (interop/method clojure.lang.Util "equiv" local-type (type test))]
+             (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (type test))
+                                    (interop/method clojure.lang.Util "equiv" Object Object))
+                   parameter-types (->> equiv-method .GetParameters (map #(.ParameterType %)))]
                [label
                 (compile local compilers)
-                (when-not well-typed-equiv (convert local-type Object))
+                (convert local-type (first parameter-types))
                 (load-constant test)
-                (when-not well-typed-equiv (convert (type test) Object))
-                (il/call (or well-typed-equiv
-                             (interop/method clojure.lang.Util "equiv" Object Object)))
+                (convert (type test) (last parameter-types))
+                (il/call equiv-method)
                 (il/brfalse default-label2)
                 (compile expression compilers)
                 (convert (ast-type expression) expr-type)
