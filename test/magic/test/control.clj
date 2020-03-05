@@ -242,54 +242,52 @@
 
 (deftest test-case
   (testing "can match many kinds of things"
-    (let [two 2
-          test-fn
-          #(case %
-             1 :number
-             "foo" :string
-             \a :char
-             pow :symbol
-             :zap :keyword
-             (2 \b "bar") :one-of-many
-             [1 2] :sequential-thing
-             {:a 2} :map
-             {:r 2 :d 2} :droid
-             #{2 3 4 5} :set
-             [1 [[[2]]]] :deeply-nested
-             nil :nil
-             :default)]
-      (are [result input] (= result (test-fn input))
-        :number 1
-        :string "foo"
-        :char \a
-        :keyword :zap
-        :symbol 'pow
-        :one-of-many 2
-        :one-of-many \b
-        :one-of-many "bar"
-        :sequential-thing [1 2]
-        :sequential-thing (list 1 2)
-        :sequential-thing [1 two]
-        :map {:a 2}
-        :map {:a two}
-        :set #{2 3 4 5}
-        :set #{two 3 4 5}
-        :default #{2 3 4 5 6}
-        :droid {:r 2 :d 2}
-        :deeply-nested [1 [[[two]]]]
-        :nil nil
-        :default :anything-not-appearing-above)))
+    (are [result input]
+         (= result (let [two 2] 
+                     (case input
+                       1 :number
+                       "foo" :string
+                       \a :char
+                       pow :symbol
+                       :zap :keyword
+                       (2 \b "bar") :one-of-many
+                       [1 2] :sequential-thing
+                       {:a 2} :map
+                       {:r 2 :d 2} :droid
+                       #{2 3 4 5} :set
+                       [1 [[[2]]]] :deeply-nested
+                       nil :nil
+                       :default)))
+      :number 1
+      :string "foo"
+      :char \a
+      :keyword :zap
+      :symbol 'pow
+      :one-of-many 2
+      :one-of-many \b
+      :one-of-many "bar"
+      :sequential-thing [1 2]
+      :sequential-thing (list 1 2)
+      :sequential-thing [1 two]
+      :map {:a 2}
+      :map {:a two}
+      :set #{2 3 4 5}
+      :set #{two 3 4 5}
+      :default #{2 3 4 5 6}
+      :droid {:r 2 :d 2}
+      :deeply-nested [1 [[[two]]]]
+      :nil nil
+      :default :anything-not-appearing-above))
   (testing "sorting doesn't matter"
-    (let [test-fn
-          #(case %
-             {:b 2 :a 1} :map
-             #{3 2 1} :set
-             :default)]
-      (are [result input] (= result (test-fn input))
-        :map {:a 1 :b 2}
-        :map (sorted-map :a 1 :b 2)
-        :set #{3 2 1}
-        :set (sorted-set 2 1 3))))
+    (are [result input]
+         (= result (case input
+                     {:b 2 :a 1} :map
+                     #{3 2 1} :set
+                     :default))
+      :map {:a 1 :b 2}
+      :map (sorted-map :a 1 :b 2)
+      :set #{3 2 1}
+      :set (sorted-set 2 1 3)))
   (testing "test number equivalence"
     (is (= :1 (case 1N 1 :1 :else))))
   #_ (testing "test warn when boxing/hashing expr for all-ints case"
@@ -324,10 +322,10 @@
       :else 97N
       :a (char 97)))
   (testing "test correct behaviour on Number truncation"
-    (let [^Object x (identity 8589934591)                           ;;; (Long. 8589934591)  ; force bindings to not be emitted as a primitive long
-          ^Object y (identity -1)]                                  ;;; (Long. -1)
-      (is (= :diff (case x -1 :oops :diff)))
-      (is (= :same (case y -1 :same :oops)))))
+    (is (let [^Object x (identity 8589934591)]
+          (= :diff (case x -1 :oops :diff))))
+    (is (let [^Object y (identity -1)]
+          (= :same (case y -1 :same :oops)))))
   (testing "test correct behavior on hash collision"
     ;; case uses Java .hashCode to put values into hash buckets.
     (is (== (.GetHashCode 1) (.GetHashCode 9223372039002259457N)))        ;;; .hashCode .hashCode
@@ -371,12 +369,9 @@
      #"Performance warning, .*:\d+ - hash collision of some case test constants; if selected, those entries will be tested sequentially..*\r?\n"
      (case 1 1 :long 9223372039002259457N :big 2)))
   (testing "test constants are *not* evaluated"
-    (let [test-fn
-          ;; never write code like this...
-          #(case %
-             (throw (Exception. "boom")) :piece-of-throw-expr         ;;; RuntimeException
-             :no-match)]
-      (are [result input] (= result (test-fn input))
-        :piece-of-throw-expr 'throw
-        :piece-of-throw-expr '[Exception. "boom"]               ;;; RuntimeException
-        :no-match nil))))
+    (are [result input] (= result (case input
+                                    (throw (Exception. "boom")) :piece-of-throw-expr         ;;; RuntimeException
+                                    :no-match))
+      :piece-of-throw-expr 'throw
+      :piece-of-throw-expr '[Exception. "boom"]               ;;; RuntimeException
+      :no-match nil)))
