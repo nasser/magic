@@ -1036,12 +1036,14 @@
            (fn [label test expression]
              [label
               (when-not (= local-type Int32)
-                [(compile local compilers)
-                 (convert local-type Object)
-                 (load-constant test)
-                 (convert (type test) Object)
-                 (il/call (interop/method clojure.lang.Util "equiv" Object Object))
-                 (il/brfalse default-label2)])
+                (let [well-typed-equiv (interop/method clojure.lang.Util "equiv" local-type (type test))]
+                  [(compile local compilers)
+                   (when-not well-typed-equiv (convert local-type Object))
+                   (load-constant test)
+                   (when-not well-typed-equiv (convert (type test) Object))
+                   (il/call (or well-typed-equiv
+                                (interop/method clojure.lang.Util "equiv" Object Object)))
+                   (il/brfalse default-label2)]))
               (compile expression compilers)
               (convert (ast-type expression) expr-type)
               (il/br return-label)])
@@ -1065,16 +1067,18 @@
           :hash-equiv
           (map
            (fn [label test expression]
-             [label
-              (compile local compilers)
-              (convert local-type Object)
-              (load-constant test)
-              (convert (type test) Object)
-              (il/call (interop/method clojure.lang.Util "equiv" Object Object))
-              (il/brfalse default-label2)
-              (compile expression compilers)
-              (convert (ast-type expression) expr-type)
-              (il/br return-label)])
+             (let [well-typed-equiv (interop/method clojure.lang.Util "equiv" local-type (type test))]
+               [label
+                (compile local compilers)
+                (when-not well-typed-equiv (convert local-type Object))
+                (load-constant test)
+                (when-not well-typed-equiv (convert (type test) Object))
+                (il/call (or well-typed-equiv
+                             (interop/method clojure.lang.Util "equiv" Object Object)))
+                (il/brfalse default-label2)
+                (compile expression compilers)
+                (convert (ast-type expression) expr-type)
+                (il/br return-label)]))
            labels
            tests
            expressions)
