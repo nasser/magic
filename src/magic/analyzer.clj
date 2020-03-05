@@ -21,7 +21,8 @@
              [novel :as novel]
              [analyze-host-forms :as host]
              [errors :refer [error] :as errors]
-             [types :refer [ast-type class-for-name maybe-class]]]))
+             [types :refer [ast-type class-for-name maybe-class]]]
+            [clojure.walk :as w]))
 
 (defn ensure-class [c form]
   (or (class-for-name c)
@@ -206,8 +207,10 @@
                       ;; the local it generates as object which messes up type flow
                       ;; we remove the tag here
                       res (if (= v #'clojure.core/case)
-                            (let [[head bindings body] res']
-                              `(~head ~(update bindings 0 #(with-meta % {})) ~body))
+                            (w/prewalk #(if (and (symbol? %) (-> % meta :tag (= Object)))
+                                          (with-meta % {})
+                                          %)
+                                       res')
                             res')] 
                   (update-ns-map!)
                   (if (obj? res)
