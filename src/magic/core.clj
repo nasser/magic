@@ -999,7 +999,8 @@
 
 (defn case-compiler
   [{:keys [shift mask default switch-type local mode skip-check switch-values tests expressions] :as ast} compilers]
-  (let [smallest-switch-value (apply min switch-values)
+  (let [skip-check (or skip-check #{})
+        smallest-switch-value (apply min switch-values)
         largest-switch-value (apply max switch-values)
         labels (vec (repeatedly (count switch-values) #(il/label)))
         ;; idk why we need two labels here, this looks like a MAGE bug
@@ -1029,7 +1030,8 @@
               (il/call (interop/method clojure.lang.Util "IsNonCharNumeric" Object))
               (il/brfalse default-label2)
               (compile local compilers)
-              (convert local-type Int32)])]
+              (convert local-type Object)
+              (il/call (interop/method clojure.lang.Util "ConvertToInt" Object))])]
           (:hash-equiv :hash-identity)
           [(compile local compilers)
            (convert local-type Object)
@@ -1041,7 +1043,7 @@
            (fn [label test expression]
              [label
               (when-not (= local-type Int32)
-                (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (type test))
+                (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (or (type test) Object))
                                        (interop/method clojure.lang.Util "equiv" Object Object))
                       parameter-types (->> equiv-method .GetParameters (map #(.ParameterType %)))]
                   [(compile local compilers)
@@ -1058,38 +1060,41 @@
            expressions)
           :hash-identity
           (map
-           (fn [label test expression]
+           (fn [label test expression switch-value]
              [label
-              (compile local compilers)
-              (load-constant test)
-              (il/ceq)
-              (il/brfalse default-label2)
+              (when-not (skip-check switch-value)
+                [(compile local compilers)
+                 (load-constant test)
+                 (il/ceq)
+                 (il/brfalse default-label2)])
               (compile expression compilers)
               (convert (ast-type expression) expr-type)
               (il/br return-label)])
            labels
            tests
-           expressions)
+           expressions
+           switch-values)
           :hash-equiv
           (map
-           (fn [label test expression]
-             (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (type test))
+           (fn [label test expression switch-value]
+             (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (or (type test) Object))
                                     (interop/method clojure.lang.Util "equiv" Object Object))
                    parameter-types (->> equiv-method .GetParameters (map #(.ParameterType %)))]
                [label
-                (compile local compilers)
-                (convert local-type (first parameter-types))
-                (load-constant test)
-                (convert (type test) (last parameter-types))
-                (il/call equiv-method)
-                (il/brfalse default-label2)
+                (when-not (skip-check switch-value)
+                  [(compile local compilers)
+                   (convert local-type (first parameter-types))
+                   (load-constant test)
+                   (convert (type test) (last parameter-types))
+                   (il/call equiv-method)
+                   (il/brfalse default-label2)])
                 (compile expression compilers)
                 (convert (ast-type expression) expr-type)
                 (il/br return-label)]))
            labels
            tests
-           expressions)
-          )]
+           expressions
+           switch-values))]
     [match-value-il
      (when (pos? shift)
        [(load-constant (int shift))
