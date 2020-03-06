@@ -930,7 +930,7 @@
              (il/stloc try-local)
              (interleave
                (map #(compile % compilers) catches)
-               (map #(convert (ast-type %) expr-type) catches)
+               (map #(when-not (types/disregard-type? %) (convert (ast-type %) expr-type)) catches)
                (repeat (il/stloc try-local)))])
           [(when finally
              (il/finally
