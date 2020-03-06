@@ -335,6 +335,20 @@
     [(magic/compile len-arg compilers)
      (il/newarr (:val type-arg))]))
 
+(defintrinsic clojure.core/enum-or
+  (fn [{:keys [args]}]
+    (let [arg-set (->> args (map ast-type) (into #{}))
+          t (first arg-set)]
+      (when (and (= 1 (count arg-set))
+                 (.IsEnum t))
+        t)))
+  (fn intrinsic-enum-or-compiler
+    [{:keys [args]} type compilers]
+    [(magic/compile (first args) compilers)
+     (interleave
+      (map #(magic/compile % compilers) (drop 1 args))
+      (repeat (il/or)))]))
+
 ;;;; array functions
 ;; aclone
 ;; aget
