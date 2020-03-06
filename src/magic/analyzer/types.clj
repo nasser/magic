@@ -326,8 +326,10 @@
 
 (defmethod ast-type :try [{:keys [body catches] :as ast}]
   (let [body-type (ast-type body)
-        catches-types (-> #{}
-                          (into (map ast-type catches)))]
+        catches-types (->> catches
+                           (remove disregard-type?)
+                           (map ast-type)
+                           (into #{}))]
     (if (or (empty? catches-types)
             (and (= 1 (count catches-types))
                  (= body-type (first catches-types))))
