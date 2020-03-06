@@ -53,7 +53,11 @@
 
 (defn reference-to-type [t]
   (when (.IsValueType t)
-    (il/box t)))
+    (let [loc (il/local t)]
+      [(il/stloc loc)
+       (il/ldloca loc)])
+    #_ (il/box t)
+    ))
 
 (defn reference-to-argument [{:keys [arg-id] :as ast}]
   (if (.IsValueType (ast-type ast))
