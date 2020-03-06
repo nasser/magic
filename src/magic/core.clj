@@ -1007,6 +1007,7 @@
         default-label (il/label)
         default-label2 (il/label)
         return-label (il/label)
+        next-labels (drop 1 (conj labels default-label2))
         label-map (zipmap (map #(- % smallest-switch-value) switch-values) labels)
         jump-table-size (inc (- largest-switch-value smallest-switch-value))
         jump-table (map #(if-let [clause-label (label-map %)]
@@ -1015,6 +1016,7 @@
                         (range jump-table-size))
         expr-type (ast-type ast)
         local-type (ast-type local)
+        sparse? (= switch-type :sparse)
         match-value-il
         (case mode
           :int
@@ -1040,7 +1042,7 @@
         (case mode
           :int
           (map
-           (fn [label test expression]
+           (fn [label test expression next-label]
              [label
               (when-not (= local-type Int32)
                 (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (or (type test) Object))
@@ -1051,32 +1053,34 @@
                    (load-constant test)
                    (convert (type test) (last parameter-types))
                    (il/call equiv-method)
-                   (il/brfalse default-label2)]))
-              (compile expression compilers)
-              (convert (ast-type expression) expr-type)
-              (il/br return-label)])
-           labels
-           tests
-           expressions)
-          :hash-identity
-          (map
-           (fn [label test expression switch-value]
-             [label
-              (when-not (skip-check switch-value)
-                [(compile local compilers)
-                 (load-constant test)
-                 (il/ceq)
-                 (il/brfalse default-label2)])
+                   (il/brfalse next-label)]))
               (compile expression compilers)
               (convert (ast-type expression) expr-type)
               (il/br return-label)])
            labels
            tests
            expressions
-           switch-values)
+           (if sparse? next-labels (repeat default-label2)))
+          :hash-identity
+          (map
+           (fn [label test expression switch-value next-label]
+             [label
+              (when-not (skip-check switch-value)
+                [(compile local compilers)
+                 (load-constant test)
+                 (il/ceq)
+                 (il/brfalse next-label)])
+              (compile expression compilers)
+              (convert (ast-type expression) expr-type)
+              (il/br return-label)])
+           labels
+           tests
+           expressions
+           switch-values
+           (if sparse? next-labels (repeat default-label2)))
           :hash-equiv
           (map
-           (fn [label test expression switch-value]
+           (fn [label test expression switch-value next-label]
              (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (or (type test) Object))
                                     (interop/method clojure.lang.Util "equiv" Object Object))
                    parameter-types (->> equiv-method .GetParameters (map #(.ParameterType %)))]
@@ -1087,26 +1091,28 @@
                    (load-constant test)
                    (convert (type test) (last parameter-types))
                    (il/call equiv-method)
-                   (il/brfalse default-label2)])
+                   (il/brfalse next-label)])
                 (compile expression compilers)
                 (convert (ast-type expression) expr-type)
                 (il/br return-label)]))
            labels
            tests
            expressions
-           switch-values))]
-    [match-value-il
-     (when (pos? shift)
-       [(load-constant (int shift))
-        (il/shr)])
-     (when (pos? mask)
-       [(load-constant (int mask))
-        (il/and)])
-     (when-not (zero? smallest-switch-value)
-       [(load-constant (int smallest-switch-value))
-        (il/sub)])
-     (il/switch jump-table)
-     (il/br default-label2)
+           switch-values
+           (if sparse? next-labels (repeat default-label2))))]
+    [(when-not sparse?
+       [match-value-il
+        (when (pos? shift)
+          [(load-constant (int shift))
+           (il/shr)])
+        (when (pos? mask)
+          [(load-constant (int mask))
+           (il/and)])
+        (when-not (zero? smallest-switch-value)
+          [(load-constant (int smallest-switch-value))
+           (il/sub)])
+        (il/switch jump-table)
+        (il/br default-label2)])
      switch-body-il
      default-label ;; this looks like a MAGE bug
      default-label2
