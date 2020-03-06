@@ -98,6 +98,14 @@
   "The CLR type of an AST node"
   :op)
 
+(defn disregard-type? [ast]
+  (case (:op ast)
+    :if (and (disregard-type? (:then ast))
+             (disregard-type? (:else ast)))
+    :let (disregard-type? (:body ast))
+    :do (disregard-type? (:ret ast))
+    (= ::disregard (ast-type ast))))
+
 (defn non-void-ast-type
   ([ast]
    (non-void-ast-type ast Object))
@@ -311,16 +319,15 @@
 
 ;; ???
 (defmethod ast-type :recur [ast]
-  System.Object)
+  ::disregard)
 
 (defmethod ast-type :throw [ast]
-  System.Object)
+  ::disregard)
 
 (defmethod ast-type :try [{:keys [body catches] :as ast}]
   (let [body-type (ast-type body)
         catches-types (-> #{}
-                          (into (map ast-type catches))
-                          (disj System.Void))]
+                          (into (map ast-type catches)))]
     (if (or (empty? catches-types)
             (and (= 1 (count catches-types))
                  (= body-type (first catches-types))))
@@ -354,18 +361,6 @@
        (or (= (:val test) false)
            (= (:val test) nil))))
 
-;; NOTE this works, but is pretty gross
-(defn control-flow?
-  "Does the AST represent pure control flow?"
-  [{:keys [op] :as ast}]
-  (or
-    (#{:recur :throw} op)
-    (and (= :if op)
-         (or (and (always-then? ast)
-                  (control-flow? (:then ast)))
-             (and (always-else? ast)
-                  (control-flow? (:else ast)))))))
-
 (defmethod ast-type :if
   [{:keys [form test then else] :as ast}]
   (if-let [t (tag form)]
@@ -376,15 +371,7 @@
         (= then-type else-type) then-type
         (always-then? ast) then-type
         (always-else? ast) else-type
-        (control-flow? then) else-type
-        (control-flow? else) then-type
-        (and (= then-type System.Void)
-             (= (:op else) :const))
-        System.Void
-        (and (= else-type System.Void)
-             (= (:op then) :const))
-        System.Void
-        (= then-type System.Void) System.Object
-        (= else-type System.Void) System.Object
+        (disregard-type? then) else-type
+        (disregard-type? else) then-type
         ;; TODO compute common type  
         :else Object))))

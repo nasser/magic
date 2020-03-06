@@ -438,10 +438,8 @@
   "il/pop if in a non-void statement context.
   Required to keep the stack balanced."
   [{:keys [op] :as ast}]
-  (if (and (not= :do op)  ;; do cleans up its own stack
-           (not= :let op) ;; let contains a do
-           (statement? ast)
-           (not= System.Void (ast-type ast)))
+  (when (and (statement? ast)
+             (not= System.Void (ast-type ast)))
     (il/pop)))
 
 ;;; compilers
@@ -455,10 +453,9 @@
 (defn do-compiler
   [{:keys [statements ret] :as ast} compilers]
   [(interleave
-     (map #(compile % compilers) statements)
-     (map #(cleanup-stack %) statements))
-   (compile ret compilers)
-   (cleanup-stack ret)])
+    (map #(compile % compilers) statements)
+    (map #(cleanup-stack %) statements))
+   (compile ret compilers)])
 
 (defn const-compiler
   "Symbolic bytecode for :const nodes"
@@ -661,26 +658,19 @@
   [{:keys [test then else] :as ast} compilers]
   (let [if-expr-type (ast-type ast)
         then-label (il/label)
-        end-label (il/label)
-        value-used? (not (statement? ast))]
+        end-label (il/label)]
     (cond (types/always-then? ast) (compile then compilers)
           (types/always-else? ast) (compile else compilers)
           :else [(compile test compilers)
                  (convert (ast-type test) Boolean)
                  (il/brtrue then-label)
-                 (when (or value-used?
-                           (not= (:op else) :const))
-                   (compile else compilers))
-                 (when (and value-used?
-                            (not (types/control-flow? else)))
+                 (compile else compilers)
+                 (when-not (types/disregard-type? else)
                    (convert (ast-type else) if-expr-type))
                  (il/br end-label)
                  then-label
-                 (when (or value-used?
-                           (not= (:op then) :const))
-                   (compile then compilers))
-                 (when (and value-used?
-                            (not (types/control-flow? then)))
+                 (compile then compilers)
+                 (when-not (types/disregard-type? then)
                    (convert (ast-type then) if-expr-type))
                  end-label])))
 
@@ -887,41 +877,38 @@
         obj-params (mapv (constantly Object) params)
         param-il (map #(il/parameter (ast-type %) (-> % :form str)) params)
         param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
-        return-type (or param-hint
-                        (non-void-ast-type ret))
+        return-type (or param-hint (ast-type ret))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         ;; void -> ret conversion happens in hinted method
-        ret-type (ast-type ret)
-        unhinted-ret-type (or param-hint
-                              (if (= ret-type System.Void) Object ret-type)) 
+        ret-type (ast-type ret) 
         unhinted-method
         (il/method
-          "invoke"
-          public-virtual
-          Object param-il-unhinted
-          [(compile body compilers)
-           (convert ret-type Object)
-           (il/ret)])
+         "invoke"
+         public-virtual
+         Object param-il-unhinted
+         [(compile body compilers)
+          (convert ret-type Object)
+          (il/ret)])
         hinted-method
         (il/method
-          "invoke"
-          public-virtual
-          return-type param-il
-          [(compile body compilers)
-           (convert ret-type return-type)
-           (il/ret)])
+         "invoke"
+         public-virtual
+         return-type param-il
+         [(compile body compilers)
+          (convert ret-type return-type)
+          (il/ret)])
         unhinted-shim
         (il/method
-          "invoke"
-          public-virtual
-          Object param-il-unhinted
-          [(il/ldarg-0)
-           (interleave
-             (map (comp load-argument-standard inc) (range))
-             (map #(convert Object %) param-types))
-           (il/callvirt hinted-method)
-           (convert unhinted-ret-type Object)
-           (il/ret)])]
+         "invoke"
+         public-virtual
+         Object param-il-unhinted
+         [(il/ldarg-0)
+          (interleave
+           (map (comp load-argument-standard inc) (range))
+           (map #(convert Object %) param-types))
+          (il/callvirt hinted-method)
+          (convert ret-type Object)
+          (il/ret)])]
     [(if (and (= param-types obj-params)
               (= return-type Object))
        unhinted-method
