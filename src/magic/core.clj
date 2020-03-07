@@ -610,6 +610,14 @@
      (convert meta-type clojure.lang.IPersistentMap)
      (il/callvirt (interop/method clojure.lang.IObj "withMeta" clojure.lang.IPersistentMap))]))
 
+(defn gather-recur-asts [ast]
+  (let [children (->> ast
+                      clojure.tools.analyzer.ast/children
+                      (remove #(= :loop (:op %))))]
+    (-> #{}
+        (into (filter #(= :recur (:op %)) children))
+        (into (mapcat #(gather-recur-asts %) children)))))
+
 (defn let-compiler
   [{:keys [bindings body loop-id] :as ast} compilers]
   (let [;; uniqued names -> il/locals
