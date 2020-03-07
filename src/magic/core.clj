@@ -93,6 +93,12 @@
     (= from to)
     nil
 
+    (.IsEnum from)
+    (convert (Enum/GetUnderlyingType from) to)
+
+    (.IsEnum to)
+    (convert from (Enum/GetUnderlyingType to))
+
     ;; cannot convert nil to value type
     (and (nil? from) (.IsValueType to))
     (throw (Exception. (str "Cannot convert nil to value type " to)))
