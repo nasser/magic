@@ -86,6 +86,10 @@
 
 (defn convert [from to]
   (cond
+    (= from :magic.analyzer.types/disregard)
+    nil ; (throw (Exception. "cannot convert from disregarded type"))
+    (= to :magic.analyzer.types/disregard)
+    (throw (Exception. "cannot convert from disregarded type"))
     (nil? from)
     nil
 
