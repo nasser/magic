@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
             [magic.analyzer :as ana]
+            [clojure.tools.analyzer.ast :as ast]
             [magic.analyzer.util :refer [var-interfaces var-type throw!]]
             [magic.analyzer.types :as types :refer [tag ast-type non-void-ast-type]]
             [magic.analyzer.binder :refer [select-method]]
@@ -611,9 +612,7 @@
      (il/callvirt (interop/method clojure.lang.IObj "withMeta" clojure.lang.IPersistentMap))]))
 
 (defn gather-recur-asts [ast]
-  (let [children (->> ast
-                      clojure.tools.analyzer.ast/children
-                      (remove #(= :loop (:op %))))]
+  (let [children (->> ast ast/children (remove #(= :loop (:op %))))]
     (-> #{}
         (into (filter #(= :recur (:op %)) children))
         (into (mapcat #(gather-recur-asts %) children)))))
