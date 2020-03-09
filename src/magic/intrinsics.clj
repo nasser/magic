@@ -145,8 +145,7 @@
 
 (defintrinsic clojure.core//
   #(let [t (best-numeric-type %)]
-     (if (types/integer t)
-       Ratio
+     (when (types/integer t)
        t))
   (fn intrinsics-div-compiler
     [{:keys [args] :as ast} type compilers]
