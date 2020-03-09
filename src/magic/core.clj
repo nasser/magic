@@ -634,11 +634,12 @@
         (merge compilers
                {:local
                 (fn let-local-compiler
-                  [{:keys [name by-ref?] {:keys [locals]} :env :as ast} cmplrs]
+                  [{:keys [name init by-ref?] {:keys [locals]} :env :as ast} cmplrs]
                   (if-let [loc (-> name binding-map)]
                     (if by-ref?
                       (il/ldloca loc)
-                      (il/ldloc loc))
+                      [(il/ldloc loc)
+                       (convert (ast-type init) (ast-type ast))])
                     (compile ast compilers)))}
                (when loop-id
                  {:recur
