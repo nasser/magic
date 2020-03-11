@@ -20,6 +20,7 @@
              [literal-reinterpretation :as lr]
              [novel :as novel]
              [analyze-host-forms :as host]
+             [loop-bindings :as loop-bindings]
              [errors :refer [error] :as errors]
              [types :refer [ast-type class-for-name maybe-class]]]
             [clojure.walk :as w]))
@@ -317,6 +318,7 @@
     #'novel/generic-type-syntax
     #'intrinsics/analyze
     #'lr/analyze
+    #'loop-bindings/infer-binding-types
     #'increment-arg-ids
     #'tag-catch-locals
     ; #'enforce-var-arity
