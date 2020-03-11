@@ -98,7 +98,9 @@
       [(magic/compile arg compilers)
        (magic/load-constant
          (reinterpret-value 1 type))
-       (if *unchecked-math*
+       (if (or *unchecked-math*
+               (= type Single)
+               (= type Double))
          (il/add)
          (il/add-ovf))])))
 
@@ -134,7 +136,9 @@
       [(magic/compile arg compilers)
        (magic/load-constant
          (reinterpret-value 1 type))
-       (if *unchecked-math*
+       (if (or *unchecked-math*
+               (= type Single)
+               (= type Double))
          (il/sub)
          (il/sub-ovf))])))
 
