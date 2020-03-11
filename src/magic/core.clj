@@ -611,21 +611,16 @@
      (il/callvirt (interop/method clojure.lang.IObj "withMeta" clojure.lang.IPersistentMap))]))
 
 (defn loop-compiler
-  [{:keys [bindings body local-types] :as ast} compilers]
+  [{:keys [bindings body] :as ast} compilers]
   (let [;; uniqued names -> il/locals
         binding-map 
-        #_
-        (->> (map (fn [b t] [(:name b) (il/local t (str (:name b)))])
-                  bindings local-types)
-             (into {}))
-        
-          (reduce (fn [m binding]
-                    (assoc m
-                           (-> binding :name)
-                           (il/local (non-void-ast-type binding)
-                                     (str (-> binding :name)))))
-                  (sorted-map)
-                  bindings)
+        (reduce (fn [m binding]
+                  (assoc m
+                         (-> binding :name)
+                         (il/local (non-void-ast-type binding)
+                                   (str (-> binding :name)))))
+                (sorted-map)
+                bindings)
         binding-vector (mapv #(binding-map (-> % :name)) bindings)
         recur-target (il/label)
         ;; TODO compiler local and recur with compilers or cmplrs?
@@ -645,9 +640,10 @@
                {:recur (fn let-recur-compiler
                          [{:keys [exprs]
                            :as   ast} cmplrs]
-                         (let [expr-range  (range (count exprs))
-                               temporaries (mapv #(il/local (::il/type (nth binding-vector %)))
-                                                 expr-range)]
+                         [(map #(compile % cmplrs) exprs)
+                          (map il/stloc (reverse binding-vector))
+                          (il/br recur-target)]
+                         #_
                            [(interleave
                              (map #(compile % cmplrs) exprs)
                              (map #(convert (ast-type %1)
@@ -658,14 +654,13 @@
                             (interleave
                              (map #(il/ldloc (temporaries %)) expr-range)
                              (map #(il/stloc (nth binding-vector %)) expr-range))
-                            (il/br recur-target)]))})]
+                            (il/br recur-target)])})]
     ;; emit local initializations
-    [(map (fn [binding local-type]
+    [(map (fn [binding]
             [(compile binding specialized-compilers)
-             (convert (ast-type (-> binding :init)) local-type #_(non-void-ast-type binding))
+             (convert (ast-type (-> binding :init)) (non-void-ast-type binding))
              (il/stloc (binding-map (:name binding)))])
-          bindings
-          local-types)
+          bindings)
      ;; mark recur target
      recur-target
      ;; emit body with specialized compilers
