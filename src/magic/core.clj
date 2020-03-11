@@ -925,10 +925,10 @@
         obj-params (mapv (constantly Object) params)
         param-il (map #(il/parameter (ast-type %) (-> % :form str)) params)
         param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
-        return-type (or param-hint (ast-type ret))
+        return-type (or param-hint (non-void-ast-type ret))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         ;; void -> ret conversion happens in hinted method
-        ret-type (ast-type ret) 
+        ret-type (non-void-ast-type ret) 
         unhinted-method
         (il/method
          "invoke"
