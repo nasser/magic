@@ -110,10 +110,12 @@
   ([ast]
    (non-void-ast-type ast Object))
   ([ast non-void-type]
-   (let [t (ast-type ast)]
-     (if (= t System.Void)
-       non-void-type
-       t))))
+   (if (disregard-type? ast)
+     non-void-type
+     (let [t (ast-type ast)]
+       (if (= t System.Void)
+         non-void-type
+         t)))))
 
 ;;;;; intrinsics
 
