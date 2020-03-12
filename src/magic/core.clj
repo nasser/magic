@@ -642,19 +642,7 @@
                            :as   ast} cmplrs]
                          [(map #(compile % cmplrs) exprs)
                           (map il/stloc (reverse binding-vector))
-                          (il/br recur-target)]
-                         #_
-                           [(interleave
-                             (map #(compile % cmplrs) exprs)
-                             (map #(convert (ast-type %1)
-                                            (::il/type (temporaries %2)))
-                                  exprs
-                                  expr-range)
-                             (map #(il/stloc (temporaries %)) expr-range))
-                            (interleave
-                             (map #(il/ldloc (temporaries %)) expr-range)
-                             (map #(il/stloc (nth binding-vector %)) expr-range))
-                            (il/br recur-target)])})]
+                          (il/br recur-target)])})]
     ;; emit local initializations
     [(map (fn [binding]
             [(compile binding specialized-compilers)
