@@ -910,14 +910,24 @@
         param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
         return-type (or param-hint (non-void-ast-type ret))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+        recur-target (il/label)
+        specialized-compilers
+        (merge compilers
+               {:recur (fn fn-recur-compiler
+                         [{:keys [exprs]
+                           :as   ast} cmplrs]
+                         [(map #(compile % cmplrs) exprs)
+                          (map store-argument (->> params count inc (range 1) reverse))
+                          (il/br recur-target)])})
         ;; void -> ret conversion happens in hinted method
-        ret-type (non-void-ast-type ret) 
+        ret-type (non-void-ast-type ret)
         unhinted-method
         (il/method
          "invoke"
          public-virtual
          Object param-il-unhinted
-         [(compile body compilers)
+         [recur-target
+          (compile body specialized-compilers)
           (convert ret-type Object)
           (il/ret)])
         hinted-method
@@ -925,7 +935,8 @@
          "invoke"
          public-virtual
          return-type param-il
-         [(compile body compilers)
+         [recur-target
+          (compile body specialized-compilers)
           (convert ret-type return-type)
           (il/ret)])
         unhinted-shim
