@@ -35,7 +35,7 @@
     (= arg-id 1) (il/ldarg-1)
     (= arg-id 2) (il/ldarg-2)
     (= arg-id 3) (il/ldarg-3)
-    (< arg-id 16) (il/ldarg-s (byte arg-id)) ;; TODO what is the cutoff?
+    (< arg-id Byte/MaxValue) (il/ldarg-s (byte arg-id))
     :else (il/ldarg arg-id)))
 
 (defn load-integer [k]
