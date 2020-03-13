@@ -68,11 +68,38 @@ namespace Magic
                     if (result != null)
                         throw new AmbiguousMatchException();
                     else
+                    {
                         result = candidate;
+                        continue;
+                    }
+                }
+                if (MatchByObjectConversion(bindingAttr, candidate, argumentTypes, modifiers))
+                {
+                    if (result != null)
+                        throw new AmbiguousMatchException();
+                    else
+                    {
+                        result = candidate;
+                        continue;
+                    }
                 }
             }
 
             return result;
+        }
+
+        static bool MatchByObjectConversion(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[]? modifiers)
+        {
+            var parameters = candidate.GetParameters();
+            if (parameters.Length != argumentTypes.Length) return false;
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if(argumentTypes[i] == typeof(object))
+                    continue;
+                else if(!parameters[i].ParameterType.IsAssignableFrom(argumentTypes[i]))
+                    return false;
+            }
+            return true;
         }
 
         static bool MatchByNarrowingConversion(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[]? modifiers)
