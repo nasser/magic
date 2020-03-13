@@ -38,6 +38,11 @@
     (< arg-id Byte/MaxValue) (il/ldarg-s (byte arg-id))
     :else (il/ldarg arg-id)))
 
+(defn store-argument [arg-id]
+  (cond
+    (< arg-id Byte/MaxValue) (il/starg-s (byte arg-id))
+    :else (il/starg arg-id)))
+
 (defn load-integer [k]
   (cond
     (= k 0)  (il/ldc-i4-0)
