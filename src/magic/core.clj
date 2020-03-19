@@ -631,7 +631,7 @@
         ;; TODO compiler local and recur with compilers or cmplrs?
         specialized-compilers
         (merge compilers
-               {:local (fn let-local-compiler
+               {:local (fn loop-local-compiler
                          [{:keys            [name init by-ref?]
                            {:keys [locals]} :env
                            :as              ast} cmplrs]
@@ -642,7 +642,7 @@
                               #_ (convert (ast-type init) (ast-type ast))
                               ])
                            (compile ast compilers)))}
-               {:recur (fn let-recur-compiler
+               {:recur (fn loop-recur-compiler
                          [{:keys [exprs]
                            :as   ast} cmplrs]
                          [(map #(compile % cmplrs) exprs)
