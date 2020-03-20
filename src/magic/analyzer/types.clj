@@ -314,10 +314,10 @@
       type)))
 
 (defmethod ast-type :let [ast]
-  (-> ast :body :ret ast-type))
+  (-> ast :body ast-type))
 
 (defmethod ast-type :loop [ast]
-  (-> ast :body :ret ast-type))
+  (-> ast :body ast-type))
 
 ;; ???
 (defmethod ast-type :recur [ast]
