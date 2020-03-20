@@ -9,6 +9,14 @@
     [types :refer [read-generic-name ast-type class-for-name]]])
   (:import [System.Reflection BindingFlags]))
 
+(defn get-all-methods [t]
+  (into #{}
+        (concat
+         (.GetMethods t)
+         (mapcat get-all-methods (.GetInterfaces t))
+         (when-let [base (.BaseType t)]
+           (get-all-methods base)))))
+
 (def public-instance (enum-or BindingFlags/Instance BindingFlags/Public))
 (def public-static (enum-or BindingFlags/Static BindingFlags/Public))
 (def public-instance-static (enum-or BindingFlags/Instance BindingFlags/Static BindingFlags/Public))
@@ -217,7 +225,7 @@
                  {:method meth}
                  (if-let [best-method (select-method
                                         (filter #(= (.Name %) (str method))
-                                                (.GetMethods target-type))
+                                                (get-all-methods target-type))
                                         (map ast-type args))]
                    {:method best-method}
                    (cond static?
