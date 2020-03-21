@@ -16,6 +16,7 @@
             [clojure.tools.analyzer.utils :refer [resolve-sym ctx -source-info resolve-ns obj? dissoc-env]]
             [magic.analyzer
              [intrinsics :as intrinsics]
+             [propagate-bindings :refer [propagate-bindings]]
              [util :as util]
              [literal-reinterpretation :as lr]
              [novel :as novel]
@@ -317,6 +318,7 @@
     #'novel/csharp-operators
     #'novel/generic-type-syntax
     #'intrinsics/analyze
+    #'propagate-bindings
     #'lr/analyze
     #'loop-bindings/infer-binding-types
     #'increment-arg-ids
