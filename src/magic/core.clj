@@ -645,7 +645,9 @@
                {:recur (fn loop-recur-compiler
                          [{:keys [exprs]
                            :as   ast} cmplrs]
-                         [(map #(compile % cmplrs) exprs)
+                         [(interleave 
+                           (map #(compile % cmplrs) exprs)
+                           (map #(convert (ast-type %1) (non-void-ast-type %2)) exprs bindings))
                           (map il/stloc (reverse binding-vector))
                           (il/br recur-target)])})]
     ;; emit local initializations
