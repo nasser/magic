@@ -875,45 +875,77 @@
     "$"))
 
 (defn fn-compiler
-  [{:keys [local methods raw-forms top-level] :as ast} compilers]
-  (if top-level
-    (let [arities (map :fixed-arity methods)
-          param-types (->> methods
-                           (map :params)
-                           (mapcat #(vector (map non-void-ast-type %)
-                                            (map (constantly Object) %))))
-          return-types (->> methods
-                            (mapcat #(vector
-                                      (or (-> % :form first meta :tag types/resolve)
-                                          (-> % :body non-void-ast-type))
-                                      Object)))
-          interfaces (map #(interop/generic-type "Magic.Function" (conj %1 %2))
-                          param-types
-                          return-types)]
-      (il/type
-       (gen-fn-name (:form local))
-       TypeAttributes/Public
-       interfaces
-       clojure.lang.AFunction
-       [default-constructor
-         (has-arity-method arities)
-         (map #(compile % compilers) methods)]))
-    ;; closure (eventually)
-    (let [fn-body (-> ast 
-                      (assoc :top-level true)
-                      (fn-compiler compilers))
-          generated-type (::il/type-builder (il/emit! fn-body))
-          ctor (interop/constructor generated-type)]
-      (il/newobj ctor))))
+  [{:keys [local methods raw-forms closed-overs] :as ast} compilers]
+  (let [arities (map :fixed-arity methods)
+        param-types (->> methods
+                         (map :params)
+                         (mapcat #(vector (map non-void-ast-type %)
+                                          (map (constantly Object) %))))
+        return-types (->> methods
+                          (mapcat #(vector
+                                    (or (-> % :form first meta :tag types/resolve)
+                                        (-> % :body non-void-ast-type))
+                                    Object)))
+        interfaces (map #(interop/generic-type "Magic.Function" (conj %1 %2))
+                        param-types
+                        return-types)
+        ;; local name -> il/field
+        closed-over-field-map
+        (reduce-kv
+         (fn [m k v]
+           (assoc m k (il/unique (il/field (ast-type v) (str (:form v))))))
+         {}
+         closed-overs)
+        specialized-compilers
+        (update 
+         compilers
+         :local
+         (fn [old-local-compiler]
+           (fn fn-closure-local-compiler
+             [{:keys [name] :as ast} _cmplrs]
+             (if-let [fld (closed-over-field-map name)]
+               [(il/ldarg-0)
+                (il/ldfld fld)]
+               (old-local-compiler ast _cmplrs))))) 
+        ctor
+        (let [params (->> closed-overs vals (map non-void-ast-type))
+              field-population-il
+              (->> closed-over-field-map
+                   vals
+                   (map-indexed 
+                    (fn [i field]
+                      [(il/ldarg-0)
+                       (load-argument-standard (inc i))
+                       (il/stfld field)
+                       ])))]
+          (il/constructor
+           (enum-or MethodAttributes/Public)
+           CallingConventions/Standard
+           params
+           [(il/ldarg-0)
+            (il/call (private-constructor clojure.lang.AFunction))
+            field-population-il
+            (il/ret)]))]
+    [(il/type
+      (gen-fn-name (:form local))
+      TypeAttributes/Public
+      interfaces
+      clojure.lang.AFunction
+      [(vals closed-over-field-map)
+       ctor
+       (has-arity-method arities)
+       (map #(compile % specialized-compilers) methods)])
+     (->> closed-overs vals (map #(compile % compilers)))
+     (il/newobj ctor)]))
 
 (defn fn-method-compiler
-  [{:keys [body params form] {:keys [ret statements]} :body} compilers]
+  [{:keys [body params form]} compilers]
   (let [param-hint (-> form first tag)
         param-types (mapv ast-type params)
         obj-params (mapv (constantly Object) params)
         param-il (map #(il/parameter (ast-type %) (-> % :form str)) params)
         param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
-        return-type (or param-hint (non-void-ast-type ret))
+        return-type (or param-hint (non-void-ast-type body))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         recur-target (il/label)
         specialized-compilers
@@ -921,11 +953,11 @@
                {:recur (fn fn-recur-compiler
                          [{:keys [exprs]
                            :as   ast} cmplrs]
-                         [(map #(compile % cmplrs) exprs)
+                         [(interleave 
+                           (map #(compile % cmplrs) exprs)
+                           (map #(convert (ast-type %1) %2) exprs param-types))
                           (map store-argument (->> params count inc (range 1) reverse))
                           (il/br recur-target)])})
-        ;; void -> ret conversion happens in hinted method
-        ret-type (non-void-ast-type ret)
         unhinted-method
         (il/method
          "invoke"
@@ -933,7 +965,7 @@
          Object param-il-unhinted
          [recur-target
           (compile body specialized-compilers)
-          (convert ret-type Object)
+          (convert return-type Object)
           (il/ret)])
         hinted-method
         (il/method
@@ -942,7 +974,7 @@
          return-type param-il
          [recur-target
           (compile body specialized-compilers)
-          (convert ret-type return-type)
+          ; (convert ret-type return-type)
           (il/ret)])
         unhinted-shim
         (il/method
@@ -954,7 +986,7 @@
            (map (comp load-argument-standard inc) (range))
            (map #(convert Object %) param-types))
           (il/callvirt hinted-method)
-          (convert ret-type Object)
+          (convert return-type Object)
           (il/ret)])]
     [(if (and (= param-types obj-params)
               (= return-type Object))

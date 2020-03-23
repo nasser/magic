@@ -5,4 +5,4 @@
  :references ["runtime/bin/Release/net461/runtime.dll" ]
  :dependencies [[:github nasser/mage "master" :paths ["src"]]
                 [:github nasser/test.check "master"]
-                [:maven org.clojure/tools.analyzer "0.6.9"]]}
+                [:maven org.clojure/tools.analyzer "1.0.0"]]}

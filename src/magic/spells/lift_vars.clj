@@ -20,11 +20,12 @@
          (interleave
            (->> vars (map :var))
            (->> vars (map :var)
-                (map #(il/field (if (-> % meta :static)
-                                  Object ; (-> % deref type)
-                                  clojure.lang.Var)
-                                (var-name %)
-                                field-attrs))))))
+                (map #(il/unique
+                       (il/field (if (-> % meta :static)
+                                   Object ; (-> % deref type)
+                                   clojure.lang.Var)
+                                 (var-name %)
+                                 field-attrs)))))))
 
 (defn lift-vars [compilers]
   (update compilers
@@ -48,7 +49,7 @@
                            (magic/cleanup-stack ast)])))]
                 (-> ast
                     (old-fn-compiler specialized-compilers)
-                    (update ::il/body concat
+                    (update-in [0 ::il/body] concat ;; this assumes the shape of the data returned by the base fn-compiler!
                             [(il/constructor
                                (enum-or MethodAttributes/Public MethodAttributes/Static)
                                CallingConventions/Standard

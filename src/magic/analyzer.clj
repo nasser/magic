@@ -2,14 +2,14 @@
   (:refer-clojure :exclude [macroexpand-1])
   (:require [clojure.tools.analyzer :as ana]
             [clojure.tools.analyzer.ast :refer [nodes prewalk]]
-            [clojure.tools.analyzer.utils :refer [update-vals]]
+            [clojure.tools.analyzer.utils :refer [update-vals mmerge]]
             [clojure.tools.analyzer.passes :refer [schedule]]
             [clojure.tools.analyzer.passes
              [source-info :refer [source-info]]
-             [cleanup :refer [cleanup]]
+             [trim :refer [trim]]
+             [collect-closed-overs :refer [collect-closed-overs]]
              [elide-meta :refer [elide-meta elides]]
              [warn-earmuff :refer [warn-earmuff]]
-             [collect-closed-overs :refer [collect-closed-overs]]
              [add-binding-atom :refer [add-binding-atom]]
              [uniquify :refer [uniquify-locals]]]
             [clojure.tools.analyzer.env :refer [*env* with-env] :as env]
@@ -22,6 +22,7 @@
              [novel :as novel]
              [analyze-host-forms :as host]
              [loop-bindings :as loop-bindings]
+             [remove-local-children :refer [remove-local-children]]
              [errors :refer [error] :as errors]
              [types :refer [ast-type class-for-name maybe-class]]]
             [clojure.walk :as w]))
@@ -330,10 +331,21 @@
     #'elide-meta
     ; #'warn-earmuff
     #'collect-vars
-    ; #'collect-closed-overs
+    #'remove-local-children
+    #'collect-closed-overs
     ; #'add-binding-atom
+    #'trim
     #'uniquify-locals
     })
+
+(def default-passes-opts
+  "Default :passes-opts for `analyze`"
+  {:collect/what                    #{:constants :callsites}
+   :collect/where                   #{:deftype :reify :fn}
+   :collect/top-level?              false
+   :collect-closed-overs/where      #{:deftype :reify :fn :loop :try}
+   :collect-closed-overs/top-level? false
+   :uniquify/uniquify-env           true})
 
 (def scheduled-default-passes
   (schedule default-passes))
@@ -351,7 +363,11 @@
                                    (reset-meta! (meta sym))))
              ana/parse         parse
              ana/var?          var?]
-     (with-env (global-env) (passes-fn (ana/analyze form env))))))
+     (env/ensure (global-env)
+                 (doto (env/with-env (mmerge (env/deref-env)
+                                             {:passes-opts default-passes-opts})
+                         (passes-fn (ana/analyze form env)))
+                   (do (update-ns-map!)))))))
 
 (comment 
   (analyze '(. DateTime Now))
