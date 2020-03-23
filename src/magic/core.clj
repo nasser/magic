@@ -633,7 +633,6 @@
         (merge compilers
                {:local (fn loop-local-compiler
                          [{:keys            [name init by-ref?]
-                           {:keys [locals]} :env
                            :as              ast} cmplrs]
                          (if-let [loc (-> name binding-map)]
                            (if by-ref?
