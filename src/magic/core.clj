@@ -674,7 +674,7 @@
         (merge compilers
                {:local
                 (fn let-local-compiler
-                  [{:keys [name init by-ref?] {:keys [locals]} :env :as ast} cmplrs]
+                  [{:keys [name init by-ref?] :as ast} cmplrs]
                   (if-let [loc (-> name binding-map)]
                     (if by-ref?
                       (il/ldloca loc)
@@ -1032,7 +1032,7 @@
         (merge compilers
                {:local
                 (fn catch-local-compiler
-                  [{:keys [name by-ref?] {:keys [locals]} :env :as ast} cmplrs]
+                  [{:keys [name by-ref?] :as ast} cmplrs]
                   (if (= name (:name local))
                     (if by-ref?
                       (il/ldloca catch-local)
