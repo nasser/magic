@@ -664,9 +664,9 @@
   (let [;; uniqued names -> il/locals
         binding-map (reduce (fn [m binding]
                               (assoc m
-                                     (-> binding :name)
+                                     (:name binding)
                                      (il/local (non-void-ast-type binding)
-                                               (str (-> binding :name)))))
+                                               (str (:name binding)))))
                             (sorted-map) 
                             bindings)
         ;; TODO compiler local and recur with compilers or cmplrs?
