@@ -743,7 +743,8 @@
 (defn invoke-compiler
   [{:keys [fn args] :as ast} compilers]
   (let [fn-op (:op fn)
-        fn-tag (-> fn :var tag)
+        fn-tag (or (types/resolve (-> fn :var tag))
+                   (types/resolve (-> ast :meta :tag)))
         fn-type (var-type fn)
         arg-types (map ast-type args)
         ;; TODO this is hacky and gross
