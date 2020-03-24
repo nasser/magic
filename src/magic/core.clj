@@ -718,16 +718,10 @@
 
 (defn local-compiler
   [{:keys [name local] :as ast} compilers]
-  (throw! "Local " name " not bound, could not compile!")
-  #_
-    (cond
-      (= local :arg)
-      (load-argument ast)
-      (= local :fn)
-      [(load-argument-standard 0)
-       (convert (ast-type local) (ast-type ast))]
-      :else
-      (throw! "Local " name " not an argument and could not be compiled")))
+  (if (= local :fn)
+    [(load-argument-standard 0)
+     (convert (ast-type local) (ast-type ast))]
+    (throw! "Local " name " not bound, could not compile! " local)))
 
 (defn implementing-interface [t bm]
   (->> (.GetInterfaces t)
