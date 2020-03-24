@@ -561,7 +561,8 @@
         virtcall (if (.IsValueType (ast-type target))
                    il/call
                    il/callvirt )]
-    [(compile-reference-to target compilers)
+    [; (compile-reference-to target compilers)
+     (compile target compilers)
      (interleave
        (map #(compile % compilers) args)
        (map convert
