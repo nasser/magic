@@ -942,6 +942,7 @@
   [{:keys [body params form]} compilers]
   (let [param-hint (-> form first tag)
         param-types (mapv ast-type params)
+        param-names (into #{} (map :name params))
         obj-params (mapv (constantly Object) params)
         param-il (map #(il/parameter (ast-type %) (-> % :form str)) params)
         param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
@@ -959,8 +960,9 @@
                           (map store-argument (->> params count inc (range 1) reverse))
                           (il/br recur-target)])
                 :local (fn fn-method-local-compiler
-                         [{:keys [arg-id local by-ref?] :as ast} _cmplrs]
-                         (if (= local :arg)
+                         [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
+                         (if (and (= local :arg) 
+                                  (param-names name))
                            (if by-ref?
                              (load-argument-address arg-id)
                              [(load-argument-standard arg-id)
