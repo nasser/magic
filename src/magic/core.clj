@@ -717,13 +717,16 @@
 
 (defn local-compiler
   [{:keys [name local] :as ast} compilers]
-  (cond
-    (= local :arg)
-    (load-argument ast)
-    (= local :fn)
-    (load-argument-standard 0)
-    :else
-    (throw! "Local " name " not an argument and could not be compiled")))
+  (throw! "Local " name " not bound, could not compile!")
+  #_
+    (cond
+      (= local :arg)
+      (load-argument ast)
+      (= local :fn)
+      [(load-argument-standard 0)
+       (convert (ast-type local) (ast-type ast))]
+      :else
+      (throw! "Local " name " not an argument and could not be compiled")))
 
 (defn implementing-interface [t bm]
   (->> (.GetInterfaces t)
@@ -958,7 +961,15 @@
                            (map #(compile % cmplrs) exprs)
                            (map #(convert (ast-type %1) %2) exprs param-types))
                           (map store-argument (->> params count inc (range 1) reverse))
-                          (il/br recur-target)])})
+                          (il/br recur-target)])
+                :local (fn fn-method-local-compiler
+                         [{:keys [arg-id local by-ref?] :as ast} _cmplrs]
+                         (if (= local :arg)
+                           (if by-ref?
+                             (load-argument-address arg-id)
+                             [(load-argument-standard arg-id)
+                              (convert (param-types (dec arg-id)) (ast-type ast))])
+                           (compile ast compilers)))})
         unhinted-method
         (il/method
          "invoke"
