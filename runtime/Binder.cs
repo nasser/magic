@@ -63,17 +63,7 @@ namespace Magic
                 return result;
             foreach (var candidate in match)
             {
-                if (MatchByNarrowingConversion(bindingAttr, candidate, argumentTypes, modifiers))
-                {
-                    if (result != null)
-                        throw new AmbiguousMatchException();
-                    else
-                    {
-                        result = candidate;
-                        continue;
-                    }
-                }
-                if (MatchByObjectConversion(bindingAttr, candidate, argumentTypes, modifiers))
+                if (MatchByMagicBindingRules(bindingAttr, candidate, argumentTypes, modifiers))
                 {
                     if (result != null)
                         throw new AmbiguousMatchException();
@@ -88,21 +78,16 @@ namespace Magic
             return result;
         }
 
-        static bool MatchByObjectConversion(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[]? modifiers)
-        {
-            var parameters = candidate.GetParameters();
-            if (parameters.Length != argumentTypes.Length) return false;
-            for (int i = 0; i < parameters.Length; i++)
-            {
-                if(argumentTypes[i] == typeof(object))
-                    continue;
-                else if(!parameters[i].ParameterType.IsAssignableFrom(argumentTypes[i]))
-                    return false;
-            }
-            return true;
-        }
+        static bool MatchesByObjectConversion(Type argumentType, Type parameterType)
+            => argumentType == typeof(object)
+               || parameterType.IsAssignableFrom(argumentType);
 
-        static bool MatchByNarrowingConversion(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[]? modifiers)
+        static bool MatchesByNarrowingConversion(Type argumentType, Type parameterType)
+            => parameterType == argumentType
+               || (parameterType.IsPrimitive && argumentType.IsPrimitive && parameterType != typeof(Boolean) && argumentType != typeof(Boolean))
+               || parameterType.IsAssignableFrom(argumentType);
+        
+        static bool MatchByMagicBindingRules(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[]? modifiers)
         {
             var parameters = candidate.GetParameters();
             if (parameters.Length != argumentTypes.Length) return false;
@@ -110,9 +95,8 @@ namespace Magic
             {
                 var parameterType = parameters[i].ParameterType;
                 var argumentType = argumentTypes[i];
-                if(parameterType == argumentType
-                   || (parameterType.IsPrimitive && argumentType.IsPrimitive && parameterType != typeof(Boolean) && argumentType != typeof(Boolean))
-                   || parameterType.IsAssignableFrom(argumentType))
+                if(MatchesByNarrowingConversion(argumentType, parameterType)
+                   || MatchesByObjectConversion(argumentType, parameterType))
                 {
                     continue;
                 }
