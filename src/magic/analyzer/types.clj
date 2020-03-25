@@ -304,7 +304,7 @@
     Object))
 
 (defmethod ast-type :local
-  [{:keys [name init form local by-ref?] {:keys [locals]} :env}]
+  [{:keys [name form local by-ref?] {:keys [locals]} :env}]
   (let [tag (or (-> form meta :tag)
                 (-> form locals :form meta :tag))
         type (cond tag
@@ -314,7 +314,7 @@
                    (= local :arg)
                    Object
                    :else
-                   (non-void-ast-type init))]
+                   (non-void-ast-type (-> form locals :init)))]
     (if by-ref?
       (.MakeByRefType type)
       type)))

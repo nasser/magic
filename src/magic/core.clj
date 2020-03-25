@@ -676,12 +676,12 @@
         (merge compilers
                {:local
                 (fn let-local-compiler
-                  [{:keys [name init by-ref?] :as ast} cmplrs]
+                  [{:keys [name form by-ref?] {:keys [locals]} :env :as ast} cmplrs]
                   (if-let [loc (-> name binding-map)]
                     (if by-ref?
                       (il/ldloca loc)
                       [(il/ldloc loc)
-                       (convert (ast-type init) (non-void-ast-type ast))])
+                       (convert (ast-type (-> form locals :init)) (non-void-ast-type ast))])
                     (compile ast compilers)))})]
     ;; emit local initializations
     [(map (fn [binding]
