@@ -249,9 +249,12 @@
   System.Object)
 
 (defmethod ast-type :invoke
-  [{:keys [fn args]}]
+  [{:keys [fn args] :as ast}]
   (resolve
-   (or (->> fn
+   (or (->> ast
+            :meta
+            :tag)
+       (->> fn
             :meta
             :tag)
        (->> fn
