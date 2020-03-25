@@ -4,6 +4,7 @@
     <TargetFramework>net461</TargetFramework>
     <LangVersion>8.0</LangVersion>
     <Nullable>enable</Nullable>
+    <DefineConstants>CSHARP8</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

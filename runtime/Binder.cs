@@ -16,7 +16,11 @@ namespace Magic
             return _binder.BindToField(bindingAttr, match, value, culture);
         }
 
+#if CSHARP8
         public override MethodBase? BindToMethod(BindingFlags bindingAttr, MethodBase[] match, ref object[] args, ParameterModifier[]? modifiers, CultureInfo? culture, string[]? names, out object state)
+#else
+        public override MethodBase BindToMethod(BindingFlags bindingAttr, MethodBase[] match, ref object[] args, ParameterModifier[] modifiers, CultureInfo culture, string[] names, out object state)
+#endif
         {
             try {
                 var nativeResult = _binder.BindToMethod(bindingAttr, match, ref args, modifiers, culture, names, out state);
@@ -52,8 +56,12 @@ namespace Magic
         {
             _binder.ReorderArgumentArray(ref args, state);
         }
-        
+
+#if CSHARP8        
         public override MethodBase? SelectMethod(BindingFlags bindingAttr, MethodBase[] match, Type[] argumentTypes, ParameterModifier[]? modifiers)
+#else
+        public override MethodBase SelectMethod(BindingFlags bindingAttr, MethodBase[] match, Type[] argumentTypes, ParameterModifier[] modifiers)
+#endif
         {
             if(match.Length == 0)
                 return null;
@@ -87,7 +95,11 @@ namespace Magic
                || (parameterType.IsPrimitive && argumentType.IsPrimitive && parameterType != typeof(Boolean) && argumentType != typeof(Boolean))
                || parameterType.IsAssignableFrom(argumentType);
         
+#if CSHARP8
         static bool MatchByMagicBindingRules(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[]? modifiers)
+#else
+        static bool MatchByMagicBindingRules(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[] modifiers)
+#endif
         {
             var parameters = candidate.GetParameters();
             if (parameters.Length != argumentTypes.Length) return false;

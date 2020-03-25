@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Reflection;
 using System.Linq;
 
@@ -6,10 +6,18 @@ namespace Magic
 {
     public static class Runtime
     {
-        public static Type? FindType(string p)
-        {
-            Type? t = null;
 
+#if CSHARP8
+        public static Type? FindType(string p)
+#else
+        public static Type FindType(string p)
+#endif
+        {
+#if CSHARP8
+            Type? t = null;
+#else
+            Type t = null;
+#endif
             // fastest path, will succeed for assembly qualified names (returned by Type.AssemblyQualifiedName)
             // or namespace qualified names (returned by Type.FullName) in the executing assembly or mscorlib
             // e.g. "UnityEngine.Transform, UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
