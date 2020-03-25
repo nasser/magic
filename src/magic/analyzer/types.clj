@@ -3,7 +3,8 @@
   (:require [magic.analyzer
              [binder :refer [select-method]]
              [util :refer [throw! var-interfaces var-type] :as util]
-             [reflection :refer [find-method]]]))
+             [reflection :refer [find-method]]])
+  (:import Magic.Runtime))
 
 (defn read-generic-name [name]
   (let [reader (-> name str
@@ -14,7 +15,7 @@
 (defn class-for-name [s]
   (if s
     (or (.GetMapping *ns* (symbol (str s)))
-        (clojure.lang.RT/classForName (str s)))))
+        (Runtime/FindType (str s)))))
 
 ;; TODO look into this, does this do anything useful?  
 (defn maybe-class [c]

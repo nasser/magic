@@ -1,9 +1,42 @@
-﻿using System;
+using System;
 using System.Reflection;
 using System.Linq;
 
 namespace Magic
 {
+    public static class Runtime
+    {
+        public static Type? FindType(string p)
+        {
+            Type? t = null;
+
+            // fastest path, will succeed for assembly qualified names (returned by Type.AssemblyQualifiedName)
+            // or namespace qualified names (returned by Type.FullName) in the executing assembly or mscorlib
+            // e.g. "UnityEngine.Transform, UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
+            t = Type.GetType(p, false);
+
+            if (t != null)
+                return t;
+
+            AppDomain domain = AppDomain.CurrentDomain;
+            Assembly[] assys = domain.GetAssemblies();
+
+            // fast path, will succeed for namespace qualified names (returned by Type.FullName)
+            // e.g. "UnityEngine.Transform"
+            foreach (Assembly assy in assys)
+            {
+                  Type t1 = assy.GetType(p, false);
+                  if(t1 != null)
+                        return t1;
+            }
+
+            // TODO parse name for complex types
+            // if (t == null && p.IndexOfAny(_triggerTypeChars) != -1)
+            //     t = ClrTypeSpec.GetTypeFromName(p);
+
+            return t;
+        }
+    }
     public static class Dispatch
     {
         // (set! (.name o) value)
