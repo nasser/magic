@@ -174,7 +174,9 @@
 
 (defmethod ast-type :case
   [{:keys [expressions default] :as ast}]
-  (let [result-types (into #{(ast-type default)} (map ast-type expressions))]
+  (let [result-types (-> #{(ast-type default)}
+                         (into (map ast-type expressions))
+                         (disj :magic.analyzer.types/disregard))]
     (if (= 1 (count result-types))
       (first result-types)
       Object)))
