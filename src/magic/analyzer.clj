@@ -1,7 +1,7 @@
 (ns magic.analyzer
   (:refer-clojure :exclude [macroexpand-1])
   (:require [clojure.tools.analyzer :as ana]
-            [clojure.tools.analyzer.ast :refer [nodes prewalk]]
+            [clojure.tools.analyzer.ast :refer [nodes prewalk postwalk update-children]]
             [clojure.tools.analyzer.utils :refer [update-vals mmerge]]
             [clojure.tools.analyzer.passes :refer [schedule]]
             [clojure.tools.analyzer.passes
@@ -232,16 +232,6 @@
                 :else
                 (desugar-host-expr form env)))))
          (desugar-host-expr form env)))))
-
-;; patch analysis of locals to carry binding inits with them
-;; good type resolution depends on it
-;; defeats the 'useless passes' optimization in tools.analyzer (because the passes are useful)
-(defmethod clojure.tools.analyzer/-analyze-form clojure.lang.Symbol
-  [form env]
-  (merge (clojure.tools.analyzer/analyze-symbol form env)
-         (when-let [{:keys [init children] :as local-binding} (-> env :locals form)]
-           {:init     init
-            :children children})))
 
 (def run-passes)
 
