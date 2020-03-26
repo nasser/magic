@@ -338,6 +338,57 @@
     #'uniquify-locals
     })
 
+(def untyped-passes
+  #{#'collect-vars
+    #'remove-local-children
+    #'collect-closed-overs
+    #'trim
+    #'uniquify-locals})
+
+(defn typed-pass* [ast]
+  (-> ast
+      host/analyze-byref
+      host/analyze-type
+      host/analyze-host-field
+      host/analyze-constructor
+      host/analyze-host-interop
+      host/analyze-host-call
+      novel/csharp-operators
+      novel/generic-type-syntax
+      intrinsics/analyze))
+
+(def ^:dynamic *typed-pass-locals* {})
+
+(defn typed-passes [ast]
+  (case (:op ast)
+    (:let :loop)
+    (let [{:keys [bindings body]} ast
+          update-binding
+          (fn [{:keys [locals bindings]} {:keys [name] :as binding-ast}]
+            (let [binding-ast* (binding [*typed-pass-locals* locals]
+                                 (typed-passes binding-ast))
+                  locals* (assoc locals name binding-ast*)]
+              {:locals locals* :bindings (conj bindings binding-ast*)}))
+          {locals* :locals bindings* :bindings}
+          (reduce update-binding {:locals *typed-pass-locals* :bindings []} bindings)]
+      (binding [*typed-pass-locals* locals*]
+        (loop-bindings/infer-binding-types
+         (assoc ast
+                :bindings bindings*
+                :body (typed-passes body)))))
+    :local
+    (let [{:keys [name form local]} ast]
+      (case local
+        (:let :loop)
+        (if-let [init (*typed-pass-locals* name)]
+          (assoc-in ast [:env :locals form :init] init)
+          (throw (ex-info "Local not found in environment"
+                          {:local name :form form})))
+        #_:else
+        ast))
+    #_:else
+    (typed-pass* (update-children ast typed-passes))))
+
 (def default-passes-opts
   "Default :passes-opts for `analyze`"
   {:collect/what                    #{:constants :callsites}
@@ -347,15 +398,15 @@
    :collect-closed-overs/top-level? false
    :uniquify/uniquify-env           true})
 
-(def scheduled-default-passes
-  (schedule default-passes))
+(def scheduled-untyped-passes
+  (schedule untyped-passes))
 
 (defn run-passes [ast]
-  (scheduled-default-passes ast))
+  (scheduled-untyped-passes ast))
 
 (defn analyze
   ([form] (analyze form (empty-env)))
-  ([form env] (analyze form env run-passes))
+  ([form env] (analyze form env (comp typed-passes run-passes)))
   ([form env passes-fn]
    (binding [ana/macroexpand-1 macroexpand-1
              ana/create-var    (fn [sym env]
