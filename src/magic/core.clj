@@ -1067,11 +1067,9 @@
                 (fn catch-local-compiler
                   [{:keys [name by-ref?] :as ast} cmplrs]
                   (if (= name catch-local-name)
-                    (do
-                      (println "[catch-compiler]" (ast-type ast) ast)
-                      (if by-ref?
-                        (il/ldloca catch-local)
-                        (il/ldloc catch-local)))
+                    (if by-ref?
+                      (il/ldloca catch-local)
+                      (il/ldloc catch-local))
                     (compile ast compilers)))})
         specialized-compilers
         (merge compilers+local
