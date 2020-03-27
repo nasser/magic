@@ -1004,28 +1004,50 @@
        [hinted-method unhinted-shim])]))
 
 (defn try-compiler
-  [{:keys [catches body finally] :as ast} compilers]
+  [{:keys [catches closed-overs body finally] :as ast {:keys [empty-stack?]} :env} compilers]
   (if (and (empty? catches)
            (nil? finally))
     (compile body compilers)
     (let [expr-type (ast-type ast)
-          try-local (il/local expr-type)]
-      [(il/exception
-         [(if (= expr-type System.Void)
-            [(compile body compilers)
-             (map #(compile % compilers) catches)]
-            [(compile body compilers)
-             (convert (ast-type body) expr-type)
-             (il/stloc try-local)
-             (interleave
-               (map #(compile % compilers) catches)
-               (map #(when-not (types/disregard-type? %) (convert (ast-type %) expr-type)) catches)
-               (repeat (il/stloc try-local)))])
-          [(when finally
-             (il/finally
-               (compile finally compilers)))]])
-       (when-not (= expr-type System.Void)
-         (il/ldloc try-local))])))
+          closed-overs-map
+          (into {} (map (fn [name i] [name i]) (keys closed-overs) (range)))
+          closure-compilers
+          (merge compilers
+                 {:local (fn try-local-compiler 
+                           [{:keys [name] :as ast} _compilers]
+                           (if-let [arg-id (closed-overs-map name)]
+                             (load-argument-standard arg-id)
+                             (compile ast compilers)))})          
+          bodyfn
+          (fn [compilers]
+            (let [try-local (il/local expr-type)]
+              [(il/exception
+                [(if (= expr-type System.Void)
+                   [(compile body compilers)
+                    (map #(compile % compilers) catches)]
+                   [(compile body compilers)
+                    (convert (ast-type body) expr-type)
+                    (il/stloc try-local)
+                    (interleave
+                     (map #(compile % compilers) catches)
+                     (map #(when-not (types/disregard-type? %) (convert (ast-type %) expr-type)) catches)
+                     (repeat (il/stloc try-local)))])
+                 [(when finally
+                    (il/finally
+                      (compile finally compilers)))]])
+               (when-not (= expr-type System.Void)
+                 (il/ldloc try-local))]))
+          method-il
+          (il/method 
+           (str (gensym "try"))
+           (enum-or MethodAttributes/Private MethodAttributes/Static)
+           expr-type (->> closed-overs vals (mapv non-void-ast-type))
+           [(bodyfn closure-compilers)
+            (il/ret)])]
+      (if empty-stack?
+        (bodyfn compilers)
+        [(->> closed-overs vals (map #(compile % compilers)))
+         (il/call method-il)]))))
 
 (defn throw-compiler
   [{:keys [exception]} compilers]

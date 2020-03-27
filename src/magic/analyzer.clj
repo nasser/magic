@@ -328,12 +328,25 @@
     #'uniquify-locals
     })
 
+(def ^:dynamic *stack-empty?* true)
+
+(defn compute-empty-stack-context 
+  {:pass-info {:walk :none}}
+  [{:keys [op] {:keys [context]} :env :as ast}]
+  (binding [*stack-empty?* 
+            (or (and *stack-empty?* (not= context :ctx/expr))
+                (= op :fn-method))]
+    (-> ast
+        (assoc-in [:env :empty-stack?] *stack-empty?*)
+        (update-children compute-empty-stack-context))))
+
 (def untyped-passes
   #{#'collect-vars
     #'remove-local-children
     #'collect-closed-overs
     #'trim
-    #'uniquify-locals})
+    #'uniquify-locals
+    #'compute-empty-stack-context})
 
 (defn typed-pass* [ast]
   (-> ast
