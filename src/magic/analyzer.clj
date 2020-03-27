@@ -376,6 +376,20 @@
                           {:local name :form form})))
         #_:else
         ast))
+    (:fn :try)
+    (if-let [closed-overs (:closed-overs ast)]
+      (do
+        (let [closed-overs* 
+              (reduce-kv (fn [m name {:keys [form]}]
+                           (if-let [init (*typed-pass-locals* name)]
+                             (assoc-in m [name :env :locals form :init] init)
+                             m))
+                         closed-overs
+                         closed-overs)]
+          (assoc
+           (typed-pass* (update-children ast typed-passes))
+           :closed-overs closed-overs*)))
+      ast)
     #_:else
     (typed-pass* (update-children ast typed-passes))))
 
