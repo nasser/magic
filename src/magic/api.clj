@@ -63,7 +63,7 @@
   (alter-var-root #'magic/*spells* (constantly spells)))
 
 (clojure.core/defn bind-basic-spells! []
-  (bind-spells! [lift-vars dynamic-interop]))
+  (bind-spells! [dynamic-interop]))
 
 ;; yolo
-(bind-spells! [lift-vars dynamic-interop])
+(bind-spells! [dynamic-interop])
