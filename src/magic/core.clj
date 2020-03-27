@@ -1054,6 +1054,7 @@
   (when-not exception
     (throw (Exception. "throw must take an argument outside of a catch")))
   [(compile exception compilers)
+   (convert (ast-type exception) Exception)
    (il/throw)])
 
 (defn catch-compiler
@@ -1075,8 +1076,7 @@
                   [{:keys [exception] :as ast} cmplrs]
                   (if-not exception
                     (il/rethrow)
-                    (throw-compiler ast cmplrs)))
-                })]
+                    (compile ast compilers)))})]
     (il/catch
      (-> class :val)
      [(il/stloc catch-local)
