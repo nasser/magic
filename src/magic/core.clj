@@ -1061,22 +1061,26 @@
   [{:keys [class local body]} compilers]
   (let [catch-local-name (:name local)
         catch-local (il/local (-> class :val))
-        specialized-compilers
+        compilers+local
         (merge compilers
                {:local
                 (fn catch-local-compiler
                   [{:keys [name by-ref?] :as ast} cmplrs]
-                  (if (= name (:name local))
-                    (if by-ref?
-                      (il/ldloca catch-local)
-                      (il/ldloc catch-local))
-                    (compile ast compilers)))
-                :throw
+                  (if (= name catch-local-name)
+                    (do
+                      (println "[catch-compiler]" (ast-type ast) ast)
+                      (if by-ref?
+                        (il/ldloca catch-local)
+                        (il/ldloc catch-local)))
+                    (compile ast compilers)))})
+        specialized-compilers
+        (merge compilers+local
+               {:throw
                 (fn catch-throw-compiler
                   [{:keys [exception] :as ast} cmplrs]
                   (if-not exception
                     (il/rethrow)
-                    (compile ast compilers)))})]
+                    (throw-compiler ast compilers+local)))})]
     (il/catch
      (-> class :val)
      [(il/stloc catch-local)

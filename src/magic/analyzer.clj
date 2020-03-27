@@ -254,28 +254,6 @@
     (assoc ast :vectors (->> ast nodes (filter #(= :vector (:op %)))))
     ast))
 
-(defn tag-local
-  [{:keys [op] :as ast} tag]
-  (if (= op :local)
-    (update ast :form vary-meta merge {:tag tag})
-    ast))
-
-(defn tag-catch-locals
-  {:pass-info {:walk :pre :depends #{#'uniquify-locals #'host/analyze-type} :before #{#'host/analyze-host-interop}}}
-  [{:keys [op class body local] :as ast}]
-  (if (= op :catch)
-    (let [local-type (-> class :val)
-          local-name (-> local :name)]
-      (assoc ast
-        :local (tag-local local local-type)
-        :body (prewalk body
-                       (fn [{:keys [op form name] :as ast}]
-                         (if (and (= op :local)
-                                  (= name local-name))
-                           (tag-local ast local-type)
-                           ast)))))
-    ast))
-
 (defn enforce-var-arity
   {:pass-info {:walk :pre :before #{#'uniquify-locals}}}
   [{:keys [op fn args] :as ast}]
@@ -313,7 +291,6 @@
     #'lr/analyze
     #'loop-bindings/infer-binding-types
     #'increment-arg-ids
-    #'tag-catch-locals
     ; #'enforce-var-arity
     ; #'source-info
     ; #'collect-vars
@@ -375,6 +352,12 @@
 
 (defn typed-passes [ast]
   (case (:op ast)
+    :catch
+    (let [{:keys [body class local]} ast
+          class* (-> class typed-passes :val)]
+      (binding [*typed-pass-locals* 
+                (assoc *typed-pass-locals* (:name local) class*)]
+        (typed-pass* (update-children ast typed-passes))))
     (:let :loop)
     (let [{:keys [bindings body]} ast
           update-binding
@@ -393,6 +376,11 @@
     :local
     (let [{:keys [name form local]} ast]
       (case local
+        :catch
+        (if-let [local-type (*typed-pass-locals* name)]
+          (update ast :form vary-meta merge {:tag local-type})
+          (throw (ex-info "Local not found in environment"
+                          {:local name :form form})))
         (:let :loop)
         (if-let [init (*typed-pass-locals* name)]
           (assoc-in ast [:env :locals form :init] init)
