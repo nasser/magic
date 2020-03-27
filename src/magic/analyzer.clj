@@ -340,13 +340,24 @@
         (assoc-in [:env :empty-stack?] *stack-empty?*)
         (update-children compute-empty-stack-context))))
 
+(defn remove-empty-throw-children
+  {:pass-info {:walk :any :before #{#'compute-empty-stack-context}}}
+  [{:keys [op exception] :as ast}]
+  (case op
+    :throw
+    (if-not exception
+      (dissoc ast :children :exception)
+      ast)
+    ast))
+
 (def untyped-passes
   #{#'collect-vars
     #'remove-local-children
     #'collect-closed-overs
     #'trim
     #'uniquify-locals
-    #'compute-empty-stack-context})
+    #'compute-empty-stack-context
+    #'remove-empty-throw-children})
 
 (defn typed-pass* [ast]
   (-> ast
