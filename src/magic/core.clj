@@ -681,7 +681,8 @@
                     (if by-ref?
                       (il/ldloca loc)
                       [(il/ldloc loc)
-                       (convert (ast-type (-> form locals :init)) (non-void-ast-type ast))])
+                       (when (-> form locals :init)
+                         (convert (ast-type (-> form locals :init)) (non-void-ast-type ast)))])
                     (compile ast compilers)))})]
     ;; emit local initializations
     [(map (fn [binding]
