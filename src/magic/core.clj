@@ -598,10 +598,10 @@
   [{:keys [type constructor args] :as ast} compilers]
   (let [arg-types (map ast-type args)]
     [(interleave
-       (map #(compile % compilers) args)
-       (map convert
-            arg-types
-            (interop/parameter-types constructor)))
+      (map #(compile % compilers) args)
+      (map convert
+           arg-types
+           (interop/parameter-types constructor)))
      (il/newobj constructor)]))
 
 (defn with-meta-compiler
