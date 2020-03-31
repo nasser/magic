@@ -965,9 +965,9 @@
                          (if (and (= local :arg) 
                                   (param-names name))
                            (if by-ref?
-                             (load-argument-address arg-id)
-                             [(load-argument-standard arg-id)
-                              (convert (param-types (dec arg-id)) (ast-type ast))])
+                             (load-argument-address (inc arg-id))
+                             [(load-argument-standard (inc arg-id))
+                              (convert (param-types arg-id) (ast-type ast))])
                            (compile ast compilers)))})
         unhinted-method
         (il/method
