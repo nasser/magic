@@ -54,15 +54,6 @@
             field-name (str field)
             binding-flags (if static? public-static public-instance)
             ast* (merge (dissoc ast :field)
-                        ;; TODO is it ever a method?
-                        (when-let [methods (.GetMethod target-type
-                                                       field-name
-                                                       binding-flags
-                                                       nil
-                                                       Type/EmptyTypes
-                                                       nil)]
-                          {:op (if static? :static-method :instance-method)
-                           :methods methods})
                         (when-let [field-info (.GetField target-type field-name
                                                          binding-flags)]
                           {:op (if static? :static-field :instance-field)
@@ -153,16 +144,18 @@
             m-or-f (str m-or-f)
             static? (= :class (:type target))
             binding-flags (if static? public-static public-instance)
+            all-methods (concat (.GetMethods target-type)
+                              (mapcat #(.GetMethods %) (.GetInterfaces target-type)))
             ast* (merge ast
                         (when identity-hack? ;; TODO update :form too?
                           {:target (-> target :args first)})
-                        (when-let [method (.GetMethod target-type m-or-f binding-flags nil Type/EmptyTypes nil)]
+                        (when-let [method (first (filter #(= (.Name %) m-or-f) all-methods))]
                           {:op (if static? :static-method :instance-method)
                            :method method})
                         (when-let [field (.GetField target-type m-or-f binding-flags)]
                           {:op (if static? :static-field :instance-field)
                            :field field})
-                        (when-let [property (.GetProperty target-type m-or-f binding-flags)]
+                        (when-let [property (first (filter #(= (.Name %) m-or-f) (.GetProperties target-type)))]
                           {:op (if static? :static-property :instance-property)
                            :property property}))
             matched? (not= :host-interop (:op ast*))]

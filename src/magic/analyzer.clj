@@ -15,6 +15,7 @@
             [clojure.tools.analyzer.env :refer [*env* with-env] :as env]
             [clojure.tools.analyzer.utils :refer [resolve-sym ctx -source-info resolve-ns obj? dissoc-env]]
             [magic.analyzer
+             [binder :refer [select-method]]
              [intrinsics :as intrinsics]
              [propagate-bindings :refer [propagate-bindings]]
              [util :as util]
@@ -25,7 +26,8 @@
              [remove-local-children :refer [remove-local-children]]
              [errors :refer [error] :as errors]
              [types :refer [ast-type class-for-name maybe-class]]]
-            [clojure.walk :as w]))
+            [clojure.walk :as w]
+            [magic.core :as magic]))
 
 (defn ensure-class [c form]
   (or (class-for-name c)
@@ -100,7 +102,7 @@
 (def specials
   "Set of the special forms for clojure in the CLR"
   (into ana/specials
-        '#{var monitor-enter monitor-exit clojure.core/import* reify* deftype* case*}))
+        '#{var monitor-enter monitor-exit clojure.core/import* reify* deftype* case* proxy}))
 
 (defn parse-monitor-enter
   [[_ target :as form] env]
@@ -159,6 +161,22 @@
      :expressions expressions
      :children [:local :default :expressions]}))
 
+(defn parse-proxy 
+  [[_ class-and-interface args & fns :as form] env]
+  (let [class-and-interface* (mapv #(ana/analyze-symbol % env) class-and-interface)]
+    {:op :proxy
+     :class-and-interface class-and-interface*
+     :args (mapv #(ana/analyze-form % env) args)
+     :fns (mapv 
+           #(-> (drop 1 %)
+                (ana/analyze-fn-method env)
+                (assoc :name (first %)
+                       :op :proxy-method)) 
+           fns)
+     :children [:class-and-interface :args :fns]
+     :form form
+     :env env}))
+
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
   [form env]
@@ -167,6 +185,7 @@
      monitor-exit         parse-monitor-exit
      throw                parse-throw
      case*                parse-case*
+     proxy                parse-proxy
      #_:else              ana/-parse)
    form env))
 
@@ -336,8 +355,59 @@
     #'compute-empty-stack-context
     #'remove-empty-throw-children})
 
+(defn define-proxy-type [module-builder super interfaces]
+  (.DefineType module-builder 
+               (str (gensym "proxy"))
+               System.Reflection.TypeAttributes/Public
+               super
+               (into-array Type interfaces)))
+
+(defn analyze-proxy 
+  "Typed analysis of proxy forms. Generates a TypeBuilder for this proxy and
+   looks up interface/super type methods. magic.core/*module* must be bound
+   before this function is called and will contain the generated proxy type when
+   this function returns."
+  [{:keys [op class-and-interface fns] :as ast}]
+  (case op
+    :proxy
+    (let [_ (println "[analyze-proxy]" op (map :op class-and-interface) (map :op fns))
+          super-provided? (not (-> class-and-interface first :val .IsInterface))
+          super (if super-provided?
+                  (:val (first class-and-interface))
+                  Object)
+          interfaces (mapv :val
+                           (if super-provided?
+                             (drop 1 class-and-interface)
+                             class-and-interface))
+          interfaces* (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
+          proxy-type (define-proxy-type magic/*module* super interfaces)
+          candidate-methods (into #{} (concat (.GetMethods super) 
+                                              (mapcat #(.GetMethods %) interfaces*)))
+          fns (map
+               (fn [{:keys [params name] :as f}]
+                 (let [candidate-methods (filter #(= (.Name %) (str name)) candidate-methods)
+                       best-method (select-method candidate-methods (map ast-type params))]
+                   (println "[analyze-proxy] assoc to method" name proxy-type)
+                   (if best-method
+                     (assoc f
+                            :source-method best-method
+                            :proxy-type proxy-type)
+                     (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
+               fns)
+          closed-overs (-> 
+                        (reduce (fn [co ast] (merge co (:closed-overs ast))) {} fns)
+                        (dissoc 'this))]
+      (assoc ast
+             :super super
+             :interfaces interfaces
+             :closed-overs closed-overs
+             :fns fns
+             :proxy-type proxy-type))
+    ast))
+
 (defn typed-pass* [ast]
   (-> ast
+      analyze-proxy
       host/analyze-byref
       host/analyze-type
       host/analyze-host-field
@@ -388,7 +458,7 @@
                           {:local name :form form})))
         #_:else
         ast))
-    (:fn :try)
+    (:fn :try :proxy-method)
     (if-let [closed-overs (:closed-overs ast)]
       (do
         (let [closed-overs* 
@@ -410,7 +480,7 @@
   {:collect/what                    #{:constants :callsites}
    :collect/where                   #{:deftype :reify :fn}
    :collect/top-level?              false
-   :collect-closed-overs/where      #{:deftype :reify :fn :loop :try}
+   :collect-closed-overs/where      #{:deftype :reify :fn :loop :try :proxy-method}
    :collect-closed-overs/top-level? false
    :uniquify/uniquify-env           true})
 

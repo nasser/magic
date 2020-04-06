@@ -154,6 +154,9 @@
   clojure.lang.IFn ;; TODO optimize this, use generic magic function types
   )
 
+(defmethod ast-type :proxy
+  [{:keys [proxy-type]}] proxy-type)
+
 (defmethod ast-type :dynamic-zero-arity [_] Object)
 
 (defmethod ast-type :dynamic-method [_] Object)

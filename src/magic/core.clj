@@ -1,7 +1,6 @@
 (ns magic.core
   (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
-            [magic.analyzer :as ana]
             [magic.analyzer.util :refer [var-interfaces var-type throw!]]
             [magic.analyzer.types :as types :refer [tag ast-type non-void-ast-type]]
             [magic.analyzer.binder :refer [select-method]]
@@ -23,6 +22,8 @@
 
 (def compile)
 (def base-compilers)
+
+(def ^:dynamic *module* nil)
 
 (defn load-argument-address [arg-id]
   (cond
@@ -1225,6 +1226,129 @@
      (convert (ast-type default) expr-type)
      return-label]))
 
+(defn compile-proxy-type [{:keys [args super interfaces closed-overs fns proxy-type] :as ast}]
+  (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+        iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
+        super-ctor (select-method (.GetConstructors super) (map ast-type args))
+        interfaces (conj interfaces clojure.lang.IProxy)
+        ;; need to gather *all* interfaces this type effectively supports
+        ifaces* (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
+        default-iface-override 
+        (fn [method]
+          (il/method 
+           (.Name method)
+           iface-override
+           (.ReturnType method)
+           (mapv #(.ParameterType %) (.GetParameters method))
+           [(il/newobj (interop/constructor NotSupportedException))
+            (il/throw)]))
+        iface-methods
+        (->> ifaces*
+             (mapcat (fn [iface]
+                       (map
+                        #(vector (.Name %) (default-iface-override %))
+                        (.GetMethods iface))))
+             (into {}))
+        closed-over-field-map
+        (reduce-kv
+         (fn [m k v]
+           (assoc m k (il/unique (il/field (ast-type v) (str (:form v))))))
+         {}
+         closed-overs)
+        specialized-compilers
+        (merge
+         base-compilers
+         {:local
+          (fn proxy-local-compiler
+            [{:keys [name] :as ast} _cmplrs]
+            (if-let [fld (closed-over-field-map name)]
+              [(il/ldarg-0)
+               (il/ldfld fld)]
+              (local-compiler ast _cmplrs)))})
+        provided-methods
+        (into {} (map (fn [f] [(str (:name f)) (compile f specialized-compilers)]) fns))
+        methods (merge iface-methods provided-methods)
+        arg-types (map ast-type args)
+        ctor-params (concat
+                     (map ast-type args)
+                     (map ast-type (vals closed-overs)))
+        ctor (il/constructor
+              MethodAttributes/Public
+              CallingConventions/Standard
+              ctor-params
+              [(il/ldarg-0)
+               (interleave
+                (map #(load-argument-standard (inc %2)) args (range))
+                (map convert arg-types (interop/parameter-types super-ctor)))
+               (il/call super-ctor)
+               (->> closed-over-field-map
+                    vals
+                    (map-indexed
+                     (fn [i field]
+                       [(il/ldarg-0)
+                        (load-argument-standard (+ (count args) (inc i)))
+                        (il/stfld field)])))
+               (il/ret)])
+        ctx (reduce (fn [ctx field] (il/emit! ctx field))
+                    {::il/type-builder proxy-type}
+                    (vals closed-over-field-map))
+        ctx (reduce (fn [ctx method] (il/emit! ctx method))
+                    ctx
+                    (vals methods))
+        ]
+    (il/emit! ctx ctor)
+    (.CreateType proxy-type)))
+
+(defn proxy-compiler [{:keys [class-and-interface proxy-type args closed-overs form] :as ast} compilers]  
+  (compile-proxy-type ast)
+  (when-not (every? #(and (= :const (:op %))
+                          (= :class (:type %)))
+                    class-and-interface)
+    (throw (ex-info (str "Classes and interfaces passed to proxy must be type constants")
+                    {:form form})))
+  [(map #(compile % compilers) args)
+   (map #(compile % compilers) (vals closed-overs))
+   (il/newobj (first (.GetConstructors proxy-type)))])
+
+(defn proxy-method-compiler [{:keys [body source-method] :as ast} compilers]
+  (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+        iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
+        param-types (mapv #(.ParameterType %) (.GetParameters source-method))
+        param-names (into #{} (mapv #(.Name %) (.GetParameters source-method)))
+        return-type (.ReturnType source-method)
+        attributes (if (.. source-method DeclaringType IsInterface)
+                     iface-override
+                     super-override)
+        name (.Name source-method)
+        body-type (ast-type body)
+        recur-target (il/label)
+        specialized-compilers
+        (merge compilers
+               {:recur (fn fn-recur-compiler
+                         [{:keys [exprs]} cmplrs]
+                         [(interleave
+                           (map #(compile % cmplrs) exprs)
+                           (map #(convert (ast-type %1) %2) exprs param-types))
+                          (map store-argument (->> param-types count inc (range 1) reverse))
+                          (il/br recur-target)])
+                :local (fn fn-method-local-compiler
+                         [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
+                         (if (and (= local :arg)
+                                  (param-names (str name)))
+                           (if by-ref?
+                             (load-argument-address (inc arg-id))
+                             [(load-argument-standard (inc arg-id))
+                              (convert (param-types arg-id) (ast-type ast))])
+                           (compile ast compilers)))})]
+    (il/method
+     name
+     attributes
+     return-type param-types
+     [recur-target
+      (compile body specialized-compilers)
+      (convert body-type return-type)
+      (il/ret)])))
+
 (def base-compilers
   {:const               #'const-compiler
    :do                  #'do-compiler
@@ -1260,7 +1384,9 @@
    :new                 #'new-compiler
    :with-meta           #'with-meta-compiler
    :intrinsic           #'intrinsic-compiler
-   :case                #'case-compiler})
+   :case                #'case-compiler
+   :proxy               #'proxy-compiler
+   :proxy-method        #'proxy-method-compiler})
 
 (def ^:dynamic *spells* [])
 
