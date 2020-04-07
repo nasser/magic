@@ -219,6 +219,33 @@
        (il/ldc-i4-0)
        end-label])))
 
+(defintrinsic clojure.core/=
+  #(when (numeric-args %) Boolean)
+  (fn intrinsic-eq-compiler
+    [{:keys [args] :as ast} type compilers]
+    (case (count args)
+      1
+      (il/ldc-i4-1)
+      (let [arg-pairs (partition 2 1 args)
+            not-equal-label (il/label)
+            end-label (il/label)
+            il-pairs
+            (map (fn [[a b]]
+                   (let [best-numeric-type
+                         (->> [a b] (map ast-type) types/best-numeric-promotion)]
+                     [(magic/compile a compilers)
+                      (magic/convert (ast-type a) best-numeric-type)
+                      (magic/compile b compilers)
+                      (magic/convert (ast-type b) best-numeric-type)]))
+                 arg-pairs)]
+        [(->> (interleave il-pairs (repeat [(il/bne-un not-equal-label)]))
+              drop-last)
+         (il/ceq)
+         (il/br end-label)
+         not-equal-label
+         (il/ldc-i4-0)
+         end-label]))))
+
 (defn array-type [{:keys [args]}]
   (let [type (-> args first ast-type)]
     (when (.IsArray type) type)))
