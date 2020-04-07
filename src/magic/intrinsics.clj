@@ -246,6 +246,15 @@
          (il/ldc-i4-0)
          end-label]))))
 
+(defintrinsic clojure.core/deref
+  #(when (->> % :args first ast-type (.IsAssignableFrom clojure.lang.IDeref)) Object)
+  (fn intrinsic-deref-compiler
+    [{:keys [args] :as ast} type compilers]
+    [(magic/compile (first args) compilers)
+     (magic/convert (ast-type (first args)) clojure.lang.IDeref)
+     (il/callvirt (interop/method clojure.lang.IDeref "deref"))
+     ]))
+
 (defn array-type [{:keys [args]}]
   (let [type (-> args first ast-type)]
     (when (.IsArray type) type)))
