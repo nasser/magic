@@ -1,20 +1,27 @@
 (ns magic.interop
-  (:require [magic.analyzer.util :refer [throw!]]))
+  (:require [magic.analyzer.util :refer [throw!]])
+  (:require [clojure.string :as string]))
+
+(defn- parameters-match [params]
+  (fn [method]
+    (let [parameter-types (map #(.ParameterType %) (.GetParameters method))]
+      (and (= (count parameter-types)
+              (count params))
+           (every? #(= (first %) (last %))
+                   (map vector parameter-types params))))))
 
 (defn method
   ([t name & params]
    (try
-     (.GetMethod t name (into-array Type params))
-     (catch Exception e
-       (throw (Exception. (str "Broken! "
-                               (type e) ", "
-                               t ", "
-                               (type t) ", "
-                               name ", "
-                               (type name) ", "
-                               params ", "
-                               (type params) ", "
-                               )))))))
+     (let [methods (.GetMethods t)
+           name-matches (filter #(= name (.Name %)) methods)
+           parameter-matches 
+           (filter (parameters-match params) name-matches)]
+       (case (count parameter-matches)
+         1 (first parameter-matches)
+         0 nil
+         (throw (System.Reflection.AmbiguousMatchException.
+                 (str t "::" name " " (string/join "," params) " " (vec parameter-matches)))))))))
 
 (defn parameters
   [method] (.GetParameters method))

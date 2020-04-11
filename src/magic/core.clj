@@ -156,12 +156,13 @@
        istrue
        (il/ldsfld (interop/field Magic.Constants "True"))
        end])
-
-    ;; convert void to nil
-    ;; TODO is this a terrible idea?
+    
     (and (= System.Void from) (not (.IsValueType to)))
     (il/ldnull)
 
+    (and (= System.Void to) (not= System.Void from))
+    (il/pop)
+    
     (and (= System.Void from) (.IsValueType to))
     (throw (Exception. (str "Cannot convert void to value type " to)))
 
@@ -557,18 +558,17 @@
 
 (defn instance-method-compiler
   "Symbolic bytecode for instance methods"
-  [{:keys [method target args generic-parameters] :as ast} compilers]
+  [{:keys [method non-virtual? target args generic-parameters] :as ast} compilers]
   (let [arg-types (map ast-type args)
-        virtcall (if (.IsValueType (ast-type target))
+        virtcall (if (or non-virtual? (.IsValueType (ast-type target)))
                    il/call
                    il/callvirt )]
-    [; (compile-reference-to target compilers)
-     (compile target compilers)
+    [(compile target compilers)
      (interleave
-       (map #(compile % compilers) args)
-       (map convert
-            arg-types
-            (interop/parameter-types method)))
+      (map #(compile % compilers) args)
+      (map convert
+           arg-types
+           (interop/parameter-types method)))
      (cond
        (and (.IsVirtual method)
             (nil? generic-parameters))
@@ -720,9 +720,12 @@
 
 (defn local-compiler
   [{:keys [name local] :as ast} compilers]
-  (if (= local :fn)
+  (case local
+    :fn
     [(load-argument-standard 0)
      (convert (ast-type local) (ast-type ast))]
+    :proxy-this
+    (load-argument-standard 0)
     (throw! "Local " name " not bound, could not compile! " local)))
 
 (defn implementing-interface [t bm]
@@ -738,10 +741,7 @@
 
 (defn invoke-compiler
   [{:keys [fn args] :as ast} compilers]
-  (let [fn-op (:op fn)
-        fn-tag (or (types/resolve (-> fn :var tag))
-                   (types/resolve (-> ast :meta :tag)))
-        fn-type (var-type fn)
+  (let [fn-type (var-type fn)
         arg-types (map ast-type args)
         ;; TODO this is hacky and gross
         best-method (when fn-type
@@ -761,11 +761,10 @@
         (il/callvirt (apply interop/method interface-match "invoke" param-types))]
        [(il/castclass IFn)
         (interleave
-          (map #(compile % compilers) args)
-          (map #(convert (ast-type %) Object) args))
+         (map #(compile % compilers) args)
+         (map #(convert (ast-type %) Object) args))
         (il/callvirt (apply interop/method IFn "invoke" (repeat (count args) Object)))
-        (when fn-tag
-          (convert Object fn-tag))])]))
+        (convert Object (ast-type ast))])]))
 
 (defn var-compiler
   [{:keys [var] :as ast} compilers]
@@ -1019,7 +1018,7 @@
                  {:local (fn try-local-compiler 
                            [{:keys [name] :as ast} _compilers]
                            (if-let [arg-id (closed-overs-map name)]
-                             (load-argument-standard arg-id)
+                             (load-argument-standard (inc arg-id))
                              (compile ast compilers)))})          
           bodyfn
           (fn [compilers]
@@ -1043,13 +1042,14 @@
           method-il
           (il/method 
            (str (gensym "try"))
-           (enum-or MethodAttributes/Private MethodAttributes/Static)
+           MethodAttributes/Private
            expr-type (->> closed-overs vals (mapv non-void-ast-type))
            [(bodyfn closure-compilers)
             (il/ret)])]
       (if empty-stack?
         (bodyfn compilers)
-        [(->> closed-overs vals (map #(compile % compilers)))
+        [(load-argument-standard 0)
+         (->> closed-overs vals (map #(compile % compilers)))
          (il/call method-il)]))))
 
 (defn throw-compiler
@@ -1228,77 +1228,90 @@
      return-label]))
 
 (defn compile-proxy-type [{:keys [args super interfaces closed-overs fns proxy-type] :as ast}]
-  (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
-        iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
-        super-ctor (select-method (.GetConstructors super) (map ast-type args))
-        interfaces (conj interfaces clojure.lang.IProxy)
-        ;; need to gather *all* interfaces this type effectively supports
-        ifaces* (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
-        default-iface-override 
-        (fn [method]
-          (il/method 
-           (.Name method)
-           iface-override
-           (.ReturnType method)
-           (mapv #(.ParameterType %) (.GetParameters method))
-           [(il/newobj (interop/constructor NotSupportedException))
-            (il/throw)]))
-        iface-methods
-        (->> ifaces*
-             (mapcat (fn [iface]
-                       (map
-                        #(vector (.Name %) (default-iface-override %))
-                        (.GetMethods iface))))
-             (into {}))
-        closed-over-field-map
-        (reduce-kv
-         (fn [m k v]
-           (assoc m k (il/unique (il/field (ast-type v) (str (:form v))))))
-         {}
-         closed-overs)
-        specialized-compilers
-        (merge
-         base-compilers
-         {:local
-          (fn proxy-local-compiler
-            [{:keys [name] :as ast} _cmplrs]
-            (if-let [fld (closed-over-field-map name)]
-              [(il/ldarg-0)
-               (il/ldfld fld)]
-              (local-compiler ast _cmplrs)))})
-        provided-methods
-        (into {} (map (fn [f] [(str (:name f)) (compile f specialized-compilers)]) fns))
-        methods (merge iface-methods provided-methods)
-        arg-types (map ast-type args)
-        ctor-params (concat
-                     (map ast-type args)
-                     (map ast-type (vals closed-overs)))
-        ctor (il/constructor
-              MethodAttributes/Public
-              CallingConventions/Standard
-              ctor-params
-              [(il/ldarg-0)
-               (interleave
-                (map #(load-argument-standard (inc %2)) args (range))
-                (map convert arg-types (interop/parameter-types super-ctor)))
-               (il/call super-ctor)
-               (->> closed-over-field-map
-                    vals
-                    (map-indexed
-                     (fn [i field]
-                       [(il/ldarg-0)
-                        (load-argument-standard (+ (count args) (inc i)))
-                        (il/stfld field)])))
-               (il/ret)])
-        ctx (reduce (fn [ctx field] (il/emit! ctx field))
-                    {::il/type-builder proxy-type}
-                    (vals closed-over-field-map))
-        ctx (reduce (fn [ctx method] (il/emit! ctx method))
-                    ctx
-                    (vals methods))
-        ]
-    (il/emit! ctx ctor)
-    (.CreateType proxy-type)))
+  (when-not (.IsCreated proxy-type)
+    (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+          iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
+          super-ctor (select-method (.GetConstructors super (enum-or BindingFlags/Instance BindingFlags/Public BindingFlags/NonPublic)) (map ast-type args))
+          interfaces (conj interfaces clojure.lang.IProxy)
+          ;; need to gather *all* interfaces this type effectively supports
+          ifaces* (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
+          default-override-method 
+          (fn [method attributes]
+            (il/method 
+             (.Name method)
+             attributes
+             (.ReturnType method)
+             (mapv #(.ParameterType %) (.GetParameters method))
+             [(il/newobj (interop/constructor NotSupportedException))
+              (il/throw)]))
+          all-abstract-methods
+          (fn [type]
+            (->> type
+                 .GetProperties
+                 (mapcat #(vector (.GetSetMethod %) (.GetGetMethod %)))
+                 (concat (.GetMethods type))
+                 (remove nil?)
+                 (filter #(.IsAbstract %))))
+          iface-methods
+          (->> ifaces*
+               (mapcat (fn [iface]
+                         (map
+                          #(vector % (default-override-method % iface-override))
+                          (all-abstract-methods iface))))
+               (into {}))
+          abstract-methods
+          (into {}
+                (map #(vector % (default-override-method % super-override))
+                     (all-abstract-methods super)))
+          closed-over-field-map
+          (reduce-kv
+           (fn [m k v]
+             (assoc m k (il/unique (il/field (ast-type v) (str (:form v))))))
+           {}
+           closed-overs)
+          specialized-compilers
+          (merge
+           base-compilers
+           {:local
+            (fn proxy-local-compiler
+              [{:keys [name] :as ast} _cmplrs]
+              (if-let [fld (closed-over-field-map name)]
+                [(il/ldarg-0)
+                 (il/ldfld fld)]
+                (local-compiler ast _cmplrs)))})
+          provided-methods
+          (into {} (map (fn [f] [(:source-method f) (compile f specialized-compilers)]) fns))
+          methods (merge iface-methods abstract-methods provided-methods)
+          arg-types (map ast-type args)
+          ctor-params (concat
+                       (map ast-type args)
+                       (map ast-type (vals closed-overs)))
+          ctor (il/constructor
+                MethodAttributes/Public
+                CallingConventions/Standard
+                ctor-params
+                [(il/ldarg-0)
+                 (interleave
+                  (map #(load-argument-standard (inc %2)) args (range))
+                  (map convert arg-types (interop/parameter-types super-ctor)))
+                 (il/call super-ctor)
+                 (->> closed-over-field-map
+                      vals
+                      (map-indexed
+                       (fn [i field]
+                         [(il/ldarg-0)
+                          (load-argument-standard (+ (count args) (inc i)))
+                          (il/stfld field)])))
+                 (il/ret)])
+          ctx (reduce (fn [ctx field] (il/emit! ctx field))
+                      {::il/type-builder proxy-type}
+                      (vals closed-over-field-map))
+          ctx (reduce (fn [ctx method] (il/emit! ctx method))
+                      ctx
+                      (vals methods))
+          ]
+      (il/emit! ctx ctor)
+      (.CreateType proxy-type))))
 
 (defn proxy-compiler [{:keys [class-and-interface proxy-type args closed-overs form] :as ast} compilers]  
   (compile-proxy-type ast)
@@ -1315,7 +1328,7 @@
   (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
         param-types (mapv #(.ParameterType %) (.GetParameters source-method))
-        param-names (into #{} (mapv #(.Name %) (.GetParameters source-method)))
+        param-names (into #{} (map :name (:params ast)))
         return-type (.ReturnType source-method)
         attributes (if (.. source-method DeclaringType IsInterface)
                      iface-override
@@ -1335,7 +1348,7 @@
                 :local (fn fn-method-local-compiler
                          [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
                          (if (and (= local :arg)
-                                  (param-names (str name)))
+                                  (param-names name))
                            (if by-ref?
                              (load-argument-address (inc arg-id))
                              [(load-argument-standard (inc arg-id))

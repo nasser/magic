@@ -9,7 +9,16 @@
             [magic.spells
              [lift-vars :refer [lift-vars]]
              [dynamic-interop :refer [dynamic-interop]]])
-  (:import [clojure.lang RT]))
+  (:import [clojure.lang RT]
+           [System.Reflection.Emit AssemblyBuilderAccess]))
+
+(clojure.core/defn module* [name]
+  (->
+   (.. AppDomain CurrentDomain
+       (DefineDynamicAssembly
+        (AssemblyName. name)
+        AssemblyBuilderAccess/RunAndSave))
+   (.DefineDynamicModule (str name ".dll"))))
 
 (clojure.core/defn compile-asm
   ([exprs]
@@ -35,7 +44,25 @@
         ::il/type-builder
         .Name
         symbol
-        (list 'new))))
+(clojure.core/defn eval [expr]
+  (binding [magic/*module* (module* "eval")]
+    (let [ast (ana/analyze expr)
+          bc (magic/compile ast)]
+      (->> (il/type
+            (str (gensym "magic$eval$"))
+            (il/method
+             "eval"
+             Object []
+             [bc
+              (magic/convert (ast-type ast) Object)
+              (il/ret)]))
+           (il/emit! {::il/module-builder magic/*module*})
+           ::il/type-builders ;;  TODO MAGE bug type-builder should be available here
+           vals
+           first
+           Activator/CreateInstance
+           .eval))))
+
 
 (defmacro defn
   "Compile a function using MAGIC. Useable from namespaces

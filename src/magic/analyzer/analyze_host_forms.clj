@@ -81,22 +81,17 @@
   (if (= :new op)
       ;; target must be a class literal, use :val directly
       ;; (ast-type class) will always be Type here 
-      (let [target-type (:val class)]
+    (let [target-type (:val class)]
         ;; TODO OK to drop :class like this?
-        (merge (dissoc ast :class)
-               {:type target-type
-                :children (vec (remove #(= % :class) children))}
-               (if (and (.IsValueType target-type)
-                        (empty? args))
-                   {:op :initobj}
-                 (if-let [ctor-info (.GetConstructor target-type (->> args
-                                                                   (map ast-type)
-                                                                   (into-array Type)))]
-                         {:constructor ctor-info}
-                         ;; no exact match, look for arity match
-                         (if-let [best-ctor (select-method (.GetConstructors target-type) (map ast-type args))]
-                                 {:constructor best-ctor}
-                                 (error ::errors/missing-constructor ast))))))
+      (merge (dissoc ast :class)
+             {:type target-type
+              :children (vec (remove #(= % :class) children))}
+             (if (and (.IsValueType target-type)
+                      (empty? args))
+               {:op :initobj}
+               (if-let [best-ctor (select-method (.GetConstructors target-type) (map ast-type args))]
+                 {:constructor best-ctor}
+                 (error ::errors/missing-constructor ast)))))
     ast))
 
 (defn analyze-generic-host-interop
@@ -130,10 +125,10 @@
     (if (re-find #"\[" (str m-or-f))
       (analyze-generic-host-interop ast)
       (let [identity-hack? (and (= :invoke (-> target :op))
-                               (= :var (-> target :fn :op))
-                               (= #'identity (-> target :fn :var))
-                               (= :const (-> target :args first :op))
-                               (= :class (-> target :args first :type)))
+                                (= :var (-> target :fn :op))
+                                (= #'identity (-> target :fn :var))
+                                (= :const (-> target :args first :op))
+                                (= :class (-> target :args first :type)))
             target-type (cond
                           identity-hack?
                           System.Type

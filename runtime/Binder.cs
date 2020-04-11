@@ -65,8 +65,24 @@ namespace Magic
         {
             if(match.Length == 0)
                 return null;
-            MethodBase result;
-            result = _binder.SelectMethod(bindingAttr, match, argumentTypes, modifiers);
+#if CSHARP8
+            MethodBase? result = null;
+#else
+            MethodBase result = null;
+#endif
+            // SelectMethod on the default binder throws an exception if passed
+            // typebuilders. this comes up when trying to bind to proxy methods
+            // during analysis when (the proxy type is not yet complete). we
+            // skip the default binder in this case and fall back on our own logic
+            bool allRuntimeTypes = true;
+            for (var i=0; i<argumentTypes.Length; i++) {
+                if (argumentTypes[i] is System.Reflection.Emit.TypeBuilder) {
+                    allRuntimeTypes = false;
+                    break;
+                }
+            }
+            if(allRuntimeTypes)
+                result = _binder.SelectMethod(bindingAttr, match, argumentTypes, modifiers);
             if (result != null)
                 return result;
             foreach (var candidate in match)

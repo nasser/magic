@@ -102,7 +102,7 @@
 (def specials
   "Set of the special forms for clojure in the CLR"
   (into ana/specials
-        '#{var monitor-enter monitor-exit clojure.core/import* reify* deftype* case* proxy}))
+        '#{var monitor-enter monitor-exit clojure.core/import* reify* deftype* case* proxy proxy-super}))
 
 (defn parse-monitor-enter
   [[_ target :as form] env]
@@ -161,21 +161,39 @@
      :expressions expressions
      :children [:local :default :expressions]}))
 
+(defn expand-proxy-method [[name & body :as form]]
+  (if (vector? (first body))
+    (vector form)
+    (mapv (fn [[args & body]] (list* name args body)) body)))
+
 (defn parse-proxy 
   [[_ class-and-interface args & fns :as form] env]
-  (let [class-and-interface* (mapv #(ana/analyze-symbol % env) class-and-interface)]
+  (let [class-and-interface* (mapv #(ana/analyze-symbol % env) class-and-interface)
+        this-binding {:op :binding :name 'this :form 'this :local :proxy-this}
+        env* (assoc-in env [:locals 'this] this-binding)
+        fns* (mapcat expand-proxy-method fns)]
     {:op :proxy
      :class-and-interface class-and-interface*
      :args (mapv #(ana/analyze-form % env) args)
+     :this-binding this-binding
      :fns (mapv 
            #(-> (drop 1 %)
-                (ana/analyze-fn-method env)
+                (ana/analyze-fn-method env*)
                 (assoc :name (first %)
-                       :op :proxy-method)) 
-           fns)
-     :children [:class-and-interface :args :fns]
+                       :op :proxy-method))
+           fns*)
+     :children [:args :this-binding :fns]
      :form form
      :env env}))
+
+(defn parse-proxy-super
+  [[_ method & args :as form] env]
+  {:op :proxy-super
+   :method method
+   :args (mapv #(ana/analyze-form % env) args)
+   :children [:args]
+   :form form
+   :env env})
 
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
@@ -186,6 +204,7 @@
      throw                parse-throw
      case*                parse-case*
      proxy                parse-proxy
+     proxy-super          parse-proxy-super
      #_:else              ana/-parse)
    form env))
 
@@ -360,7 +379,7 @@
                (str (gensym "proxy"))
                System.Reflection.TypeAttributes/Public
                super
-               (into-array Type interfaces)))
+               (into-array Type (conj interfaces clojure.lang.IProxy))))
 
 (defn analyze-proxy 
   "Typed analysis of proxy forms. Generates a TypeBuilder for this proxy and
@@ -370,7 +389,7 @@
   [{:keys [op class-and-interface fns] :as ast}]
   (case op
     :proxy
-    (let [_ (println "[analyze-proxy]" op (map :op class-and-interface) (map :op fns))
+    (let [class-and-interface (mapv host/analyze-type class-and-interface)
           super-provided? (not (-> class-and-interface first :val .IsInterface))
           super (if super-provided?
                   (:val (first class-and-interface))
@@ -383,21 +402,22 @@
           proxy-type (define-proxy-type magic/*module* super interfaces)
           candidate-methods (into #{} (concat (.GetMethods super) 
                                               (mapcat #(.GetMethods %) interfaces*)))
-          fns (map
+          fns (mapv
                (fn [{:keys [params name] :as f}]
-                 (let [candidate-methods (filter #(= (.Name %) (str name)) candidate-methods)
-                       best-method (select-method candidate-methods (map ast-type params))]
-                   (println "[analyze-proxy] assoc to method" name proxy-type)
-                   (if best-method
-                     (assoc f
-                            :source-method best-method
-                            :proxy-type proxy-type)
+                 (let [candidate-methods (filter #(= (.Name %) (str name)) candidate-methods)]
+                   (if-let [best-method (select-method candidate-methods (map ast-type params))]
+                     (let [params* (mapv #(update %1 :form vary-meta assoc :tag %2) params (map #(.ParameterType %) (.GetParameters best-method)))]
+                       (assoc f
+                              :params params*
+                              :source-method best-method
+                              :proxy-type proxy-type))
                      (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
                fns)
-          closed-overs (-> 
-                        (reduce (fn [co ast] (merge co (:closed-overs ast))) {} fns)
-                        (dissoc 'this))]
+          closed-overs (reduce (fn [co ast] (merge co (:closed-overs ast))) {} fns)
+          this-binding-name (->> closed-overs vals (filter #(= :proxy-this (:local %))) first :name)
+          closed-overs (dissoc closed-overs this-binding-name)]
       (assoc ast
+             :class-and-interface class-and-interface
              :super super
              :interfaces interfaces
              :closed-overs closed-overs
@@ -421,59 +441,119 @@
 (def ^:dynamic *typed-pass-locals* {})
 
 (defn typed-passes [ast]
-  (case (:op ast)
-    :catch
-    (let [{:keys [body class local]} ast
-          class* (-> class typed-passes :val)]
-      (binding [*typed-pass-locals* 
-                (assoc *typed-pass-locals* (:name local) class*)]
-        (typed-pass* (update-children ast typed-passes))))
-    (:let :loop)
-    (let [{:keys [bindings body]} ast
-          update-binding
-          (fn [{:keys [locals bindings]} {:keys [name] :as binding-ast}]
-            (let [binding-ast* (binding [*typed-pass-locals* locals]
-                                 (typed-passes binding-ast))
-                  locals* (assoc locals name binding-ast*)]
-              {:locals locals* :bindings (conj bindings binding-ast*)}))
-          {locals* :locals bindings* :bindings}
-          (reduce update-binding {:locals *typed-pass-locals* :bindings []} bindings)]
-      (binding [*typed-pass-locals* locals*]
-        (loop-bindings/infer-binding-types
-         (assoc ast
-                :bindings bindings*
-                :body (typed-passes body)))))
-    :local
-    (let [{:keys [name form local]} ast]
-      (case local
-        :catch
-        (if-let [local-type (*typed-pass-locals* name)]
-          (update ast :form vary-meta merge {:tag local-type})
-          (throw (ex-info "Local not found in environment"
-                          {:local name :form form})))
-        (:let :loop)
-        (if-let [init (*typed-pass-locals* name)]
-          (assoc-in ast [:env :locals form :init] init)
-          (throw (ex-info "Local not found in environment"
-                          {:local name :form form})))
-        #_:else
-        ast))
-    (:fn :try :proxy-method)
-    (if-let [closed-overs (:closed-overs ast)]
-      (do
-        (let [closed-overs* 
-              (reduce-kv (fn [m name {:keys [form]}]
-                           (if-let [init (*typed-pass-locals* name)]
-                             (assoc-in m [name :env :locals form :init] init)
-                             m))
-                         closed-overs
-                         closed-overs)]
-          (assoc
-           (typed-pass* (update-children ast typed-passes))
-           :closed-overs closed-overs*)))
-      ast)
-    #_:else
-    (typed-pass* (update-children ast typed-passes))))
+  (letfn [(update-closed-overs 
+            [closed-overs]
+            (reduce-kv (fn [m name {:keys [form]}]
+                         (if-let [init (*typed-pass-locals* name)]
+                           (let [form* (:form init)]
+                             (-> m
+                                 (assoc-in [name :env :locals form :init] init)
+                                 (assoc-in [name :form] form*)))
+                           m))
+                       closed-overs
+                       closed-overs))
+          (update-bindings
+            [bindings]
+            (let [update-binding
+                  (fn [{:keys [locals bindings]} {:keys [name] :as binding-ast}]
+                    (let [binding-ast* (binding [*typed-pass-locals* locals]
+                                         (typed-passes binding-ast))
+                          locals* (assoc locals name binding-ast*)]
+                      {:locals locals* :bindings (conj bindings binding-ast*)}))]
+              (reduce update-binding {:locals *typed-pass-locals* :bindings []} bindings)))]
+    (case (:op ast)
+      :catch
+      (let [{:keys [body class local]} ast
+            class* (-> class typed-passes :val)]
+        (binding [*typed-pass-locals* 
+                  (assoc *typed-pass-locals* (:name local) class*)]
+          (typed-pass* (update-children ast typed-passes))))
+      :proxy-super
+      (let [args (:args ast)
+            env (:env ast)
+            method-name (str (:method ast))
+            proxy-this-binding (-> ast :env :locals (get 'this))
+            this-name (:name proxy-this-binding)
+            proxy-type (*typed-pass-locals* this-name)
+            super-type (.BaseType proxy-type)
+            candidate-methods
+            (->> (.GetMethods super-type)
+                 (filter #(= (.Name %) method-name)))
+            args* (mapv typed-passes args)
+            arg-types (map ast-type args*)]
+        (if-let [best-method (select-method candidate-methods arg-types)]
+          {:op :instance-method
+           :non-virtual? true
+           :method best-method
+           :target {:op :local :local :proxy-this :proxy-type super-type :env env :form 'this}
+           :args args*
+           :env env
+           :children [:args]}
+          (throw (ex-info "Could not bind proxy-super to base class method"
+                          {:method-name method-name :arg-types arg-types :form (:form ast)}))))
+      :proxy
+      (let [ast* (analyze-proxy ast)
+            this-name (-> ast* :this-binding :name)
+            proxy-type (:proxy-type ast*)]
+        (binding [*typed-pass-locals* (assoc *typed-pass-locals* this-name proxy-type)]
+          (let [ast** (update-children ast* typed-passes)
+              ;; maybe move ths closed overs part into compiler
+                closed-overs (reduce (fn [co ast] (merge co (:closed-overs ast))) {} (:fns ast**))
+                this-binding-name (->> closed-overs vals (filter #(= :proxy-this (:local %))) first :name)
+                closed-overs (dissoc closed-overs this-binding-name)]
+            (assoc ast**
+                   :closed-overs closed-overs))))
+      (:let :loop)
+      (let [{:keys [bindings body]} ast
+            {locals* :locals bindings* :bindings} (update-bindings bindings)]
+        (binding [*typed-pass-locals* locals*]
+          (loop-bindings/infer-binding-types
+           (assoc ast
+                  :bindings bindings*
+                  :body (typed-passes body)))))
+      :local
+      (let [{:keys [name form local]} ast]
+        (case local
+          :proxy-this
+          (if-let [local-type (*typed-pass-locals* name)]
+            (assoc ast :proxy-type local-type)
+            (throw (ex-info "Local not found in environment"
+                            {:local name :form form})))
+          :catch
+          (if-let [local-type (*typed-pass-locals* name)]
+            (update ast :form vary-meta merge {:tag local-type})
+            (throw (ex-info "Local not found in environment"
+                            {:local name :form form})))
+          :arg
+          (if-let [init (*typed-pass-locals* name)]
+            (do
+              (println "[local :arg]" (:form ast) (-> init :form meta :tag))
+              (update ast :form vary-meta assoc :tag (-> init :form meta :tag)))
+            ast)
+          (:let :loop)
+          (if-let [init (*typed-pass-locals* name)]
+            (assoc-in ast [:env :locals form :init] init)
+            (throw (ex-info "Local not found in environment"
+                            {:local name :form form})))
+          #_:else
+          ast))
+      :proxy-method
+      (let [closed-overs (:closed-overs ast)
+            closed-overs* (update-closed-overs closed-overs)
+            {locals* :locals} (update-bindings (:params ast))]
+        (binding [*typed-pass-locals* locals*]
+          (typed-pass*
+           (assoc
+            (update-children ast typed-passes)
+            :closed-overs closed-overs*))))
+      (:fn :try)
+      (if-let [closed-overs (:closed-overs ast)]
+        (let [closed-overs* (update-closed-overs closed-overs)]
+          (typed-pass* 
+           (update-children (assoc ast :closed-overs closed-overs*) typed-passes)))
+        (typed-pass* (update-children ast typed-passes)))
+      #_:else
+      (typed-pass* (update-children ast typed-passes)))))
 
 (def default-passes-opts
   "Default :passes-opts for `analyze`"

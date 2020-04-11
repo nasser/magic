@@ -307,7 +307,7 @@
     Object))
 
 (defmethod ast-type :local
-  [{:keys [name form local by-ref?] {:keys [locals]} :env}]
+  [{:keys [name form local by-ref?] {:keys [locals]} :env :as ast}]
   (let [tag (or (-> form meta :tag)
                 (-> form locals :form meta :tag))
         type (cond tag
@@ -316,6 +316,8 @@
                      tag)
                    (= local :arg)
                    Object
+                   (= local :proxy-this)
+                   (or (:proxy-type ast) Object)
                    :else
                    (non-void-ast-type (-> form locals :init)))]
     (if by-ref?
