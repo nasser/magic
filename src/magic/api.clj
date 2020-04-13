@@ -1,7 +1,7 @@
 (ns magic.api
-  (:refer-clojure :exclude [compile defn])
+  (:refer-clojure :exclude [compile load defn eval])
   (:require [magic.analyzer :as ana]
-            [magic.analyzer.types :refer [tag]]
+            [magic.analyzer.types :refer [tag ast-type]]
             [magic.core :as magic]
             [magic.faster :refer [faster-type]]
             [mage.core :as il]
