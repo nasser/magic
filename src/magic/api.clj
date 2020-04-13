@@ -34,16 +34,23 @@
 
 (clojure.core/defn compile-fn
   "Compile fn form using MAGIC, emit binary to current ClojureCLR compilation context
-   and return constructor form."
+   and return the IFn instance."
   ([expr] (compile-fn expr (magic/get-compilers)))
   ([expr compilers]
-   (->> (-> expr
-            ana/analyze
-            (magic/compile compilers))
-        il/emit!
-        ::il/type-builder
-        .Name
-        symbol
+   (-> expr
+       ana/analyze
+       (magic/compile compilers)
+       il/emit!
+       ::il/type-builder
+       Activator/CreateInstance)))
+
+(clojure.core/defn compile-fn-ctor [expr]
+  (->> (compile-fn expr)
+       .GetType
+       .Name
+       symbol
+       (list 'new)))
+
 (clojure.core/defn eval [expr]
   (binding [magic/*module* (module* "eval")]
     (let [ast (ana/analyze expr)
