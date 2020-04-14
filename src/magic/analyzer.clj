@@ -195,6 +195,28 @@
    :form form
    :env env})
 
+(defn parse-reify
+  [[_ interfaces & methods :as form] env]
+  (let [env* (assoc env :fn-method-type :reify)]
+   {:op :reify
+    :interfaces (mapv #(ana/analyze-symbol % env) interfaces)
+    :methods (mapv
+              #(-> (drop 1 %)
+                   (ana/analyze-fn-method env*)
+                   (assoc :name (first %)
+                          :op :reify-method))
+              methods)
+    :children [:methods]
+    :form form
+    :env env}))
+
+(defn parse-recur
+  [form {:keys [fn-method-type] :as env}]
+  (case fn-method-type
+    :reify
+    (ana/parse-recur form (update env :loop-locals dec))
+    (ana/parse-recur form env)))
+
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
   [form env]
@@ -205,6 +227,8 @@
      case*                parse-case*
      proxy                parse-proxy
      proxy-super          parse-proxy-super
+     reify*               parse-reify
+     recur                parse-recur
      #_:else              ana/-parse)
    form env))
 
@@ -425,9 +449,49 @@
              :proxy-type proxy-type))
     ast))
 
+(defn define-reify-type [module-builder interfaces]
+  (.DefineType module-builder
+               (str (gensym "reify"))
+               (enum-or System.Reflection.TypeAttributes/Public System.Reflection.TypeAttributes/Sealed)
+               Object
+               (into-array Type interfaces)))
+
+(defn analyze-reify
+  [{:keys [op interfaces methods] :as ast}]
+  (case op
+    :reify
+    (let [interfaces*
+          (conj
+           (->> interfaces 
+                (map host/analyze-type)
+                (mapv :val))
+           clojure.lang.IObj)
+          reify-type (define-reify-type magic/*module* interfaces*)
+          all-interfaces (into #{} (concat interfaces* (mapcat #(.GetInterfaces %) interfaces*)))
+          candidate-methods (into #{} (concat (.GetMethods Object)
+                                              (mapcat #(.GetMethods %) interfaces*)))
+          methods (mapv
+                   (fn [{:keys [params name] :as f}]
+                     (let [params* (drop 1 params) ;; reify uses explicit this
+                           candidate-methods (filter #(= (.Name %) (str name)) candidate-methods)]
+                       (if-let [best-method (select-method candidate-methods (map ast-type params*))]
+                         (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [reify-type] (map #(.ParameterType %) (.GetParameters best-method))))]
+                           (assoc f
+                                  :params hinted-params
+                                  :source-method best-method
+                                  :reify-type reify-type))
+                         (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
+                   methods)]
+      (assoc ast
+             :reify-type reify-type
+             :interfaces interfaces*
+             :methods methods))
+    ast))
+
 (defn typed-pass* [ast]
   (-> ast
       analyze-proxy
+      analyze-reify
       host/analyze-byref
       host/analyze-type
       host/analyze-host-field
@@ -503,6 +567,16 @@
                 closed-overs (dissoc closed-overs this-binding-name)]
             (assoc ast**
                    :closed-overs closed-overs))))
+      :reify
+      (let [ast* (analyze-reify ast)]
+        (println "[:reify]" (:children ast*))
+        (let [ast** (update-children ast* typed-passes)
+              ;; maybe move ths closed overs part into compiler
+              ;; closed-overs (reduce (fn [co ast] (merge co (:closed-overs ast))) {} (:fns ast**))
+              ;; this-binding-name (->> closed-overs vals (filter #(= :proxy-this (:local %))) first :name)
+              ;; closed-overs (dissoc closed-overs this-binding-name)
+              ]
+          (update ast** :closed-overs update-closed-overs)))
       (:let :loop)
       (let [{:keys [bindings body]} ast
             {locals* :locals bindings* :bindings} (update-bindings bindings)]
@@ -546,6 +620,13 @@
            (assoc
             (update-children ast typed-passes)
             :closed-overs closed-overs*))))
+      :reify-method
+      (let [; closed-overs (:closed-overs ast)
+              ; closed-overs* (update-closed-overs closed-overs)
+            {locals* :locals} (update-bindings (:params ast))]
+        (binding [*typed-pass-locals* locals*]
+          (typed-pass*
+           (update-children ast typed-passes))))
       (:fn :try)
       (if-let [closed-overs (:closed-overs ast)]
         (let [closed-overs* (update-closed-overs closed-overs)]

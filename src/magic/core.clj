@@ -1363,6 +1363,114 @@
       (convert body-type return-type)
       (il/ret)])))
 
+(defn reify-method-compiler [{:keys [body source-method reify-type] :as ast} compilers]
+  (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+        iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
+        param-types (mapv #(.ParameterType %) (.GetParameters source-method))
+        param-types-this (vec (concat [reify-type] param-types))
+        param-names (into #{} (map :name (:params ast)))
+        return-type (.ReturnType source-method)
+        attributes (if (.. source-method DeclaringType IsInterface)
+                     iface-override
+                     super-override)
+        name (.Name source-method)
+        body-type (ast-type body)
+        recur-target (il/label)
+        specialized-compilers
+        (merge compilers
+               {:recur (fn reify-recur-compiler
+                         [{:keys [exprs]} cmplrs]
+                         [(interleave
+                           (map #(compile % cmplrs) exprs)
+                           (map #(convert (ast-type %1) %2) exprs param-types))
+                          (map store-argument (->> param-types count inc (range 1) reverse))
+                          (il/br recur-target)])
+                :local (fn reify-method-local-compiler
+                         [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
+                         (println "[reify-method-local-compiler]" name arg-id param-types-this param-names)
+                         (if (and (= local :arg)
+                                  (param-names name))
+                           (if by-ref?
+                             (load-argument-address arg-id)
+                             [(load-argument-standard arg-id)
+                              (convert (param-types-this arg-id) (ast-type ast))])
+                           (compile ast compilers)))})]
+    (il/method
+     name
+     attributes
+     return-type param-types
+     [recur-target
+      (compile body specialized-compilers)
+      (convert body-type return-type)
+      (il/ret)])))
+
+(def iobj-implementation
+  (let [meta-field (il/field clojure.lang.IPersistentMap "#<meta>")
+        iface-override (enum-or MethodAttributes/Public MethodAttributes/Virtual MethodAttributes/Final MethodAttributes/NewSlot)
+        iobj-with-meta
+        (il/method
+         "withMeta"
+         iface-override
+         clojure.lang.IObj [clojure.lang.IPersistentMap]
+         [(il/ldarg-0)
+          (il/ret)])
+        imeta-meta
+        (il/method
+         "meta"
+         iface-override
+         clojure.lang.IPersistentMap []
+         [(il/ldarg-0)
+          (il/ldfld meta-field)
+          (il/ret)])]
+    [iobj-with-meta imeta-meta]))
+
+(defn compile-reify-type [{:keys [interfaces methods closed-overs reify-type] :as ast}]
+  (println "[compile-reify-type]" interfaces)
+  (when-not (.IsCreated reify-type)
+    (let [closed-over-field-map
+          (reduce-kv
+           (fn [m k v]
+             (assoc m k (il/unique (il/field (ast-type v) (str (:form v))))))
+           {}
+           closed-overs)
+          specialized-compilers
+          (merge
+           base-compilers
+           {:local
+            (fn proxy-local-compiler
+              [{:keys [name] :as ast} _cmplrs]
+              (if-let [fld (closed-over-field-map name)]
+                [(il/ldarg-0)
+                 (il/ldfld fld)]
+                (local-compiler ast _cmplrs)))})
+          super-ctor (first (.GetConstructors Object))
+          ctor-params (map ast-type (vals closed-overs))
+          ctor (il/constructor
+                MethodAttributes/Public
+                CallingConventions/Standard
+                ctor-params
+                [(il/ldarg-0)
+                 (il/call super-ctor)
+                 (->> closed-over-field-map
+                      vals
+                      (map-indexed
+                       (fn [i field]
+                         [(il/ldarg-0)
+                          (load-argument-standard (inc i))
+                          (il/stfld field)])))
+                 (il/ret)])
+          methods*
+          (map #(compile % specialized-compilers) methods)]
+      (reduce (fn [ctx method] (il/emit! ctx method))
+              {::il/type-builder reify-type}
+              (concat [ctor] methods* iobj-implementation)))
+    (.CreateType reify-type)))
+
+(defn reify-compiler [{:keys [interfaces methods closed-overs form reify-type] :as ast} compilers]
+  (compile-reify-type ast)
+  [(map #(compile % compilers) (vals closed-overs))
+   (il/newobj (first (.GetConstructors reify-type)))])
+
 (def base-compilers
   {:const               #'const-compiler
    :do                  #'do-compiler
@@ -1399,6 +1507,8 @@
    :with-meta           #'with-meta-compiler
    :intrinsic           #'intrinsic-compiler
    :case                #'case-compiler
+   :reify               #'reify-compiler
+   :reify-method        #'reify-method-compiler
    :proxy               #'proxy-compiler
    :proxy-method        #'proxy-method-compiler})
 
