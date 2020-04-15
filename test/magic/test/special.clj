@@ -99,7 +99,16 @@
    (let [f (fn 
              ([x] (* x 2))
              ([x y] (* x y)))]
-     (+ (f 80) (f 87 11)))))
+     (+ (f 80) (f 87 11)))
+   (let [x 1
+         y 2
+         f (fn [z] (+ x y z))]
+     (f 90))
+   (let [x 1
+         y 2
+         f (fn [] (fn [z] (+ x y z)))
+         g (f)]
+     (g 90))))
 
 ;; this just tests that the monitor forms compile
 ;;it does not test their semantics!

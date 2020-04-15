@@ -101,9 +101,8 @@
   (is (not (clojure.string/blank? " foo "))))
 
 (deftest t-split-lines
-  (let [result (clojure.string/split-lines "one\ntwo\r\nthree")]
-    (is (= ["one" "two" "three"] result))
-    (is (vector? result)))
+  (is (= ["one" "two" "three"] (clojure.string/split-lines "one\ntwo\r\nthree")))
+  (is (vector? (clojure.string/split-lines "one\ntwo\r\nthree")))
   (is (= (list "foo") (clojure.string/split-lines "foo"))))
 
 (deftest t-index-of
@@ -137,9 +136,8 @@
   (is (not (clojure.string/ends-with? "Conj" "West"))))            ;;; (StringBuffer. "Conj")
 
 (deftest t-includes?
-  (let [sb "Clojure Applied Book"]                     ;;; (StringBuffer. "Clojure Applied Book")
-    (is (clojure.string/includes? sb "Applied"))
-    (is (not (clojure.string/includes? sb "Living")))))
+  (is (let [sb "Clojure Applied Book"] (clojure.string/includes? sb "Applied")))
+  (is (let [sb "Clojure Applied Book"] (not (clojure.string/includes? sb "Living")))))
 
 (deftest empty-collections
   (is (= "()" (str ())))

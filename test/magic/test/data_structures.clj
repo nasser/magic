@@ -407,9 +407,9 @@
     (keys (hash-map)) nil
     (keys (hash-map :a 1)) '(:a))
 
-  (let [m {:a 1 :b 2}
-        k (keys m)]
-    (is (= {:hi :there} (meta (with-meta k {:hi :there}))))))
+  (is (= {:hi :there} 
+         (let [m {:a 1 :b 2}
+               k (keys m)] (meta (with-meta k {:hi :there}))))))
 
 (deftest test-vals
   (are [x y] (= x y)      ; other than map data structures
@@ -432,9 +432,9 @@
     (vals (hash-map)) nil
     (vals (hash-map :a 1)) '(1))
 
-  (let [m {:a 1 :b 2}
-        v (vals m)]
-    (is (= {:hi :there} (meta (with-meta v {:hi :there}))))))
+  (is (= {:hi :there} 
+         (let [m {:a 1 :b 2}
+               v (vals m)] (meta (with-meta v {:hi :there}))))))
 
 (deftest test-key
   (are [x]  (= (key (first (hash-map x :value))) x)
