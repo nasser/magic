@@ -1324,14 +1324,17 @@
    (map #(compile % compilers) (vals closed-overs))
    (il/newobj (first (.GetConstructors proxy-type)))])
 
-(defn proxy-method-compiler [{:keys [body source-method] :as ast} compilers]
-  (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+(defn proxy-method-compiler [{:keys [name body source-method] :as ast} compilers]
+  (let [name (str name)
+        explicit-override? (string/includes? name ".")
+        super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
+        explicit-override (enum-or MethodAttributes/Private MethodAttributes/Virtual MethodAttributes/NewSlot)
         param-types (mapv #(.ParameterType %) (.GetParameters source-method))
         param-names (into #{} (map :name (:params ast)))
         return-type (.ReturnType source-method)
         attributes (if (.. source-method DeclaringType IsInterface)
-                     iface-override
+                     (if explicit-override? explicit-override iface-override)
                      super-override)
         name (.Name source-method)
         body-type (ast-type body)
@@ -1358,6 +1361,7 @@
      name
      attributes
      return-type param-types
+     (when explicit-override? source-method)
      [recur-target
       (compile body specialized-compilers)
       (convert body-type return-type)

@@ -430,7 +430,17 @@
                                               (mapcat #(.GetMethods %) interfaces*)))
           fns (mapv
                (fn [{:keys [params name] :as f}]
-                 (let [candidate-methods (filter #(= (.Name %) (str name)) candidate-methods)]
+                 (let [name (str name)
+                       [interface-name method-name]
+                       (if (string/includes? name ".")
+                         (let [last-dot (string/last-index-of name ".")]
+                           [(subs name 0 last-dot)
+                            (subs name (inc last-dot))])
+                         [nil name])
+                       candidate-methods (filter #(= method-name (.Name %)) candidate-methods)
+                       candidate-methods (if interface-name
+                                           (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
+                                           candidate-methods)]
                    (if-let [best-method (select-method candidate-methods (map ast-type params))]
                      (let [params* (mapv #(update %1 :form vary-meta assoc :tag %2) params (map #(.ParameterType %) (.GetParameters best-method)))]
                        (assoc f
