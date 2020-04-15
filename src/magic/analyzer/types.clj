@@ -157,6 +157,9 @@
 (defmethod ast-type :proxy
   [{:keys [proxy-type]}] proxy-type)
 
+(defmethod ast-type :reify
+  [{:keys [reify-type]}] reify-type)
+
 (defmethod ast-type :dynamic-zero-arity [_] Object)
 
 (defmethod ast-type :dynamic-method [_] Object)
