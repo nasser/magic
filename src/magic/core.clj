@@ -1227,6 +1227,23 @@
      (convert (ast-type default) expr-type)
      return-label]))
 
+(defn default-override-method [method attributes]
+  (il/method
+   (.Name method)
+   attributes
+   (.ReturnType method)
+   (mapv #(.ParameterType %) (.GetParameters method))
+   [(il/newobj (interop/constructor NotSupportedException))
+    (il/throw)]))
+
+(defn all-abstract-methods [type]
+  (->> type
+       .GetProperties
+       (mapcat #(vector (.GetSetMethod %) (.GetGetMethod %)))
+       (concat (.GetMethods type))
+       (remove nil?)
+       (filter #(.IsAbstract %))))
+
 (defn compile-proxy-type [{:keys [args super interfaces closed-overs fns proxy-type] :as ast}]
   (when-not (.IsCreated proxy-type)
     (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
@@ -1235,23 +1252,6 @@
           interfaces (conj interfaces clojure.lang.IProxy)
           ;; need to gather *all* interfaces this type effectively supports
           ifaces* (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
-          default-override-method 
-          (fn [method attributes]
-            (il/method 
-             (.Name method)
-             attributes
-             (.ReturnType method)
-             (mapv #(.ParameterType %) (.GetParameters method))
-             [(il/newobj (interop/constructor NotSupportedException))
-              (il/throw)]))
-          all-abstract-methods
-          (fn [type]
-            (->> type
-                 .GetProperties
-                 (mapcat #(vector (.GetSetMethod %) (.GetGetMethod %)))
-                 (concat (.GetMethods type))
-                 (remove nil?)
-                 (filter #(.IsAbstract %))))
           iface-methods
           (->> ifaces*
                (mapcat (fn [iface]
@@ -1456,8 +1456,7 @@
               (il/ret)])))]
     [iobj-with-meta imeta-meta]))
 
-(defn compile-reify-type [{:keys [methods closed-overs reify-type meta] :as ast} compilers]
-  (println "[compile-reify-type] meta" meta)
+(defn compile-reify-type [{:keys [methods interfaces closed-overs reify-type meta] :as ast} compilers]
   (when-not (.IsCreated reify-type)
     (let [meta-field (il/field clojure.lang.IPersistentMap "<meta>")
           closed-over-field-map
@@ -1510,11 +1509,25 @@
           meta-il
           (when-not (nil? (:form meta))
             (compile meta specialized-compilers))
-          methods*
-          (map #(compile % specialized-compilers) methods)]
+          super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+          iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
+          ifaces* (disj (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
+                        clojure.lang.IObj
+                        clojure.lang.IMeta)
+          iface-methods
+          (->> ifaces*
+               (mapcat (fn [iface]
+                         (map
+                          #(vector % (default-override-method % iface-override))
+                          (all-abstract-methods iface))))
+               (into {}))
+          provided-methods
+          (into {} (map (fn [m] [(:source-method m) (compile m specialized-compilers)]) methods))
+          methods* (merge iface-methods provided-methods)]
       (reduce (fn [ctx method] (il/emit! ctx method))
               {::il/type-builder reify-type}
-              (concat [ctor meta-ctor] methods* (iobj-implementation meta-il meta-field meta-ctor closed-over-field-map))))
+              [ctor meta-ctor (vals methods*)
+               (iobj-implementation meta-il meta-field meta-ctor closed-over-field-map)]))
     (.CreateType reify-type)))
 
 (defn reify-compiler [{:keys [closed-overs reify-type] :as ast} compilers]
