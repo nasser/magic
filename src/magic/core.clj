@@ -1404,8 +1404,9 @@
       (convert body-type return-type)
       (il/ret)])))
 
-(defn iobj-implementation [meta-field meta-ctor closed-over-field-map]
+(defn iobj-implementation [meta-il meta-field meta-ctor closed-over-field-map]
   (let [iface-override (enum-or MethodAttributes/Public MethodAttributes/Virtual MethodAttributes/Final MethodAttributes/NewSlot)
+        static-meta-field (il/field clojure.lang.IPersistentMap "<static_meta>" (enum-or FieldAttributes/Private FieldAttributes/Static))
         iobj-with-meta
         (il/method
          "withMeta"
@@ -1422,15 +1423,32 @@
          "meta"
          iface-override
          clojure.lang.IPersistentMap []
-         [(il/ldarg-0)
-          (il/ldfld meta-field)
-          (il/ret)])]
+         (let [null-meta-label (il/label)
+               not-null-static-meta-label (il/label)]
+           [(il/ldarg-0)
+            (il/ldfld meta-field)
+            (il/ldnull)
+            (il/ceq)
+            (il/brtrue null-meta-label)
+            (il/ldarg-0)
+            (il/ldfld meta-field)
+            (il/ret)
+            null-meta-label
+            (il/ldsfld static-meta-field)
+            (il/ldnull)
+            (il/ceq)
+            (il/brfalse not-null-static-meta-label)
+            meta-il
+            (il/stsfld static-meta-field)
+            not-null-static-meta-label
+            (il/ldsfld static-meta-field)
+            (il/ret)]))]
     [iobj-with-meta imeta-meta]))
 
-(defn compile-reify-type [{:keys [interfaces methods closed-overs reify-type] :as ast}]
-  (println "[compile-reify-type]" interfaces)
+(defn compile-reify-type [{:keys [methods closed-overs reify-type meta] :as ast}]
+  (println "[compile-reify-type] meta" meta)
   (when-not (.IsCreated reify-type)
-    (let [meta-field (il/field clojure.lang.IPersistentMap "#<meta>")
+    (let [meta-field (il/field clojure.lang.IPersistentMap "<meta>")
           closed-over-field-map
           (reduce-kv
            (fn [m k v]
@@ -1478,11 +1496,13 @@
             (il/ldarg-1)
             (il/stfld meta-field)
             (il/ret)])
+          meta-il
+          (compile meta base-compilers)
           methods*
           (map #(compile % specialized-compilers) methods)]
       (reduce (fn [ctx method] (il/emit! ctx method))
               {::il/type-builder reify-type}
-              (concat [ctor meta-ctor] methods* (iobj-implementation meta-field meta-ctor closed-over-field-map))))
+              (concat [ctor meta-ctor] methods* (iobj-implementation meta-il meta-field meta-ctor closed-over-field-map))))
     (.CreateType reify-type)))
 
 (defn reify-compiler [{:keys [closed-overs reify-type] :as ast} compilers]

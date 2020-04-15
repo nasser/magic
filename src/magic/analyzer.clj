@@ -206,7 +206,8 @@
                    (assoc :name (first %)
                           :op :reify-method))
               methods)
-    :children [:methods]
+    :meta (ana/analyze-form (meta form) env*)
+    :children [:methods :meta]
     :form form
     :env env}))
 
