@@ -1423,26 +1423,30 @@
          "meta"
          iface-override
          clojure.lang.IPersistentMap []
-         (let [null-meta-label (il/label)
-               not-null-static-meta-label (il/label)]
+         (if-not meta-il
            [(il/ldarg-0)
             (il/ldfld meta-field)
-            (il/ldnull)
-            (il/ceq)
-            (il/brtrue null-meta-label)
-            (il/ldarg-0)
-            (il/ldfld meta-field)
-            (il/ret)
-            null-meta-label
-            (il/ldsfld static-meta-field)
-            (il/ldnull)
-            (il/ceq)
-            (il/brfalse not-null-static-meta-label)
-            meta-il
-            (il/stsfld static-meta-field)
-            not-null-static-meta-label
-            (il/ldsfld static-meta-field)
-            (il/ret)]))]
+            (il/ret)]
+           (let [null-meta-label (il/label)
+                 not-null-static-meta-label (il/label)]
+             [(il/ldarg-0)
+              (il/ldfld meta-field)
+              (il/ldnull)
+              (il/ceq)
+              (il/brtrue null-meta-label)
+              (il/ldarg-0)
+              (il/ldfld meta-field)
+              (il/ret)
+              null-meta-label
+              (il/ldsfld static-meta-field)
+              (il/ldnull)
+              (il/ceq)
+              (il/brfalse not-null-static-meta-label)
+              meta-il
+              (il/stsfld static-meta-field)
+              not-null-static-meta-label
+              (il/ldsfld static-meta-field)
+              (il/ret)])))]
     [iobj-with-meta imeta-meta]))
 
 (defn compile-reify-type [{:keys [methods closed-overs reify-type meta] :as ast} compilers]
@@ -1497,7 +1501,8 @@
             (il/stfld meta-field)
             (il/ret)])
           meta-il
-          (compile meta specialized-compilers)
+          (when-not (nil? (:form meta))
+            (compile meta specialized-compilers))
           methods*
           (map #(compile % specialized-compilers) methods)]
       (reduce (fn [ctx method] (il/emit! ctx method))
