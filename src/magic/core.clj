@@ -1445,7 +1445,7 @@
             (il/ret)]))]
     [iobj-with-meta imeta-meta]))
 
-(defn compile-reify-type [{:keys [methods closed-overs reify-type meta] :as ast}]
+(defn compile-reify-type [{:keys [methods closed-overs reify-type meta] :as ast} compilers]
   (println "[compile-reify-type] meta" meta)
   (when-not (.IsCreated reify-type)
     (let [meta-field (il/field clojure.lang.IPersistentMap "<meta>")
@@ -1457,7 +1457,7 @@
            closed-overs)
           specialized-compilers
           (merge
-           base-compilers
+           compilers
            {:local
             (fn proxy-local-compiler
               [{:keys [name] :as ast} _cmplrs]
@@ -1497,7 +1497,7 @@
             (il/stfld meta-field)
             (il/ret)])
           meta-il
-          (compile meta base-compilers)
+          (compile meta specialized-compilers)
           methods*
           (map #(compile % specialized-compilers) methods)]
       (reduce (fn [ctx method] (il/emit! ctx method))
@@ -1506,7 +1506,7 @@
     (.CreateType reify-type)))
 
 (defn reify-compiler [{:keys [closed-overs reify-type] :as ast} compilers]
-  (compile-reify-type ast)
+  (compile-reify-type ast compilers)
   [(map #(compile % compilers) (vals closed-overs))
    (il/newobj (first (.GetConstructors reify-type)))])
 
