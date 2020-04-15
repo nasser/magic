@@ -9,7 +9,8 @@
    magic.test.interop
    magic.test.dynamic
    magic.test.special
-   magic.test.proxy)
+   magic.test.proxy
+   magic.test.reify)
   (:use clojure.test))
 
 (defn all []
@@ -23,7 +24,8 @@
    'magic.test.interop
    'magic.test.special
    'magic.test.dynamic
-   'magic.test.proxy))
+   'magic.test.proxy
+   'magic.test.reify))
 
 (defn run [& namespaces]
   (apply run-tests namespaces))
