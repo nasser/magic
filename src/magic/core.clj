@@ -1363,17 +1363,19 @@
       (convert body-type return-type)
       (il/ret)])))
 
-(defn reify-method-compiler [{:keys [body source-method reify-type] :as ast} compilers]
-  (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+(defn reify-method-compiler [{:keys [name body source-method reify-type] :as ast} compilers]
+  (let [name (str name)
+        explicit-override? (string/includes? name ".")
+        super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+        explicit-override (enum-or MethodAttributes/Private MethodAttributes/Virtual MethodAttributes/NewSlot)
         iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
         param-types (mapv #(.ParameterType %) (.GetParameters source-method))
         param-types-this (vec (concat [reify-type] param-types))
         param-names (into #{} (map :name (:params ast)))
         return-type (.ReturnType source-method)
         attributes (if (.. source-method DeclaringType IsInterface)
-                     iface-override
+                     (if explicit-override? explicit-override iface-override)
                      super-override)
-        name (.Name source-method)
         body-type (ast-type body)
         recur-target (il/label)
         specialized-compilers
@@ -1399,6 +1401,7 @@
      name
      attributes
      return-type param-types
+     (when explicit-override? source-method)
      [recur-target
       (compile body specialized-compilers)
       (convert body-type return-type)

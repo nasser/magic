@@ -9,13 +9,14 @@
     [types :refer [read-generic-name ast-type class-for-name]]])
   (:import [System.Reflection BindingFlags]))
 
-(defn get-all-methods [t]
-  (into #{}
-        (concat
-         (.GetMethods t)
-         (mapcat get-all-methods (.GetInterfaces t))
-         (when-let [base (.BaseType t)]
-           (get-all-methods base)))))
+(defn get-all-methods 
+  ([t] (into #{}
+             (concat
+              (.GetMethods t)
+              (mapcat get-all-methods (.GetInterfaces t))
+              (when-let [base (.BaseType t)]
+                (get-all-methods base)))))
+  ([t name] (->> t get-all-methods (filter #(= name (.Name %))))))
 
 (def public-instance (enum-or BindingFlags/Instance BindingFlags/Public))
 (def public-static (enum-or BindingFlags/Static BindingFlags/Public))
@@ -204,17 +205,15 @@
                {:op (if static?
                       :static-method
                       :instance-method)}
-               (if-let [meth (apply interop/method
-                                    target-type
-                                    (str method)
-                                    (->> args
-                                         (map ast-type)
-                                         (into-array Type)))]
+               (if-let [meth (select-method
+                              (filter #(= (.Name %) (str method))
+                                      (.GetMethods target-type))
+                              (map ast-type args))]
                  {:method meth}
                  (if-let [best-method (select-method
-                                        (filter #(= (.Name %) (str method))
-                                                (get-all-methods target-type))
-                                        (map ast-type args))]
+                                       (filter #(= (.Name %) (str method))
+                                               (get-all-methods target-type))
+                                       (map ast-type args))]
                    {:method best-method}
                    (cond static?
                          ;; static method no best match, error

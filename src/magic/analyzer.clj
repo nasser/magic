@@ -27,6 +27,7 @@
              [errors :refer [error] :as errors]
              [types :refer [ast-type class-for-name maybe-class]]]
             [clojure.walk :as w]
+            [clojure.string :as string]
             [magic.core :as magic]))
 
 (defn ensure-class [c form]
@@ -470,11 +471,21 @@
           reify-type (define-reify-type magic/*module* interfaces*)
           all-interfaces (into #{} (concat interfaces* (mapcat #(.GetInterfaces %) interfaces*)))
           candidate-methods (into #{} (concat (.GetMethods Object)
-                                              (mapcat #(.GetMethods %) interfaces*)))
+                                              (mapcat #(.GetMethods %) all-interfaces)))
           methods (mapv
                    (fn [{:keys [params name] :as f}]
-                     (let [params* (drop 1 params) ;; reify uses explicit this
-                           candidate-methods (filter #(= (.Name %) (str name)) candidate-methods)]
+                     (let [name (str name)
+                           params* (drop 1 params) ;; reify uses explicit this
+                           [interface-name method-name] 
+                           (if (string/includes? name ".")
+                             (let [last-dot (string/last-index-of name ".")]
+                               [(subs name 0 last-dot)
+                                (subs name (inc last-dot))])
+                             [nil name])
+                           candidate-methods (filter #(= method-name (.Name %) ) candidate-methods)
+                           candidate-methods (if interface-name
+                                               (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
+                                               candidate-methods)]
                        (if-let [best-method (select-method candidate-methods (map ast-type params*))]
                          (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [reify-type] (map #(.ParameterType %) (.GetParameters best-method))))]
                            (assoc f
