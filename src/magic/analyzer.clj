@@ -220,6 +220,37 @@
     (ana/parse-recur form (update env :loop-locals dec))
     (ana/parse-recur form env)))
 
+(defn deftype-field-local [f env]
+  {:op :local 
+   :local :field
+   :form f
+   :env env})
+
+(defn parse-deftype
+  [[_ var-name type-name fields & opts-specs :as form] env]
+  (let [options (apply hash-map (apply concat (take-while #(keyword? (first %)) (partition 2 2 opts-specs))))
+        implements (:implements options)
+        methods (drop (* 2 (count options)) opts-specs)
+        env* (reduce 
+              (fn [e f]
+                (assoc-in e [:locals f]
+                          (deftype-field-local f env)))
+              env fields)]
+    {:op :deftype
+     :var-name var-name
+     :type-name type-name
+     :fields fields
+     :options options
+     :implements (mapv #(ana/analyze-symbol % env) implements)
+     :methods (mapv
+               #(-> (drop 1 %)
+                    (ana/analyze-fn-method env*)
+                    (assoc :name (first %)
+                           :op :deftype-method))
+               methods)
+     :form form
+     :env env*}))
+
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
   [form env]
@@ -232,6 +263,7 @@
      proxy-super          parse-proxy-super
      reify*               parse-reify
      recur                parse-recur
+     deftype*             parse-deftype
      #_:else              ana/-parse)
    form env))
 
