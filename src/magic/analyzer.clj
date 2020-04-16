@@ -400,6 +400,41 @@
     #'compute-empty-stack-context
     #'remove-empty-throw-children})
 
+(defn gen-fn-name [n]
+  (string/replace
+   (str (gensym
+         (str *ns* "$" (or n "fn") "$")))
+   "."
+   "$"))
+
+(defn define-fn-type [module-builder name interfaces]
+  (.DefineType module-builder
+               (gen-fn-name name)
+               System.Reflection.TypeAttributes/Public
+               clojure.lang.AFunction
+               (into-array Type (conj interfaces))))
+
+(defn analyze-fn
+  [{:keys [op local methods] :as ast}]
+  (case op
+    :fn
+    (let [name (:form local)
+          param-types (->> methods
+                           (map :params)
+                           (mapcat #(vector (map non-void-ast-type %)
+                                            (map (constantly Object) %))))
+          return-types (->> methods
+                            (mapcat #(vector
+                                      (or (-> % :form first meta :tag types/resolve)
+                                          (-> % :body non-void-ast-type))
+                                      Object)))
+          interfaces (map #(interop/generic-type "Magic.Function" (conj %1 %2))
+                          param-types
+                          return-types)
+          fn-type (define-fn-type magic/*module* name interfaces)]
+      (assoc ast :fn-type fn-type))
+    ast))
+
 (defn define-proxy-type [module-builder super interfaces]
   (.DefineType module-builder 
                (str (gensym "proxy"))
@@ -514,6 +549,7 @@
   (-> ast
       analyze-proxy
       analyze-reify
+      analyze-fn
       host/analyze-byref
       host/analyze-type
       host/analyze-host-field

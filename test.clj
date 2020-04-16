@@ -11,7 +11,8 @@
    magic.test.special
    magic.test.proxy
    magic.test.reify
-   magic.test.fn)
+   magic.test.fn
+   magic.test.letfn)
   (:use clojure.test))
 
 (defn all []
@@ -27,7 +28,8 @@
    'magic.test.dynamic
    'magic.test.proxy
    'magic.test.reify
-   'magic.test.fn))
+   'magic.test.fn
+   'magic.test.letfn))
 
 (defn run [& namespaces]
   (apply run-tests namespaces))

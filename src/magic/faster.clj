@@ -13,7 +13,7 @@
   HasArity methods, or constructors"
   [{:keys [local methods] :as ast} compilers]
   (il/type
-    (magic/gen-fn-name (:form local))
+    (ana/gen-fn-name (:form local))
     (map #(magic/compile % compilers) methods)))
 
 (defn typed-static-invoke-fn-method

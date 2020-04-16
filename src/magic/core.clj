@@ -694,6 +694,42 @@
      ;; emit body with specialized compilers
      (compile body specialized-compilers)]))
 
+(defn letfn-compiler
+  [{:keys [bindings body] :as ast} compilers]
+  (let [binding-map (reduce (fn [m binding]
+                              (assoc m
+                                     (:name binding)
+                                     (il/local (non-void-ast-type binding)
+                                               (str (:name binding)))))
+                            (sorted-map) 
+                            bindings)
+        specialized-compilers
+        (merge compilers
+               {:local
+                (fn let-local-compiler
+                  [{:keys [name form by-ref?] {:keys [locals]} :env :as ast} cmplrs]
+                  (if-let [loc (-> name binding-map)]
+                    (if by-ref?
+                      (il/ldloca loc)
+                      [(il/ldloc loc)
+                       (when (-> form locals :init)
+                         (convert (ast-type (-> form locals :init)) (non-void-ast-type ast)))])
+                    (compile ast compilers)))})
+        binding-il (map #(compile % specialized-compilers) bindings)]
+    ;; emit local initializations
+    [(map (fn [il binding]
+            [(drop-last il)
+             (convert (ast-type (-> binding :init)) (non-void-ast-type binding))
+             (il/stloc (binding-map (:name binding)))])
+          binding-il bindings)
+     (interleave 
+      (map (fn [il binding]
+             [(il/ldloc (binding-map (:name binding)))
+              (last il)])
+           binding-il bindings)
+      (repeat (il/pop)))
+     (compile body specialized-compilers)]))
+
 (defn if-compiler
   [{:keys [test then else] :as ast} compilers]
   (let [if-expr-type (ast-type ast)
@@ -868,76 +904,46 @@
      (il/call (private-constructor clojure.lang.AFunction))
      (il/ret)]))
 
-(defn gen-fn-name [n]
-  (string/replace
-    (str (gensym
-           (str *ns* "$" (or n "fn") "$")))
-    "."
-    "$"))
+(defn compile-fn-type [{:keys [methods closed-overs fn-type] :as ast} compilers]
+  (when-not (.IsCreated fn-type)
+    (let [arities (map :fixed-arity methods)
+          closed-over-field-map
+          (reduce-kv
+           (fn [m k v]
+             (assoc m k (il/unique (il/field (ast-type v) (str (:form v))
+                                             FieldAttributes/Assembly))))
+           (sorted-map)
+           closed-overs)
+          specialized-compilers
+          (merge
+           compilers
+           {:local
+            (fn fn-local-compiler
+              [{:keys [name] :as ast} _cmplrs]
+              (if-let [fld (closed-over-field-map name)]
+                [(il/ldarg-0)
+                 (il/ldfld fld)]
+                (local-compiler ast _cmplrs)))})
+          ctor (il/constructor
+                (enum-or MethodAttributes/Public)
+                CallingConventions/Standard []
+                [(il/ldarg-0)
+                 (il/call (private-constructor clojure.lang.AFunction))
+                 (il/ret)])
+          methods* (map #(compile % specialized-compilers) methods)]
+      (reduce (fn [ctx x] (il/emit! ctx x))
+              {::il/type-builder fn-type}
+              [ctor methods* (has-arity-method arities)]))
+    (.CreateType fn-type)))
 
 (defn fn-compiler
-  [{:keys [local methods raw-forms closed-overs] :as ast} compilers]
-  (let [arities (map :fixed-arity methods)
-        param-types (->> methods
-                         (map :params)
-                         (mapcat #(vector (map non-void-ast-type %)
-                                          (map (constantly Object) %))))
-        return-types (->> methods
-                          (mapcat #(vector
-                                    (or (-> % :form first meta :tag types/resolve)
-                                        (-> % :body non-void-ast-type))
-                                    Object)))
-        interfaces (map #(interop/generic-type "Magic.Function" (conj %1 %2))
-                        param-types
-                        return-types)
-        ;; local name -> il/field
-        closed-over-field-map
-        (reduce-kv
-         (fn [m k v]
-           (assoc m k (il/unique (il/field (ast-type v) (str (:form v))))))
-         {}
-         closed-overs)
-        specialized-compilers
-        (update 
-         compilers
-         :local
-         (fn [old-local-compiler]
-           (fn fn-closure-local-compiler
-             [{:keys [name] :as ast} _cmplrs]
-             (if-let [fld (closed-over-field-map name)]
-               [(il/ldarg-0)
-                (il/ldfld fld)]
-               (old-local-compiler ast _cmplrs))))) 
-        ctor
-        (let [params (->> closed-overs vals (map non-void-ast-type))
-              field-population-il
-              (->> closed-over-field-map
-                   vals
-                   (map-indexed 
-                    (fn [i field]
-                      [(il/ldarg-0)
-                       (load-argument-standard (inc i))
-                       (il/stfld field)
-                       ])))]
-          (il/constructor
-           (enum-or MethodAttributes/Public)
-           CallingConventions/Standard
-           params
-           [(il/ldarg-0)
-            (il/call (private-constructor clojure.lang.AFunction))
-            field-population-il
-            (il/ret)]))]
-    [(il/type
-      (gen-fn-name (:form local))
-      TypeAttributes/Public
-      interfaces
-      clojure.lang.AFunction
-      [(vals closed-over-field-map)
-       ctor
-       (has-arity-method arities)
-       (map #(compile % specialized-compilers) methods)])
-     (->> closed-overs vals (map #(compile % compilers)))
-     (il/newobj ctor)]))
+  [{:keys [fn-type closed-overs] :as ast} compilers]
+  (compile-fn-type ast compilers)  
+  [(il/newobj (first (.GetConstructors fn-type)))
+   (map
+    (fn [il field] [(il/dup) il (il/stfld field)])
+    (->> closed-overs vals (map #(compile % compilers)))
+    (.GetFields fn-type (enum-or BindingFlags/NonPublic BindingFlags/Instance)))])
 
 (defn fn-method-compiler
   [{:keys [body params form]} compilers]
@@ -1545,6 +1551,7 @@
    :fn                  #'fn-compiler
    :if                  #'if-compiler
    :let                 #'let-compiler
+   :letfn               #'letfn-compiler
    :loop                #'loop-compiler
    :local               #'local-compiler
    :binding             #'binding-compiler
