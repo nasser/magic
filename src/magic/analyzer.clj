@@ -445,7 +445,7 @@
                (gen-fn-name name)
                System.Reflection.TypeAttributes/Public
                clojure.lang.AFunction
-               (into-array Type (conj interfaces))))
+               (into-array Type interfaces)))
 
 (defn analyze-fn
   [{:keys [op local methods] :as ast}]
