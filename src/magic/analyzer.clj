@@ -25,10 +25,11 @@
              [loop-bindings :as loop-bindings]
              [remove-local-children :refer [remove-local-children]]
              [errors :refer [error] :as errors]
-             [types :refer [ast-type class-for-name maybe-class]]]
+             [types :refer [ast-type class-for-name maybe-class non-void-ast-type] :as types]]
             [clojure.walk :as w]
             [clojure.string :as string]
-            [magic.core :as magic]))
+            [magic.core :as magic]
+            [magic.interop :as interop]))
 
 (defn ensure-class [c form]
   (or (class-for-name c)
