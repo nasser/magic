@@ -95,7 +95,7 @@
     (= from :magic.analyzer.types/disregard)
     nil ; (throw (Exception. "cannot convert from disregarded type"))
     (= to :magic.analyzer.types/disregard)
-    (throw (Exception. "cannot convert from disregarded type"))
+    (throw (Exception. "cannot convert to disregarded type"))
     (nil? from)
     nil
 
