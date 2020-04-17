@@ -8,6 +8,7 @@
             [clojure.string :as string])
   (:import [clojure.lang Var RT IFn Keyword Symbol]
            [System.IO FileInfo Path]
+           [System.Runtime.CompilerServices IsVolatile]
            [System.Reflection.Emit OpCodes]
            [System.Reflection
             CallingConventions
@@ -524,11 +525,16 @@
     (load-constant (.GetRawConstantValue field))
     (il/ldsfld field)))
 
+(defn field-volatile? [f]
+  (let [modifiers (into #{} (.GetRequiredCustomModifiers f))]
+    (modifiers IsVolatile)))
 
 (defn instance-field-compiler
   "Symbolic bytecode for instance fields"
   [{:keys [field target]} compilers]
   [(compile-reference-to target compilers)
+   (when (field-volatile? field)
+     (il/volatile))
    (il/ldfld field)])
 
 (defn dynamic-field-compiler
@@ -821,16 +827,21 @@
         value-used? (not (statement? ast))]
     (cond
       (= target-op :instance-field)
-      (let [v (il/local (ast-type val))]
-        [(compile-reference-to target' compilers)
-         (compile val compilers)
-         (if value-used?
-           [(il/stloc v)
-            (il/ldloc v)])
-         (convert (ast-type val) (.FieldType field))
-         (il/stfld field)
-         (if value-used?
-           (il/ldloc v))])
+      (if (.IsInitOnly field)
+        (throw (ex-info "Cannot set! immutable field" 
+                        {:field (.Name field) :type (.DeclaringType field) :form (:form ast)}))
+        (let [v (il/local (ast-type val))]
+          [(compile-reference-to target' compilers)
+           (compile val compilers)
+           (when value-used?
+             [(il/stloc v)
+              (il/ldloc v)])
+           (convert (ast-type val) (.FieldType field))
+           (when (field-volatile? field)
+             (il/volatile))
+           (il/stfld field)
+           (when value-used?
+             (il/ldloc v))]))
       (= target-op :instance-property)
       (let [v (il/local (ast-type val))]
         [(compile-reference-to target' compilers)
@@ -1541,6 +1552,145 @@
   [(map #(compile % compilers) (vals closed-overs))
    (il/newobj (first (.GetConstructors reify-type)))])
 
+(defn deftype-method-compiler [{:keys [name body source-method deftype-type] :as ast} compilers]
+  (let [name (str name)
+        explicit-override? (string/includes? name ".")
+        super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+        explicit-override (enum-or MethodAttributes/Private MethodAttributes/Virtual MethodAttributes/NewSlot)
+        iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
+        param-types (mapv #(.ParameterType %) (.GetParameters source-method))
+        param-types-this (vec (concat [deftype-type] param-types))
+        param-names (into #{} (map :name (:params ast)))
+        return-type (.ReturnType source-method)
+        attributes (if (.. source-method DeclaringType IsInterface)
+                     (if explicit-override? explicit-override iface-override)
+                     super-override)
+        body-type (ast-type body) ;; TODO this is a field builder for some reasons??
+        recur-target (il/label)
+        specialized-compilers
+        (merge compilers
+               {:recur (fn deftype-recur-compiler
+                         [{:keys [exprs]} cmplrs]
+                         [(interleave
+                           (map #(compile % cmplrs) exprs)
+                           (map #(convert (ast-type %1) %2) exprs param-types))
+                          (map store-argument (->> param-types count inc (range 1) reverse))
+                          (il/br recur-target)])
+                :local (fn deftype-method-local-compiler
+                         [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
+                         (if (and (= local :arg)
+                                  (param-names name))
+                           (if by-ref?
+                             (load-argument-address arg-id)
+                             [(load-argument-standard arg-id)
+                              (convert (param-types-this arg-id) (ast-type ast))])
+                           (compile ast compilers)))})]
+    (il/method
+     name
+     attributes
+     return-type param-types
+     (when explicit-override? source-method)
+     [recur-target
+      (compile body specialized-compilers)
+      (convert body-type return-type)
+      (il/ret)])))
+
+(defn deftype-compiler [{:keys [fields methods options implements deftype-type]} compilers]
+  (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
+        iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
+        ifaces* (into #{} (concat implements (mapcat #(.GetInterfaces %) implements)))
+        iface-methods
+        (->> ifaces*
+             (mapcat (fn [iface]
+                       (map
+                        #(vector % (default-override-method % iface-override))
+                        (all-abstract-methods iface))))
+             (into {}))
+        fieldinfos (.GetFields deftype-type)
+        fieldinfos-set (into #{} (.GetFields deftype-type))
+        field-metas (into {} (map #(vector (str %) (meta %)) fields))
+        field-map (into {} (map #(vector (.Name %) %) fieldinfos))
+        ;; annoyingly, SRE does not support FieldInfo.GetRequiredCustomModifiers
+        ;; on FieldBuilders, so we have to do our own bookeeping
+        volatile? (fn [f] (-> f .Name field-metas :volatile-mutable))
+        super-ctor (first (.GetConstructors Object))
+        ctor-params (mapv #(.FieldType %) fieldinfos)
+        ctor
+        (il/constructor
+         MethodAttributes/Public
+         CallingConventions/Standard
+         ctor-params
+         [(il/ldarg-0)
+          (il/call super-ctor)
+          (->> fieldinfos
+               (map-indexed
+                (fn [i field]
+                  [(il/ldarg-0)
+                   (load-argument-standard (inc i))
+                   (when (volatile? field)
+                     (il/volatile))
+                   (il/stfld field)])))
+          (il/ret)])
+        specialized-compilers
+        (merge
+         compilers
+         {:instance-field
+          (fn deftype-instance-field-compiler 
+            [{:keys [field] :as ast} _compilers]
+            (if (fieldinfos-set field)
+              [(il/ldarg-0)
+               (when (volatile? field)
+                 (il/volatile))
+               (il/ldfld field)]
+              (compile ast compilers)))
+          :local
+          (fn deftype-local-compiler
+            [{:keys [local name] :as ast} inner-compilers]
+            (if (and (= :field local)
+                     (field-map (str name)))
+              (compile {:op :instance-field
+                        :field (field-map (str name))}
+                       inner-compilers)
+              (local-compiler ast compilers)))
+          :set!
+          (fn deftype-set!-compiler 
+            [{:keys [target val] :as ast} cmplrs]
+            (let [value-used? (not (statement? ast))]
+              (cond (and (= :instance-field (:op target))
+                         (fieldinfos-set (:field target)))
+                    (let [field (:field target)
+                          val-local (il/local (ast-type val))]
+                      (if (.IsInitOnly field)
+                        (throw (ex-info "Cannot set! immutable field"
+                                        {:field (.Name field) :type (.DeclaringType field) :form (:form ast)}))
+                        [(il/ldarg-0)
+                         (compile val cmplrs)
+                         (when value-used?
+                           [(il/stloc val-local)
+                            (il/ldloc val-local)])
+                         (when (volatile? field)
+                           (il/volatile))
+                         (il/stfld field)
+                         (when value-used?
+                           (il/ldloc val-local))]))
+                    (and (= :local (:op target))
+                         (= :field (:local target))
+                         (field-map (-> target :name str)))
+                    (recur (assoc ast :target 
+                                  {:op :instance-field
+                                   :field (field-map (-> target :name str))}) 
+                           cmplrs)
+                    :else
+                    (compile ast compilers))))
+          })
+        provided-methods
+        (into {} (map (fn [m] [(:source-method m) (compile m specialized-compilers)]) methods))
+        methods* (merge iface-methods provided-methods)]
+    (reduce (fn [ctx method] (il/emit! ctx method))
+            {::il/type-builder deftype-type}
+            [ctor (vals methods*)]))
+  (.CreateType deftype-type))
+
 (def base-compilers
   {:const               #'const-compiler
    :do                  #'do-compiler
@@ -1578,6 +1728,8 @@
    :with-meta           #'with-meta-compiler
    :intrinsic           #'intrinsic-compiler
    :case                #'case-compiler
+   :deftype             #'deftype-compiler
+   :deftype-method      #'deftype-method-compiler
    :reify               #'reify-compiler
    :reify-method        #'reify-method-compiler
    :proxy               #'proxy-compiler

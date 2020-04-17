@@ -104,7 +104,7 @@
 (def specials
   "Set of the special forms for clojure in the CLR"
   (into ana/specials
-        '#{var monitor-enter monitor-exit clojure.core/import* reify* deftype* case* proxy proxy-super}))
+        '#{var monitor-enter monitor-exit clojure.core/import* reify* deftype case* proxy proxy-super}))
 
 (defn parse-monitor-enter
   [[_ target :as form] env]
@@ -216,29 +216,30 @@
 (defn parse-recur
   [form {:keys [fn-method-type] :as env}]
   (case fn-method-type
-    :reify
+    (:deftype :reify)
     (ana/parse-recur form (update env :loop-locals dec))
     (ana/parse-recur form env)))
 
 (defn deftype-field-local [f env]
   {:op :local 
    :local :field
+   :name f
    :form f
    :env env})
 
 (defn parse-deftype
-  [[_ var-name type-name fields & opts-specs :as form] env]
-  (let [options (apply hash-map (apply concat (take-while #(keyword? (first %)) (partition 2 2 opts-specs))))
-        implements (:implements options)
-        methods (drop (* 2 (count options)) opts-specs)
-        env* (reduce 
-              (fn [e f]
-                (assoc-in e [:locals f]
-                          (deftype-field-local f env)))
-              env fields)]
+  [[_ name fields & opts-specs :as form] env]
+  (let [[interfaces methods options] (#'clojure.core/parse-opts+specs opts-specs)
+        implements (conj interfaces 'clojure.lang.IType)
+        env* (-> 
+              (reduce 
+               (fn [e f]
+                 (assoc-in e [:locals f]
+                           (deftype-field-local f env)))
+               env fields)
+              (assoc :fn-method-type :deftype))]
     {:op :deftype
-     :var-name var-name
-     :type-name type-name
+     :name (str (namespace-munge *ns*) "." name)
      :fields fields
      :options options
      :implements (mapv #(ana/analyze-symbol % env) implements)
@@ -249,7 +250,8 @@
                            :op :deftype-method))
                methods)
      :form form
-     :env env*}))
+     :env env*
+     :children [:methods]}))
 
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
@@ -263,7 +265,7 @@
      proxy-super          parse-proxy-super
      reify*               parse-reify
      recur                parse-recur
-     deftype*             parse-deftype
+     deftype              parse-deftype
      #_:else              ana/-parse)
    form env))
 
@@ -433,6 +435,82 @@
     #'compute-empty-stack-context
     #'remove-empty-throw-children})
 
+(defn define-deftype-type [module-builder name interfaces]
+  (.DefineType module-builder
+               name
+               System.Reflection.TypeAttributes/Public
+               Object
+               (into-array Type interfaces)))
+
+
+(defn field-volatile? [f]
+    (boolean (:volatile-mutable (meta f))))
+
+(defn field-mutable? [f]
+    (let [m (meta f)]
+      (boolean
+       (or
+        (:unsynchronized-mutable m)
+        (:volatile-mutable m)))))
+
+(defn analyze-deftype
+  [{:keys [op name options fields implements methods] :as ast}]
+  (case op
+    :deftype
+    (let [name (str name)
+          interfaces (->> implements
+                          (map host/analyze-type)
+                          (mapv :val))
+          all-interfaces (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
+          candidate-methods (into #{} (concat (.GetMethods Object)
+                                              (mapcat #(.GetMethods %) all-interfaces)))
+          mutable-attribute System.Reflection.FieldAttributes/Public
+          immutable-attribute (enum-or mutable-attribute System.Reflection.FieldAttributes/InitOnly)
+          deftype-type 
+          (reduce 
+           (fn [t f]
+             (println "[analyze-deftype]" (meta f))
+             (.DefineField
+              t
+              (str f)
+              (or (types/tag f) Object)
+              (if (field-volatile? f)
+                (into-array Type [System.Runtime.CompilerServices.IsVolatile])
+                nil)
+              nil
+              (if (field-mutable? f) mutable-attribute immutable-attribute))
+             t)
+           (define-deftype-type magic/*module* name interfaces)
+           fields)
+          methods*
+          (mapv
+           (fn [{:keys [params name] :as f}]
+             (let [name (str name)
+                   params* (drop 1 params) ;; deftype uses explicit this
+                   [interface-name method-name]
+                   (if (string/includes? name ".")
+                     (let [last-dot (string/last-index-of name ".")]
+                       [(subs name 0 last-dot)
+                        (subs name (inc last-dot))])
+                     [nil name])
+                   candidate-methods (filter #(= method-name (.Name %)) candidate-methods)
+                   candidate-methods (if interface-name
+                                       (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
+                                       candidate-methods)]
+               (if-let [best-method (select-method candidate-methods (map ast-type params*))]
+                 (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [deftype-type] (map #(.ParameterType %) (.GetParameters best-method))))]
+                   (assoc f
+                          :params hinted-params
+                          :source-method best-method
+                          :deftype-type deftype-type))
+                 (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
+           methods)]
+      (assoc ast 
+             :deftype-type deftype-type
+             :methods methods*
+             :implements interfaces))
+    ast))
+
 (defn gen-fn-name [n]
   (string/replace
    (str (gensym
@@ -583,6 +661,7 @@
       analyze-proxy
       analyze-reify
       analyze-fn
+      analyze-deftype
       host/analyze-byref
       host/analyze-type
       host/analyze-host-field
@@ -668,6 +747,9 @@
               ;; closed-overs (dissoc closed-overs this-binding-name)
               ]
           (update ast** :closed-overs update-closed-overs)))
+      :deftype
+      (let [ast* (analyze-deftype ast)]
+        (update-children ast* typed-passes))
       (:let :loop)
       (let [{:keys [bindings body]} ast
             {locals* :locals bindings* :bindings} (update-bindings bindings)]
@@ -712,9 +794,12 @@
             (update-children ast typed-passes)
             :closed-overs closed-overs*))))
       :reify-method
-      (let [; closed-overs (:closed-overs ast)
-              ; closed-overs* (update-closed-overs closed-overs)
-            {locals* :locals} (update-bindings (:params ast))]
+      (let [{locals* :locals} (update-bindings (:params ast))]
+        (binding [*typed-pass-locals* locals*]
+          (typed-pass*
+           (update-children ast typed-passes))))
+      :deftype-method
+      (let [{locals* :locals} (update-bindings (:params ast))]
         (binding [*typed-pass-locals* locals*]
           (typed-pass*
            (update-children ast typed-passes))))
@@ -730,9 +815,9 @@
 (def default-passes-opts
   "Default :passes-opts for `analyze`"
   {:collect/what                    #{:constants :callsites}
-   :collect/where                   #{:deftype :reify :fn}
+   :collect/where                   #{:reify :fn}
    :collect/top-level?              false
-   :collect-closed-overs/where      #{:deftype :reify :fn :loop :try :proxy-method}
+   :collect-closed-overs/where      #{:reify :fn :loop :try :proxy-method}
    :collect-closed-overs/top-level? false
    :uniquify/uniquify-env           true})
 
