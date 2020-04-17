@@ -331,6 +331,9 @@
 (defmethod ast-type :loop [ast]
   (-> ast :body ast-type))
 
+(defmethod ast-type :letfn [ast]
+  (-> ast :body ast-type))
+
 ;; ???
 (defmethod ast-type :recur [ast]
   ::disregard)
