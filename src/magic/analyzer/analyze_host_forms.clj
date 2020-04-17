@@ -3,6 +3,7 @@
    [clojure.tools.analyzer.passes
     [uniquify :refer [uniquify-locals]]]
    [magic.interop :as interop]
+   [magic.core :as magic]
    [magic.analyzer
     [errors :refer [error] :as errors]
     [binder :refer [select-method]]
@@ -24,6 +25,8 @@
 
 (defn ensure-class [c form]
   (or (class-for-name c)
+      (and magic/*module*
+           (.GetType magic/*module* (str c)))
       (error
        ::errors/missing-type
        {:type c :form form})))
