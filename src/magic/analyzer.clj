@@ -104,7 +104,7 @@
 (def specials
   "Set of the special forms for clojure in the CLR"
   (into ana/specials
-        '#{var monitor-enter monitor-exit reify* deftype case* proxy proxy-super gen-interface}))
+        '#{var monitor-enter monitor-exit reify* deftype definterface case* proxy proxy-super gen-interface}))
 
 (defn parse-monitor-enter
   [[_ target :as form] env]
@@ -261,6 +261,24 @@
     :form form
     :env env}))
 
+(defn tag-or-object [x]
+  (or (-> x meta :tag)
+      Object))
+
+(defn parse-definterface-signature [[name args]]
+  [name
+   (mapv tag-or-object args)
+   (tag-or-object name)])
+
+(defn parse-definterface
+  [[_ name & sigs :as form] env]
+  (let [methods (map parse-definterface-signature sigs)]
+    {:op :gen-interface
+     :name name
+     :methods methods
+     :form form
+     :env env}))
+
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
   [form env]
@@ -274,6 +292,7 @@
      reify*               parse-reify
      recur                parse-recur
      deftype              parse-deftype
+     definterface         parse-definterface
      gen-interface        parse-gen-interface
      #_:else              ana/-parse)
    form env))
