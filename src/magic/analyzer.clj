@@ -104,7 +104,7 @@
 (def specials
   "Set of the special forms for clojure in the CLR"
   (into ana/specials
-        '#{var monitor-enter monitor-exit clojure.core/import* reify* deftype case* proxy proxy-super}))
+        '#{var monitor-enter monitor-exit reify* deftype case* proxy proxy-super gen-interface}))
 
 (defn parse-monitor-enter
   [[_ target :as form] env]
@@ -253,6 +253,14 @@
      :env env*
      :children [:methods]}))
 
+(defn parse-gen-interface
+  [[_ & options :as form] env]
+  (merge
+   (into {} (map vec (partition 2 options)))
+   {:op :gen-interface
+    :form form
+    :env env}))
+
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
   [form env]
@@ -266,6 +274,7 @@
      reify*               parse-reify
      recur                parse-recur
      deftype              parse-deftype
+     gen-interface        parse-gen-interface
      #_:else              ana/-parse)
    form env))
 

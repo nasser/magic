@@ -1689,7 +1689,28 @@
     (reduce (fn [ctx method] (il/emit! ctx method))
             {::il/type-builder deftype-type}
             [ctor (vals methods*)]))
-  (.CreateType deftype-type))
+  (.CreateType deftype-type)
+  [(il/ldtoken deftype-type)
+   (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
+
+(defn gen-interface-compiler
+  [{:keys [name methods extends]} compilers]
+  (let [resolve-type (fn [t]
+                       (if (= (str t) (str name))
+                         ::il/this-type
+                         (types/resolve t)))
+        t (il/type
+           (str name)
+           (enum-or TypeAttributes/Public TypeAttributes/Abstract TypeAttributes/Interface) 
+           (mapv types/resolve extends)
+           (mapv
+            (fn [[name args return]]
+              (il/method (str name) (enum-or MethodAttributes/Public MethodAttributes/Virtual MethodAttributes/Abstract) (resolve-type return) (mapv resolve-type args)  [])
+              )
+            methods))]
+    [t
+     [(il/ldtoken t)
+      (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))]]))
 
 (def base-compilers
   {:const               #'const-compiler
@@ -1733,7 +1754,8 @@
    :reify               #'reify-compiler
    :reify-method        #'reify-method-compiler
    :proxy               #'proxy-compiler
-   :proxy-method        #'proxy-method-compiler})
+   :proxy-method        #'proxy-method-compiler
+   :gen-interface       #'gen-interface-compiler})
 
 (def ^:dynamic *spells* [])
 
