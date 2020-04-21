@@ -1712,6 +1712,25 @@
      [(il/ldtoken t)
       (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))]]))
 
+(defn def-compiler [{:keys [var init meta form]} compilers]
+  (println "[def]" form)
+  (let [var-ns (.. var Namespace Name)
+        var-name (.. var Symbol)
+        init-with-meta? (= :with-meta (:op init))]
+    [(il/ldstr (str var-ns))
+     (il/ldstr (str var-name))
+     (il/call (interop/method clojure.lang.RT "var" String String))
+     (when-not (nil? init)  
+       [(il/dup)
+        (compile init compilers)
+        (convert (ast-type init) Object)
+        (il/call (interop/method clojure.lang.Var "bindRoot" Object))])
+     (when-not init-with-meta?
+       [(il/dup)
+        (compile meta compilers)
+        (convert (ast-type meta) clojure.lang.IPersistentMap)
+        (il/call (interop/method clojure.lang.Var "setMeta" clojure.lang.IPersistentMap))])]))
+
 (def base-compilers
   {:const               #'const-compiler
    :do                  #'do-compiler
@@ -1755,7 +1774,8 @@
    :reify-method        #'reify-method-compiler
    :proxy               #'proxy-compiler
    :proxy-method        #'proxy-method-compiler
-   :gen-interface       #'gen-interface-compiler})
+   :gen-interface       #'gen-interface-compiler
+   :def                 #'def-compiler})
 
 (def ^:dynamic *spells* [])
 
