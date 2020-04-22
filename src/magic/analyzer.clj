@@ -306,6 +306,7 @@
      deftype              parse-deftype
      definterface         parse-definterface
      gen-interface        parse-gen-interface
+     clojure.core/import* parse-import*
      #_:else              ana/-parse)
    form env))
 
