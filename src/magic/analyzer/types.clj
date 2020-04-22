@@ -162,6 +162,8 @@
 
 (defmethod ast-type :deftype [_] System.Type)
 
+(defmethod ast-type :import [_] System.Type)
+
 (defmethod ast-type :dynamic-zero-arity [_] Object)
 
 (defmethod ast-type :dynamic-method [_] Object)

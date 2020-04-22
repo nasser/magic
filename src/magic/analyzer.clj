@@ -284,6 +284,13 @@
      :form form
      :env env}))
 
+(defn parse-import*
+  [[_ class-name :as form] env]
+  {:op :import
+   :class-name class-name
+   :form form
+   :env env})
+
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
   [form env]

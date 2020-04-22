@@ -1724,6 +1724,16 @@
         (convert (ast-type meta) clojure.lang.IPersistentMap)
         (il/call (interop/method clojure.lang.Var "setMeta" clojure.lang.IPersistentMap))])]))
 
+;; TODO this implementation tracks ClojureCLR's and will likely have to change
+(defn import-compiler
+  [{:keys [class-name]} compilers]
+  [(il/call (interop/getter clojure.lang.Compiler "CurrentNamespace"))
+   (il/ldstr class-name)
+   (il/call (interop/method Magic.Runtime "FindType" String))
+   ;; TODO throw exception if type not found
+   (il/call (interop/method clojure.lang.Namespace "importClass" Type))
+   ])
+
 (def base-compilers
   {:const               #'const-compiler
    :do                  #'do-compiler
@@ -1768,7 +1778,8 @@
    :proxy               #'proxy-compiler
    :proxy-method        #'proxy-method-compiler
    :gen-interface       #'gen-interface-compiler
-   :def                 #'def-compiler})
+   :def                 #'def-compiler
+   :import              #'import-compiler})
 
 (def ^:dynamic *spells* [])
 
