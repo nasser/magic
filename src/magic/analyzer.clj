@@ -527,6 +527,14 @@
         (:unsynchronized-mutable m)
         (:volatile-mutable m)))))
 
+(defn define-special-statics [tb]
+  (.DefineMethod
+   tb
+   "getBasis"
+   (enum-or System.Reflection.MethodAttributes/Public System.Reflection.MethodAttributes/Static)
+   clojure.lang.IPersistentVector
+   Type/EmptyTypes))
+
 (defn analyze-deftype
   [{:keys [op name options fields implements methods] :as ast}]
   (case op
@@ -579,6 +587,7 @@
                           :deftype-type deftype-type))
                  (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
            methods)]
+      (define-special-statics deftype-type)
       (assoc ast 
              :deftype-type deftype-type
              :methods methods*

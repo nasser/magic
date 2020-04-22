@@ -1602,6 +1602,17 @@
       (convert body-type return-type)
       (il/ret)])))
 
+(defn compile-getbasis [tb symbols]
+  (let [ilg (->> tb
+                 .GetMethods
+                 (filter #(= "getBasis" (.Name %)))
+                 first
+                 .GetILGenerator)]
+    (il/emit!
+     {::il/ilg ilg}
+     [(load-constant symbols)
+      (il/ret)])))
+
 (defn deftype-compiler [{:keys [fields methods options implements deftype-type]} compilers]
   (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
@@ -1696,6 +1707,7 @@
     (reduce (fn [ctx method] (il/emit! ctx method))
             {::il/type-builder deftype-type}
             [ctor (vals methods*)]))
+  (compile-getbasis deftype-type fields)
   (.CreateType deftype-type)
   [(il/ldtoken deftype-type)
    (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
