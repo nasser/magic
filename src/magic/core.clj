@@ -357,8 +357,7 @@
   [(il/ldtoken v)
    (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
 
-(defmethod load-constant
-  clojure.lang.IPersistentList [v]
+(defn persistent-list-il [v]
   (let [method (interop/method clojure.lang.PersistentList "create" System.Collections.IList)]
     [(new-array (map (fn [c] [(load-constant c)
                               (convert (type c) Object)])
@@ -366,6 +365,14 @@
      (il/castclass System.Collections.IList)
      (il/call method)
      (convert (.ReturnType method) (types/data-structure-types :seq))]))
+
+(defmethod load-constant
+  clojure.lang.IPersistentList [v]
+  (persistent-list-il v))
+
+(defmethod load-constant
+  clojure.lang.ISeq [v]
+  (persistent-list-il v))
 
 (defmethod load-constant
   clojure.lang.APersistentVector [v]
@@ -617,7 +624,7 @@
   (let [expr-type (ast-type expr)
         meta-type (ast-type meta)]
     [(compile expr compilers)
-     ; (convert expr-type clojure.lang.IObj)
+     (convert expr-type clojure.lang.IObj)
      (il/castclass clojure.lang.IObj)
      (compile meta compilers)
      (convert meta-type clojure.lang.IPersistentMap)
@@ -1694,23 +1701,9 @@
    (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
 
 (defn gen-interface-compiler
-  [{:keys [name methods extends]} compilers]
-  (let [resolve-type (fn [t]
-                       (if (= (str t) (str name))
-                         ::il/this-type
-                         (types/resolve t)))
-        t (il/type
-           (str name)
-           (enum-or TypeAttributes/Public TypeAttributes/Abstract TypeAttributes/Interface) 
-           (mapv types/resolve extends)
-           (mapv
-            (fn [[name args return]]
-              (il/method (str name) (enum-or MethodAttributes/Public MethodAttributes/Virtual MethodAttributes/Abstract) (resolve-type return) (mapv resolve-type args)  [])
-              )
-            methods))]
-    [t
-     [(il/ldtoken t)
-      (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))]]))
+  [{:keys [gen-interface-type]} compilers]
+  [(il/ldtoken gen-interface-type)
+   (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
 
 (defn def-compiler [{:keys [var init meta form]} compilers]
   (println "[def]" form)

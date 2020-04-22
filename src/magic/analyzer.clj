@@ -31,11 +31,16 @@
             [magic.core :as magic]
             [magic.interop :as interop]))
 
-(defn ensure-class [c form]
-  (or (class-for-name c)
-      (errors/error
+;; TODO this is duplicated in magic.analyzer.analyze-host-forms
+(defn ensure-class 
+  ([c] (ensure-class c c))
+  ([c form]
+   (or (class-for-name c)
+       (and magic/*module*
+            (.GetType magic/*module* (str c)))
+       (error
         ::errors/missing-type
-        {:type c :form form})))
+        {:type c :form form}))))
 
 (defn desugar-host-expr [form env]
   (cond
@@ -470,6 +475,40 @@
                Object
                (into-array Type interfaces)))
 
+(defn define-gen-interface-type
+  [module-builder name extends]
+  (.DefineType module-builder
+               name
+               (enum-or System.Reflection.TypeAttributes/Public System.Reflection.TypeAttributes/Abstract System.Reflection.TypeAttributes/Interface)
+               Object
+               (into-array Type extends)))
+
+(defn analyze-gen-interface
+  [{:keys [name methods extends] :as ast}]
+  (case (:op ast)
+    :gen-interface
+    (let [extends* (->> extends
+                        (map host/analyze-type)
+                        (mapv :val))
+          gen-interface-type
+          (define-gen-interface-type magic/*module* (str name) extends*)
+          resolve-type
+          (fn [t] 
+            (if (= (str t) (str name)) 
+              gen-interface-type
+              (ensure-class t)))]
+      (doseq [m methods]
+        (let [[name args return] m]
+          (.DefineMethod 
+           gen-interface-type
+           (str name)
+           (enum-or System.Reflection.MethodAttributes/Public System.Reflection.MethodAttributes/Virtual System.Reflection.MethodAttributes/Abstract)
+           (resolve-type return)
+           (into-array Type (mapv resolve-type args)))))
+      (.CreateType gen-interface-type)
+      (assoc ast :gen-interface-type gen-interface-type))
+    ast))
+
 
 (defn field-volatile? [f]
     (boolean (:volatile-mutable (meta f))))
@@ -690,6 +729,7 @@
       analyze-reify
       analyze-fn
       analyze-deftype
+      analyze-gen-interface
       host/analyze-byref
       host/analyze-type
       host/analyze-host-field
