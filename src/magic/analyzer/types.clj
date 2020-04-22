@@ -158,12 +158,19 @@
 (defmethod ast-type :reify
   [{:keys [reify-type]}] reify-type)
 
+(defmethod ast-type :gen-interface [_] System.Type)
+
+(defmethod ast-type :deftype [_] System.Type)
+
 (defmethod ast-type :dynamic-zero-arity [_] Object)
 
 (defmethod ast-type :dynamic-method [_] Object)
 
 (defmethod ast-type :intrinsic
   [{:keys [type]}] type)
+
+(defmethod ast-type :def
+  [{:keys [type]}] clojure.lang.Var)
 
 ;; TODO remove
 (defmethod ast-type nil
