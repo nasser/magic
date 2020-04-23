@@ -24,12 +24,13 @@
 (def public-instance-static (enum-or BindingFlags/Instance BindingFlags/Static BindingFlags/Public))
 
 (defn ensure-class [c form]
-  (or (class-for-name c)
-      (and magic/*module*
-           (.GetType magic/*module* (str c)))
-      (error
-       ::errors/missing-type
-       {:type c :form form})))
+  (or 
+   (and magic/*module*
+        (.GetType magic/*module* (str c)))
+   (class-for-name c)
+   (error
+    ::errors/missing-type
+    {:type c :form form})))
 
 (defn analyze-type
   "Analyze foo into a type"
