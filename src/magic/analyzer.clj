@@ -25,7 +25,7 @@
              [loop-bindings :as loop-bindings]
              [remove-local-children :refer [remove-local-children]]
              [errors :refer [error] :as errors]
-             [types :refer [ast-type class-for-name maybe-class non-void-ast-type] :as types]]
+             [types :refer [ast-type class-for-name non-void-ast-type] :as types]]
             [clojure.walk :as w]
             [clojure.string :as string]
             [magic.core :as magic]
@@ -42,13 +42,21 @@
         ::errors/missing-type
         {:type c :form form}))))
 
+(defn maybe-class 
+  ([c] (maybe-class c c))
+  ([c form]
+   (and c
+        (or (class-for-name c)
+            (and magic/*module*
+                 (.GetType magic/*module* (str c)))))))
+
 (defn desugar-host-expr [form env]
   (cond
    (symbol? form)
    (let [target (maybe-class (namespace form))]
      (if (and target
               (not (resolve-ns (symbol (namespace form)) env))
-              (ensure-class target form))       ;; Class/field
+              (maybe-class target form))       ;; Class/field
        (with-meta (list '. target (symbol (str "-" (symbol (name form))))) ;; transform to (. Class -field)
          (meta form))
        form))
