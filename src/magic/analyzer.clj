@@ -109,7 +109,10 @@
 (def specials
   "Set of the special forms for clojure in the CLR"
   (into ana/specials
-        '#{var monitor-enter monitor-exit reify* deftype definterface case* proxy proxy-super gen-interface}))
+        '#{var monitor-enter monitor-exit reify* deftype* case*
+           clojure.core/deftype clojure.core/definterface 
+           clojure.core/proxy clojure.core/proxy-super
+           clojure.core/gen-interface}))
 
 (defn parse-monitor-enter
   [[_ target :as form] env]
@@ -291,24 +294,38 @@
    :form form
    :env env})
 
+(defn expand-sym [sym env]
+  (when-let [val (resolve-sym sym env)]
+    (if (var? val)
+      (symbol (str (.. val Namespace Name)) (str (.Symbol val)))
+      (symbol (str val)))))
+
+(defn -parse [head]
+  (println "[-parse]" head)
+  (case head
+    monitor-enter              parse-monitor-enter
+    monitor-exit               parse-monitor-exit
+    throw                      parse-throw
+    case*                      parse-case*
+    clojure.core/proxy         parse-proxy
+    clojure.core/proxy-super   parse-proxy-super
+    reify*                     parse-reify
+    recur                      parse-recur
+    clojure.core/deftype       parse-deftype
+    deftype*                   parse-deftype*
+    clojure.core/definterface  parse-definterface
+    clojure.core/gen-interface parse-gen-interface
+    clojure.core/import*       parse-import*
+    #_:else                    nil))
+
 (defn parse
   "Extension to tools.analyzer/-parse for CLR special forms"
   [form env]
-  ((case (first form)
-     monitor-enter        parse-monitor-enter
-     monitor-exit         parse-monitor-exit
-     throw                parse-throw
-     case*                parse-case*
-     proxy                parse-proxy
-     proxy-super          parse-proxy-super
-     reify*               parse-reify
-     recur                parse-recur
-     deftype              parse-deftype
-     definterface         parse-definterface
-     gen-interface        parse-gen-interface
-     clojure.core/import* parse-import*
-     #_:else              ana/-parse)
-   form env))
+  (let [head (first form)
+        parsefn (or (-parse head)
+                    (-parse (expand-sym head env))
+                    ana/-parse)]
+    (parsefn form env)))
 
 (defn empty-env
   "Returns an empty env map"
@@ -328,7 +345,7 @@
      (env/ensure (global-env)
        (if (seq? form)
          (let [[op & args] form]
-           (if (specials op)
+           (if (or (specials op) (specials (expand-sym op env)))
              form
              (let [v (resolve-sym op env)
                    m (meta v)
