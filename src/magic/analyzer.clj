@@ -235,6 +235,33 @@
    :form f
    :env env})
 
+(defn parse-deftype*
+  [[_ name classname fields & opts-specs :as form] env]
+  (let [env* (->
+              (reduce
+               (fn [e f]
+                 (assoc-in e [:locals f]
+                           (deftype-field-local f env)))
+               env fields)
+              (assoc :fn-method-type :deftype))
+        options (take-while #(keyword? (first %)) (map vec (partition 2 opts-specs)))
+        options-map (into {} options)
+        methods (drop (* 2 (count options)) opts-specs)]
+    {:op :deftype
+     :name classname
+     :fields fields
+     :options options-map
+     :implements (mapv #(ana/analyze-symbol % env) (:implements options-map))
+     :methods (mapv
+               #(-> (drop 1 %)
+                    (ana/analyze-fn-method env*)
+                    (assoc :name (first %)
+                           :op :deftype-method))
+               methods)
+     :form form
+     :env env*
+     :children [:methods]}))
+
 (defn parse-deftype
   [[_ name fields & opts-specs :as form] env]
   (let [[interfaces methods options] (#'clojure.core/parse-opts+specs opts-specs)
