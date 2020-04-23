@@ -82,6 +82,9 @@
   ([t]
    (if (symbol? t)
      (or (shorthand t)
+         ;; TODO this is a hack. move *module* to a namespace that core and types can see
+         (and @(clojure.lang.RT/var "magic.core" "*module*")
+              (.GetType @(clojure.lang.RT/var "magic.core" "*module*") (str t)))
          (clojure.core/resolve t)
          (throw! "Could not resolve " t " as  type."))
      t))
