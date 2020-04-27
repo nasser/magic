@@ -15,6 +15,7 @@
             [clojure.tools.analyzer.env :refer [*env* with-env] :as env]
             [clojure.tools.analyzer.utils :refer [resolve-sym ctx -source-info resolve-ns obj? dissoc-env]]
             [magic.analyzer
+             [generated-types :as gt]
              [binder :refer [select-method]]
              [intrinsics :as intrinsics]
              [propagate-bindings :refer [propagate-bindings]]
@@ -528,21 +529,6 @@
     #'compute-empty-stack-context
     #'remove-empty-throw-children})
 
-(defn define-deftype-type [module-builder name interfaces]
-  (.DefineType module-builder
-               name
-               System.Reflection.TypeAttributes/Public
-               Object
-               (into-array Type interfaces)))
-
-(defn define-gen-interface-type
-  [module-builder name extends]
-  (.DefineType module-builder
-               name
-               (enum-or System.Reflection.TypeAttributes/Public System.Reflection.TypeAttributes/Abstract System.Reflection.TypeAttributes/Interface)
-               Object
-               (into-array Type extends)))
-
 (defn analyze-gen-interface
   [{:keys [name methods extends] :as ast}]
   (case (:op ast)
@@ -551,7 +537,7 @@
                         (map host/analyze-type)
                         (mapv :val))
           gen-interface-type
-          (define-gen-interface-type magic/*module* (str name) extends*)
+          (gt/gen-interface-type magic/*module* (str name) extends*)
           resolve-type
           (fn [t] 
             (if (= (str t) (str name)) 
@@ -615,7 +601,7 @@
               nil
               (if (field-mutable? f) mutable-attribute immutable-attribute))
              t)
-           (define-deftype-type magic/*module* name interfaces)
+           (gt/deftype-type magic/*module* name interfaces)
            fields)
           methods*
           (mapv
@@ -654,13 +640,6 @@
    "."
    "$"))
 
-(defn define-fn-type [module-builder name interfaces]
-  (.DefineType module-builder
-               (gen-fn-name name)
-               System.Reflection.TypeAttributes/Public
-               clojure.lang.AFunction
-               (into-array Type interfaces)))
-
 (defn analyze-fn
   [{:keys [op local methods] :as ast}]
   (case op
@@ -678,16 +657,9 @@
           interfaces (map #(interop/generic-type "Magic.Function" (conj %1 %2))
                           param-types
                           return-types)
-          fn-type (define-fn-type magic/*module* name interfaces)]
+          fn-type (gt/fn-type magic/*module* name interfaces)]
       (assoc ast :fn-type fn-type))
     ast))
-
-(defn define-proxy-type [module-builder super interfaces]
-  (.DefineType module-builder 
-               (str (gensym "proxy"))
-               System.Reflection.TypeAttributes/Public
-               super
-               (into-array Type (conj interfaces clojure.lang.IProxy))))
 
 (defn analyze-proxy 
   "Typed analysis of proxy forms. Generates a TypeBuilder for this proxy and
@@ -707,7 +679,7 @@
                              (drop 1 class-and-interface)
                              class-and-interface))
           interfaces* (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
-          proxy-type (define-proxy-type magic/*module* super interfaces)
+          proxy-type (gt/proxy-type magic/*module* super interfaces)
           candidate-methods (into #{} (concat (.GetMethods super) 
                                               (mapcat #(.GetMethods %) interfaces*)))
           fns (mapv
@@ -743,13 +715,6 @@
              :proxy-type proxy-type))
     ast))
 
-(defn define-reify-type [module-builder interfaces]
-  (.DefineType module-builder
-               (str (gensym "reify"))
-               (enum-or System.Reflection.TypeAttributes/Public System.Reflection.TypeAttributes/Sealed)
-               Object
-               (into-array Type interfaces)))
-
 (defn analyze-reify
   [{:keys [op interfaces methods] :as ast}]
   (case op
@@ -760,7 +725,7 @@
                 (map host/analyze-type)
                 (mapv :val))
            clojure.lang.IObj)
-          reify-type (define-reify-type magic/*module* interfaces*)
+          reify-type (gt/reify-type magic/*module* interfaces*)
           all-interfaces (into #{} (concat interfaces* (mapcat #(.GetInterfaces %) interfaces*)))
           candidate-methods (into #{} (concat (.GetMethods Object)
                                               (mapcat #(.GetMethods %) all-interfaces)))
