@@ -367,10 +367,6 @@
      (convert (.ReturnType method) (types/data-structure-types :seq))]))
 
 (defmethod load-constant
-  clojure.lang.IPersistentList [v]
-  (persistent-list-il v))
-
-(defmethod load-constant
   clojure.lang.ISeq [v]
   (persistent-list-il v))
 
