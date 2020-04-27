@@ -657,7 +657,7 @@
           interfaces (map #(interop/generic-type "Magic.Function" (conj %1 %2))
                           param-types
                           return-types)
-          fn-type (gt/fn-type magic/*module* name interfaces)]
+          fn-type (gt/fn-type magic/*module* (gen-fn-name name) interfaces)]
       (assoc ast :fn-type fn-type))
     ast))
 
