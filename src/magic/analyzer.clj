@@ -574,6 +574,19 @@
    clojure.lang.IPersistentVector
    Type/EmptyTypes))
 
+;; from https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/volatile
+(defn validate-volatile-field [sym]
+  (let [hint (or (types/tag sym) Object)
+        valid-enum-types #{SByte Byte Int16 UInt16 Int32 UInt32}
+        valid-types (into valid-enum-types [Char Single Boolean IntPtr UIntPtr])]
+    (when-not (or (.IsClass hint)
+                  (.IsPointer hint)
+                  (valid-types hint)
+                  (and (.IsEnum hint)
+                       (valid-enum-types (Enum/GetUnderlyingType hint))))
+     (throw (ex-info "Invalid type used as volatile field" 
+                     {:symbol sym :type hint :documentation "https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/volatile"})))))
+
 (defn analyze-deftype
   [{:keys [op name options fields implements methods] :as ast}]
   (case op
@@ -595,9 +608,9 @@
               t
               (str f)
               (or (types/tag f) Object)
-              (if (field-volatile? f)
-                (into-array Type [System.Runtime.CompilerServices.IsVolatile])
-                nil)
+              (when (field-volatile? f)
+                (validate-volatile-field f)
+                (into-array Type [System.Runtime.CompilerServices.IsVolatile]))
               nil
               (if (field-mutable? f) mutable-attribute immutable-attribute))
              t)
