@@ -1648,7 +1648,22 @@
         specialized-compilers
         (merge
          compilers
-         {:instance-field
+         {;; due to a limitation of SRE we cannot look up constructors to
+          ;; TypeBuilders the way we do for normal types. so we special case
+          ;; the construction of the deftype-type here to get around that.
+          :new
+          (fn deftype-new-compiler
+            [{:keys [type args] :as ast} local-compilers]
+            (if (= type deftype-type)
+              (let [arg-types (map ast-type args)]
+                [(interleave
+                  (map #(compile % local-compilers) args)
+                  (map convert
+                       arg-types
+                       ctor-params))
+                 (il/newobj ctor)])
+              (compile ast compilers)))
+          :instance-field
           (fn deftype-instance-field-compiler 
             [{:keys [field] :as ast} _compilers]
             (if (fieldinfos-set field)

@@ -91,12 +91,18 @@
       (merge (dissoc ast :class)
              {:type target-type
               :children (vec (remove #(= % :class) children))}
-             (if (and (.IsValueType target-type)
-                      (empty? args))
-               {:op :initobj}
-               (if-let [best-ctor (select-method (.GetConstructors target-type) (map ast-type args))]
-                 {:constructor best-ctor}
-                 (error ::errors/missing-constructor ast)))))
+             (cond (and (.IsValueType target-type)
+                        (empty? args))
+                   {:op :initobj}
+                   ;; due to an annoying limitation of SRE we cannot look up 
+                   ;; constructors in type builders, so we defer to the compiler
+                   ;; in that case
+                   (instance? TypeBuilder target-type)
+                   {:constructor nil}
+                   :else
+                   (if-let [best-ctor (select-method (.GetConstructors target-type) (map ast-type args))]
+                     {:constructor best-ctor}
+                     (error ::errors/missing-constructor ast)))))
     ast))
 
 (defn analyze-generic-host-interop
