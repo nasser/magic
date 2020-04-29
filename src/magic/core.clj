@@ -784,6 +784,31 @@
             bm))
        first))
 
+(defn ifn-invoke-compiler [{:keys [args] :as ast} compilers]
+  (let [positional-args (take 20 args)
+        rest-args (drop 20 args)
+        invoke-method 
+        (if (empty? rest-args)
+          (apply interop/method IFn "invoke" (repeat (count args) Object))
+          (apply interop/method IFn "invoke" (concat (repeat 20 Object) [System.Object|[]|])) )]
+    [(il/castclass IFn)
+     (interleave
+      (map #(compile % compilers) positional-args)
+      (map #(convert (ast-type %) Object) positional-args))
+     (when-not (empty? rest-args)
+       [(load-constant (count rest-args))
+        (il/newarr Object)
+        (map-indexed 
+         (fn [i arg]
+           [(il/dup)
+            (load-constant (int i))
+            (compile arg compilers)
+            (convert (ast-type arg) Object)
+            (il/stelem-ref)])
+         rest-args)])
+     (il/callvirt invoke-method)
+     (convert Object (ast-type ast))]))
+
 (defn invoke-compiler
   [{:keys [fn args] :as ast} compilers]
   (let [fn-type (var-type fn)
@@ -804,12 +829,7 @@
           (map #(compile % compilers) args)
           (map #(convert %1 %2) arg-types param-types))
         (il/callvirt (apply interop/method interface-match "invoke" param-types))]
-       [(il/castclass IFn)
-        (interleave
-         (map #(compile % compilers) args)
-         (map #(convert (ast-type %) Object) args))
-        (il/callvirt (apply interop/method IFn "invoke" (repeat (count args) Object)))
-        (convert Object (ast-type ast))])]))
+       (ifn-invoke-compiler ast compilers))]))
 
 (defn var-compiler
   [{:keys [var] :as ast} compilers]
