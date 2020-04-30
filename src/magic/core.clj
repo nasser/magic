@@ -569,31 +569,40 @@
   "Symbolic bytecode for instance methods"
   [{:keys [method non-virtual? target args generic-parameters] :as ast} compilers]
   (let [arg-types (map ast-type args)
-        virtcall (if (or non-virtual? (.IsValueType (ast-type target)))
-                   il/call
-                   il/callvirt )]
-    [(compile target compilers)
+        target-type (ast-type target)
+        virtual-method? (.IsVirtual method)
+        value-type-target? (.IsValueType target-type)]
+    [(cond
+       (and value-type-target? virtual-method? (not non-virtual?)
+            (= :local (:op target)))
+       (compile (assoc target :by-ref? true) compilers)
+       (and value-type-target? virtual-method? (not non-virtual?))
+       (let [loc (il/local target-type)]
+         [(compile target compilers)
+          (il/stloc loc)
+          (il/ldloca loc)])
+       (and value-type-target? (not virtual-method?))
+       [(compile target compilers)
+        (il/box target-type)]
+       :else (compile target compilers))
      (interleave
       (map #(compile % compilers) args)
       (map convert
            arg-types
            (interop/parameter-types method)))
      (cond
-       (and (.IsVirtual method)
-            (nil? generic-parameters))
-       [(virtcall method)]
-       
-       (and (not (.IsVirtual method))
-            (nil? generic-parameters))
+       (and (not value-type-target?) virtual-method? (not non-virtual?))
+       (il/callvirt method)
+       (and (not value-type-target?) (not virtual-method?))
        (il/call method)
-       ;; TODO ???
-       (and (.IsVirtual method)
-            generic-parameters)
-       [(virtcall method generic-parameters)]
-       ;; TODO ???
-       (and (not (.IsVirtual method))
-            generic-parameters)
-       (il/call method generic-parameters))]))
+       (and value-type-target? virtual-method?)
+       (il/call method)
+       (and value-type-target? (not virtual-method?))
+       (il/call method)
+       non-virtual?
+       (il/call method)
+       :else
+       (il/callvirt method))]))
 
 (defn initobj-compiler
   "Symbolic bytecode for zero arity value type constructor invocation"
