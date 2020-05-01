@@ -62,9 +62,7 @@
   (when (.IsValueType t)
     (let [loc (il/local t)]
       [(il/stloc loc)
-       (il/ldloca loc)])
-    #_ (il/box t)
-    ))
+       (il/ldloca loc)])))
 
 (defn reference-to-argument [{:keys [arg-id] :as ast}]
   (if (.IsValueType (ast-type ast))
