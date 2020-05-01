@@ -27,3 +27,25 @@
 (defn reify-type [module-builder interfaces]
   (fresh-type
    module-builder (str (gensym "reify")) Object interfaces public-sealed))
+
+#_
+(defn bind-interface-method [f name params candidate-methods]
+  (let [name (str name)
+        params* (drop 1 params) ;; reify uses explicit this
+        [interface-name method-name]
+        (if (string/includes? name ".")
+          (let [last-dot (string/last-index-of name ".")]
+            [(subs name 0 last-dot)
+             (subs name (inc last-dot))])
+          [nil name])
+        candidate-methods (filter #(= method-name (.Name %)) candidate-methods)
+        candidate-methods (if interface-name
+                            (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
+                            candidate-methods)]
+    (if-let [best-method (select-method candidate-methods (map ast-type params*))]
+      (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [reify-type] (map #(.ParameterType %) (.GetParameters best-method))))]
+        (assoc f
+               :params hinted-params
+               :source-method best-method
+               :reify-type reify-type))
+      (throw (ex-info "no match" {:name name :params (map ast-type params)})))))

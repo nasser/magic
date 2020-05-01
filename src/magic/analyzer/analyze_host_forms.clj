@@ -8,7 +8,8 @@
     [errors :refer [error] :as errors]
     [binder :refer [select-method]]
     [types :refer [read-generic-name ast-type class-for-name]]])
-  (:import [System.Reflection BindingFlags]))
+  (:import [System.Reflection BindingFlags]
+           [System.Reflection.Emit TypeBuilder]))
 
 (defn get-all-methods 
   ([t] (into #{}

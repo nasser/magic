@@ -3,7 +3,6 @@
   (:require [magic.analyzer :as ana]
             [magic.analyzer.types :refer [tag ast-type]]
             [magic.core :as magic]
-            [magic.faster :refer [faster-type]]
             [mage.core :as il]
             magic.intrinsics
             [magic.spells
@@ -79,6 +78,7 @@
     `(def ~name
        ~(compile-fn form))))
 
+#_
 (defmacro faster
   "Compile body of expression using MAGIC and emit a well-typed call site
    instead. Useable from namespaces compiled by ClojureCLR, supports closures."
