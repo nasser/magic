@@ -1390,57 +1390,16 @@
    (map #(compile % compilers) (vals closed-overs))
    (il/newobj (first (.GetConstructors proxy-type)))])
 
-(defn proxy-method-compiler [{:keys [name body source-method] :as ast} compilers]
-  (let [name (str name)
-        explicit-override? (string/includes? name ".")
-        super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
-        iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
-        explicit-override (enum-or MethodAttributes/Private MethodAttributes/Virtual MethodAttributes/NewSlot)
-        param-types (mapv #(.ParameterType %) (.GetParameters source-method))
-        param-names (into #{} (map :name (:params ast)))
-        return-type (.ReturnType source-method)
-        attributes (if (.. source-method DeclaringType IsInterface)
-                     (if explicit-override? explicit-override iface-override)
-                     super-override)
-        name (.Name source-method)
-        body-type (ast-type body)
-        recur-target (il/label)
-        specialized-compilers
-        (merge compilers
-               {:recur (fn fn-recur-compiler
-                         [{:keys [exprs]} cmplrs]
-                         [(interleave
-                           (map #(compile % cmplrs) exprs)
-                           (map #(convert (ast-type %1) %2) exprs param-types))
-                          (map store-argument (->> param-types count inc (range 1) reverse))
-                          (il/br recur-target)])
-                :local (fn fn-method-local-compiler
-                         [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
-                         (if (and (= local :arg)
-                                  (param-names name))
-                           (if by-ref?
-                             (load-argument-address (inc arg-id))
-                             [(load-argument-standard (inc arg-id))
-                              (convert (param-types arg-id) (ast-type ast))])
-                           (compile ast compilers)))})]
-    (il/method
-     name
-     attributes
-     return-type param-types
-     (when explicit-override? source-method)
-     [recur-target
-      (compile body specialized-compilers)
-      (convert body-type return-type)
-      (il/ret)])))
-
-(defn reify-method-compiler [{:keys [name body source-method reify-type] :as ast} compilers]
-  (let [name (str name)
+(defn method-compiler [{:keys [op name body source-method reify-type deftype-type] :as ast} compilers]
+  (let [proxy? (= op :proxy)
+        name (str name)
         explicit-override? (string/includes? name ".")
         super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         explicit-override (enum-or MethodAttributes/Private MethodAttributes/Virtual MethodAttributes/NewSlot)
         iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
+        this-type (or reify-type deftype-type)
         param-types (mapv #(.ParameterType %) (.GetParameters source-method))
-        param-types-this (vec (concat [reify-type] param-types))
+        param-type-bindings (if proxy? param-types (vec (concat [this-type] param-types)))
         param-names (into #{} (map :name (:params ast)))
         return-type (.ReturnType source-method)
         attributes (if (.. source-method DeclaringType IsInterface)
@@ -1450,22 +1409,23 @@
         recur-target (il/label)
         specialized-compilers
         (merge compilers
-               {:recur (fn reify-recur-compiler
+               {:recur (fn method-recur-compiler
                          [{:keys [exprs]} cmplrs]
                          [(interleave
                            (map #(compile % cmplrs) exprs)
                            (map #(convert (ast-type %1) %2) exprs param-types))
                           (map store-argument (->> param-types count inc (range 1) reverse))
                           (il/br recur-target)])
-                :local (fn reify-method-local-compiler
+                :local (fn method-method-local-compiler
                          [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
-                         (if (and (= local :arg)
-                                  (param-names name))
-                           (if by-ref?
-                             (load-argument-address arg-id)
-                             [(load-argument-standard arg-id)
-                              (convert (param-types-this arg-id) (ast-type ast))])
-                           (compile ast compilers)))})]
+                         (let [arg-id (if proxy? (inc arg-id) arg-id)]
+                           (if (and (= local :arg)
+                                    (param-names name))
+                             (if by-ref?
+                               (load-argument-address arg-id)
+                               [(load-argument-standard arg-id)
+                                (convert (param-type-bindings arg-id) (ast-type ast))])
+                             (compile ast compilers))))})]
     (il/method
      name
      attributes
@@ -1599,49 +1559,6 @@
   (compile-reify-type ast compilers)
   [(map #(compile % compilers) (vals closed-overs))
    (il/newobj (first (.GetConstructors reify-type)))])
-
-(defn deftype-method-compiler [{:keys [name body source-method deftype-type] :as ast} compilers]
-  (let [name (str name)
-        explicit-override? (string/includes? name ".")
-        super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
-        explicit-override (enum-or MethodAttributes/Private MethodAttributes/Virtual MethodAttributes/NewSlot)
-        iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
-        param-types (mapv #(.ParameterType %) (.GetParameters source-method))
-        param-types-this (vec (concat [deftype-type] param-types))
-        param-names (into #{} (map :name (:params ast)))
-        return-type (.ReturnType source-method)
-        attributes (if (.. source-method DeclaringType IsInterface)
-                     (if explicit-override? explicit-override iface-override)
-                     super-override)
-        body-type (ast-type body) ;; TODO this is a field builder for some reasons??
-        recur-target (il/label)
-        specialized-compilers
-        (merge compilers
-               {:recur (fn deftype-recur-compiler
-                         [{:keys [exprs]} cmplrs]
-                         [(interleave
-                           (map #(compile % cmplrs) exprs)
-                           (map #(convert (ast-type %1) %2) exprs param-types))
-                          (map store-argument (->> param-types count inc (range 1) reverse))
-                          (il/br recur-target)])
-                :local (fn deftype-method-local-compiler
-                         [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
-                         (if (and (= local :arg)
-                                  (param-names name))
-                           (if by-ref?
-                             (load-argument-address arg-id)
-                             [(load-argument-standard arg-id)
-                              (convert (param-types-this arg-id) (ast-type ast))])
-                           (compile ast compilers)))})]
-    (il/method
-     name
-     attributes
-     return-type param-types
-     (when explicit-override? source-method)
-     [recur-target
-      (compile body specialized-compilers)
-      (convert body-type return-type)
-      (il/ret)])))
 
 (defn compile-getbasis [tb symbols]
   (let [ilg (->> tb
@@ -1840,11 +1757,11 @@
    :intrinsic           #'intrinsic-compiler
    :case                #'case-compiler
    :deftype             #'deftype-compiler
-   :deftype-method      #'deftype-method-compiler
+   :deftype-method      #'method-compiler
    :reify               #'reify-compiler
-   :reify-method        #'reify-method-compiler
+   :reify-method        #'method-compiler
    :proxy               #'proxy-compiler
-   :proxy-method        #'proxy-method-compiler
+   :proxy-method        #'method-compiler
    :gen-interface       #'gen-interface-compiler
    :def                 #'def-compiler
    :import              #'import-compiler})
