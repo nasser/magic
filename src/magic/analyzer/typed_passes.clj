@@ -13,7 +13,9 @@
     [types :refer [ast-type class-for-name non-void-ast-type] :as types]]
    [magic.core :as magic]
    [magic.interop :as interop])
-  (:import [System Type SByte Int16 UInt16 Int32 UInt32 Char Single IntPtr UIntPtr]))
+  (:import [System Type SByte Int16 UInt16 Int32 UInt32 Char Single IntPtr UIntPtr]
+           [System.Reflection MethodAttributes FieldAttributes]
+           System.Runtime.CompilerServices.IsVolatile))
 
 ;; TODO this is duplicated in magic.analyzer.analyze-host-forms
 (defn ensure-class
@@ -46,7 +48,7 @@
           (.DefineMethod
            gen-interface-type
            (str name)
-           (enum-or System.Reflection.MethodAttributes/Public System.Reflection.MethodAttributes/Virtual System.Reflection.MethodAttributes/Abstract)
+           (enum-or MethodAttributes/Public MethodAttributes/Virtual MethodAttributes/Abstract)
            (resolve-type return)
            (into-array Type (mapv resolve-type args)))))
       (.CreateType gen-interface-type)
@@ -68,7 +70,7 @@
   (.DefineMethod
    tb
    "getBasis"
-   (enum-or System.Reflection.MethodAttributes/Public System.Reflection.MethodAttributes/Static)
+   (enum-or MethodAttributes/Public MethodAttributes/Static)
    clojure.lang.IPersistentVector
    Type/EmptyTypes))
 
@@ -85,6 +87,27 @@
       (throw (ex-info "Invalid type used as volatile field"
                       {:symbol sym :type hint :documentation "https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/volatile"})))))
 
+(defn analyze-method [{:keys [params name] :as f} candidate-methods type-key this-type explicit-this?]
+  (let [name (str name)
+        params* (if explicit-this? (drop 1 params) params)
+        [interface-name method-name]
+        (if (string/includes? name ".")
+          (let [last-dot (string/last-index-of name ".")]
+            [(subs name 0 last-dot)
+             (subs name (inc last-dot))])
+          [nil name])
+        candidate-methods (filter #(= method-name (.Name %)) candidate-methods)
+        candidate-methods (if interface-name
+                            (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
+                            candidate-methods)]
+    (if-let [best-method (select-method candidate-methods (map ast-type params*))]
+      (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [this-type] (map #(.ParameterType %) (.GetParameters best-method))))]
+        (assoc f
+               :params hinted-params
+               :source-method best-method
+               type-key this-type))
+      (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
+
 (defn analyze-deftype
   [{:keys [op name fields implements methods] :as ast}]
   (case op
@@ -96,8 +119,8 @@
           all-interfaces (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
           candidate-methods (into #{} (concat (.GetMethods Object)
                                               (mapcat #(.GetMethods %) all-interfaces)))
-          mutable-attribute System.Reflection.FieldAttributes/Public
-          immutable-attribute (enum-or mutable-attribute System.Reflection.FieldAttributes/InitOnly)
+          mutable-attribute FieldAttributes/Public
+          immutable-attribute (enum-or mutable-attribute FieldAttributes/InitOnly)
           deftype-type
           (reduce
            (fn [t f]
@@ -107,35 +130,13 @@
               (or (types/tag f) Object)
               (when (field-volatile? f)
                 (validate-volatile-field f)
-                (into-array Type [System.Runtime.CompilerServices.IsVolatile]))
+                (into-array Type [IsVolatile]))
               nil
               (if (field-mutable? f) mutable-attribute immutable-attribute))
              t)
            (gt/deftype-type magic/*module* name interfaces)
            fields)
-          methods*
-          (mapv
-           (fn [{:keys [params name] :as f}]
-             (let [name (str name)
-                   params* (drop 1 params) ;; deftype uses explicit this
-                   [interface-name method-name]
-                   (if (string/includes? name ".")
-                     (let [last-dot (string/last-index-of name ".")]
-                       [(subs name 0 last-dot)
-                        (subs name (inc last-dot))])
-                     [nil name])
-                   candidate-methods (filter #(= method-name (.Name %)) candidate-methods)
-                   candidate-methods (if interface-name
-                                       (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
-                                       candidate-methods)]
-               (if-let [best-method (select-method candidate-methods (map ast-type params*))]
-                 (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [deftype-type] (map #(.ParameterType %) (.GetParameters best-method))))]
-                   (assoc f
-                          :params hinted-params
-                          :source-method best-method
-                          :deftype-type deftype-type))
-                 (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
-           methods)]
+          methods* (mapv #(analyze-method % candidate-methods :deftype-type deftype-type true) methods)]
       (define-special-statics deftype-type)
       (assoc ast
              :deftype-type deftype-type
@@ -192,27 +193,7 @@
           proxy-type (gt/proxy-type magic/*module* super interfaces)
           candidate-methods (into #{} (concat (.GetMethods super)
                                               (mapcat #(.GetMethods %) interfaces*)))
-          fns (mapv
-               (fn [{:keys [params name] :as f}]
-                 (let [name (str name)
-                       [interface-name method-name]
-                       (if (string/includes? name ".")
-                         (let [last-dot (string/last-index-of name ".")]
-                           [(subs name 0 last-dot)
-                            (subs name (inc last-dot))])
-                         [nil name])
-                       candidate-methods (filter #(= method-name (.Name %)) candidate-methods)
-                       candidate-methods (if interface-name
-                                           (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
-                                           candidate-methods)]
-                   (if-let [best-method (select-method candidate-methods (map ast-type params))]
-                     (let [params* (mapv #(update %1 :form vary-meta assoc :tag %2) params (map #(.ParameterType %) (.GetParameters best-method)))]
-                       (assoc f
-                              :params params*
-                              :source-method best-method
-                              :proxy-type proxy-type))
-                     (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
-               fns)
+          fns (mapv #(analyze-method % candidate-methods :proxy-type proxy-type false) fns)
           closed-overs (reduce (fn [co ast] (merge co (:closed-overs ast))) {} fns)
           this-binding-name (->> closed-overs vals (filter #(= :proxy-this (:local %))) first :name)
           closed-overs (dissoc closed-overs this-binding-name)]
@@ -239,28 +220,7 @@
           all-interfaces (into #{} (concat interfaces* (mapcat #(.GetInterfaces %) interfaces*)))
           candidate-methods (into #{} (concat (.GetMethods Object)
                                               (mapcat #(.GetMethods %) all-interfaces)))
-          methods (mapv
-                   (fn [{:keys [params name] :as f}]
-                     (let [name (str name)
-                           params* (drop 1 params) ;; reify uses explicit this
-                           [interface-name method-name]
-                           (if (string/includes? name ".")
-                             (let [last-dot (string/last-index-of name ".")]
-                               [(subs name 0 last-dot)
-                                (subs name (inc last-dot))])
-                             [nil name])
-                           candidate-methods (filter #(= method-name (.Name %)) candidate-methods)
-                           candidate-methods (if interface-name
-                                               (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
-                                               candidate-methods)]
-                       (if-let [best-method (select-method candidate-methods (map ast-type params*))]
-                         (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [reify-type] (map #(.ParameterType %) (.GetParameters best-method))))]
-                           (assoc f
-                                  :params hinted-params
-                                  :source-method best-method
-                                  :reify-type reify-type))
-                         (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
-                   methods)]
+          methods (mapv #(analyze-method % candidate-methods :reify-type reify-type true) methods)]
       (assoc ast
              :reify-type reify-type
              :interfaces interfaces*
