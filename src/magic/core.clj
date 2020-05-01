@@ -1459,7 +1459,6 @@
                           (il/br recur-target)])
                 :local (fn reify-method-local-compiler
                          [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
-                         (println "[reify-method-local-compiler]" name arg-id param-types-this param-names)
                          (if (and (= local :arg)
                                   (param-names name))
                            (if by-ref?
@@ -1774,8 +1773,7 @@
   [(il/ldtoken gen-interface-type)
    (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
 
-(defn def-compiler [{:keys [var init meta form]} compilers]
-  (println "[def]" form)
+(defn def-compiler [{:keys [var init meta]} compilers]
   (let [var-ns (.. var Namespace Name)
         var-name (.. var Symbol)
         init-with-meta? (= :with-meta (:op init))]

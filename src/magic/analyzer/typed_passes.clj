@@ -310,15 +310,14 @@
             (assoc ast**
                    :closed-overs closed-overs))))
       :reify
-      (let [ast* (analyze-reify ast)]
-        (println "[:reify]" (:children ast*))
-        (let [ast** (update-children ast* typed-passes)
+      (let [ast* (analyze-reify ast)
+            ast** (update-children ast* typed-passes)
               ;; maybe move ths closed overs part into compiler
               ;; closed-overs (reduce (fn [co ast] (merge co (:closed-overs ast))) {} (:fns ast**))
               ;; this-binding-name (->> closed-overs vals (filter #(= :proxy-this (:local %))) first :name)
               ;; closed-overs (dissoc closed-overs this-binding-name)
-              ]
-          (update ast** :closed-overs update-closed-overs)))
+            ]
+        (update ast** :closed-overs update-closed-overs))
       :deftype
       (let [ast* (analyze-deftype ast)]
         (update-children ast* typed-passes))
@@ -345,9 +344,7 @@
                             {:local name :form form})))
           :arg
           (if-let [init (*typed-pass-locals* name)]
-            (do
-              (println "[local :arg]" (:form ast) (-> init :form meta :tag))
-              (update ast :form vary-meta assoc :tag (-> init :form meta :tag)))
+            (update ast :form vary-meta assoc :tag (-> init :form meta :tag))
             ast)
           (:let :loop)
           (if-let [init (*typed-pass-locals* name)]

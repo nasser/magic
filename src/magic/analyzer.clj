@@ -318,7 +318,6 @@
       (symbol (str val)))))
 
 (defn -parse [head]
-  (println "[-parse]" head)
   (case head
     monitor-enter              parse-monitor-enter
     monitor-exit               parse-monitor-exit
