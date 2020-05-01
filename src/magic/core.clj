@@ -516,10 +516,17 @@
 (defn instance-property-compiler
   "Symbolic bytecode for instance properties"
   [{:keys [target property]} compilers]
-  [(compile-reference-to target compilers)
-   (if (-> target ast-type .IsValueType)
-     (il/call (.GetGetMethod property))
-     (il/callvirt (.GetGetMethod property)))])
+  (let [target-type (ast-type target)]
+    (if (.IsValueType target-type)
+      (case (:op target)
+        (:local :initobj)
+        [(compile (assoc target :by-ref? true) compilers)
+         (il/call (.GetGetMethod property))]
+        [(compile target compilers)
+         (reference-to-type target-type)
+         (il/call (.GetGetMethod property))])
+      [(compile target compilers)
+       (il/callvirt (.GetGetMethod property))])))
 
 (defn static-field-compiler
   "Symbolic bytecode for static fields"
