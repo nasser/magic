@@ -1390,7 +1390,9 @@
    (map #(compile % compilers) (vals closed-overs))
    (il/newobj (first (.GetConstructors proxy-type)))])
 
-(defn method-compiler [{:keys [op name body source-method reify-type deftype-type] :as ast} compilers]
+(defn method-compiler 
+  "Shared compiler for methods of proxy, reify, and deftype"
+  [{:keys [op name body source-method reify-type deftype-type] :as ast} compilers]
   (let [proxy? (= op :proxy)
         name (str name)
         explicit-override? (string/includes? name ".")
