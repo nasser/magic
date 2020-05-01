@@ -547,6 +547,14 @@
    (load-constant (str field))
    (il/call (interop/method Magic.Dispatch "InvokeZeroArityMember" Object String))])
 
+(defn dynamic-method-compiler
+  "Symbolic bytecode for dynamic methods"
+  [{:keys [method target args]} compilers]
+  [(compile target compilers)
+   (load-constant (str method))
+   (prepare-array args compilers)
+   (il/call (interop/method Magic.Dispatch "InvokeMember" Object String |System.Object[]|))])
+
 (defn dynamic-zero-arity-compiler
   "Symbolic bytecode for dynamic fields"
   [{:keys [:m-or-f target]} compilers]
@@ -1815,6 +1823,7 @@
    :static-field        #'static-field-compiler
    :instance-field      #'instance-field-compiler
    :dynamic-field       #'dynamic-field-compiler
+   :dynamic-method      #'dynamic-method-compiler
    :dynamic-zero-arity  #'dynamic-zero-arity-compiler
    :static-method       #'static-method-compiler
    :instance-method     #'instance-method-compiler
