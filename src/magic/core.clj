@@ -535,7 +535,7 @@
 (defn instance-field-compiler
   "Symbolic bytecode for instance fields"
   [{:keys [field target]} compilers]
-  [(compile-reference-to target compilers)
+  [(compile target compilers)
    (when (field-volatile? field)
      (il/volatile))
    (il/ldfld field)])
@@ -543,7 +543,7 @@
 (defn dynamic-field-compiler
   "Symbolic bytecode for dynamic fields"
   [{:keys [field target]} compilers]
-  [(compile-reference-to target compilers)
+  [(compile target compilers)
    (load-constant (str field))
    (il/call (interop/method Magic.Dispatch "InvokeZeroArityMember" Object String))])
 
@@ -558,7 +558,7 @@
 (defn dynamic-zero-arity-compiler
   "Symbolic bytecode for dynamic fields"
   [{:keys [:m-or-f target]} compilers]
-  [(compile-reference-to target compilers)
+  [(compile target compilers)
    (load-constant (str m-or-f))
    (il/call (interop/method Magic.Dispatch "InvokeZeroArityMember" Object String))])
 
@@ -614,11 +614,15 @@
 
 (defn initobj-compiler
   "Symbolic bytecode for zero arity value type constructor invocation"
-  [{:keys [type args]} compilers]
+  [{:keys [type by-ref?]} compilers]
+  ;; by-ref? is a bit of a hack here. it exists to make this ast
+  ;; somewhat similar to :local ast nodes when compiling instance properties
   (let [loc (il/local type)]
     [(il/ldloca-s loc)
      (il/initobj type)
-     (il/ldloc loc)]))
+     (if by-ref?
+      (il/ldloca-s loc)
+       (il/ldloc loc))]))
 
 (defn new-compiler
   "Symbolic bytecode for constructor invocation"
