@@ -11,15 +11,16 @@
              [errors :refer [error] :as errors]
              [types :refer [class-for-name] :as types]]
             [clojure.walk :as w]
-            [magic.core :as magic]))
+            [magic.core :as magic]
+            [magic.emission :refer [*module*]]))
 
 ;; TODO this is duplicated in magic.analyzer.analyze-host-forms
 (defn ensure-class 
   ([c] (ensure-class c c))
   ([c form]
    (or (class-for-name c)
-       (and magic/*module*
-            (.GetType magic/*module* (str c)))
+       (and *module*
+            (.GetType *module* (str c)))
        (error
         ::errors/missing-type
         {:type c :form form}))))
@@ -29,8 +30,8 @@
   ([c _form]
    (and c
         (or (class-for-name c)
-            (and magic/*module*
-                 (.GetType magic/*module* (str c)))))))
+            (and *module*
+                 (.GetType *module* (str c)))))))
 
 (defn desugar-host-expr [form env]
   (cond

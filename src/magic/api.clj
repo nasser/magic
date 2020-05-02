@@ -7,17 +7,9 @@
             magic.intrinsics
             [magic.spells
              [lift-vars :refer [lift-vars]]
-             [dynamic-interop :refer [dynamic-interop]]])
-  (:import [clojure.lang RT]
-           [System.Reflection.Emit AssemblyBuilderAccess]))
-
-(clojure.core/defn module* [name]
-  (->
-   (.. AppDomain CurrentDomain
-       (DefineDynamicAssembly
-        (AssemblyName. name)
-        AssemblyBuilderAccess/RunAndSave))
-   (.DefineDynamicModule (str name ".dll"))))
+             [dynamic-interop :refer [dynamic-interop]]]
+            [magic.emission :refer [*module* fresh-module]])
+  (:import [clojure.lang RT]))
 
 (clojure.core/defn compile-asm
   ([exprs]
@@ -51,7 +43,7 @@
        (list 'new)))
 
 (clojure.core/defn eval [expr]
-  (binding [magic/*module* (module* "eval")]
+  (binding [*module* (fresh-module "eval")]
     (let [ast (ana/analyze expr)
           bc (magic/compile ast)]
       (->> (il/type
@@ -62,7 +54,7 @@
              [bc
               (magic/convert (ast-type ast) Object)
               (il/ret)]))
-           (il/emit! {::il/module-builder magic/*module*})
+           (il/emit! {::il/module-builder *module*})
            ::il/type-builders ;;  TODO MAGE bug type-builder should be available here
            vals
            first

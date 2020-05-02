@@ -3,7 +3,8 @@
   (:require [magic.analyzer
              [binder :refer [select-method]]
              [util :refer [throw! var-interfaces var-type] :as util]
-             [reflection :refer [find-method]]])
+             [reflection :refer [find-method]]]
+            [magic.emission :refer [*module*]])
   (:import Magic.Runtime))
 
 (defn read-generic-name [name]
@@ -82,9 +83,8 @@
   ([t]
    (if (symbol? t)
      (or (shorthand t)
-         ;; TODO this is a hack. move *module* to a namespace that core and types can see
-         (and @(clojure.lang.RT/var "magic.core" "*module*")
-              (.GetType @(clojure.lang.RT/var "magic.core" "*module*") (str t)))
+         (and *module*
+          (.GetType *module* (str t)))
          (clojure.core/resolve t)
          (throw! "Could not resolve " t " as  type."))
      t))

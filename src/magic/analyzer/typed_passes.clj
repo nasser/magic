@@ -12,7 +12,8 @@
     [errors :refer [error] :as errors]
     [types :refer [ast-type class-for-name non-void-ast-type] :as types]]
    [magic.core :as magic]
-   [magic.interop :as interop])
+   [magic.interop :as interop]
+   [magic.emission :refer [*module*]])
   (:import [System Type SByte Int16 UInt16 Int32 UInt32 Char Single IntPtr UIntPtr]
            [System.Reflection MethodAttributes FieldAttributes]
            System.Runtime.CompilerServices.IsVolatile))
@@ -22,8 +23,8 @@
   ([c] (ensure-class c c))
   ([c form]
    (or (class-for-name c)
-       (and magic/*module*
-            (.GetType magic/*module* (str c)))
+       (and *module*
+            (.GetType *module* (str c)))
        (error
         ::errors/missing-type
         {:type c :form form}))))
@@ -37,7 +38,7 @@
                         (map host/analyze-type)
                         (mapv :val))
           gen-interface-type
-          (gt/gen-interface-type magic/*module* (str name) extends*)
+          (gt/gen-interface-type *module* (str name) extends*)
           resolve-type
           (fn [t]
             (if (= (str t) (str name))
@@ -134,7 +135,7 @@
               nil
               (if (field-mutable? f) mutable-attribute immutable-attribute))
              t)
-           (gt/deftype-type magic/*module* name interfaces)
+           (gt/deftype-type *module* name interfaces)
            fields)
           methods* (mapv #(analyze-method % candidate-methods :deftype-type deftype-type true) methods)]
       (define-special-statics deftype-type)
@@ -168,13 +169,13 @@
           interfaces (map #(interop/generic-type "Magic.Function" (conj %1 %2))
                           param-types
                           return-types)
-          fn-type (gt/fn-type magic/*module* (gen-fn-name name) interfaces)]
+          fn-type (gt/fn-type *module* (gen-fn-name name) interfaces)]
       (assoc ast :fn-type fn-type))
     ast))
 
 (defn analyze-proxy
   "Typed analysis of proxy forms. Generates a TypeBuilder for this proxy and
-   looks up interface/super type methods. magic.core/*module* must be bound
+   looks up interface/super type methods. magic.emission/*module* must be bound
    before this function is called and will contain the generated proxy type when
    this function returns."
   [{:keys [op class-and-interface fns] :as ast}]
@@ -190,7 +191,7 @@
                              (drop 1 class-and-interface)
                              class-and-interface))
           interfaces* (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
-          proxy-type (gt/proxy-type magic/*module* super interfaces)
+          proxy-type (gt/proxy-type *module* super interfaces)
           candidate-methods (into #{} (concat (.GetMethods super)
                                               (mapcat #(.GetMethods %) interfaces*)))
           fns (mapv #(analyze-method % candidate-methods :proxy-type proxy-type false) fns)
@@ -216,7 +217,7 @@
                 (map host/analyze-type)
                 (mapv :val))
            clojure.lang.IObj)
-          reify-type (gt/reify-type magic/*module* interfaces*)
+          reify-type (gt/reify-type *module* interfaces*)
           all-interfaces (into #{} (concat interfaces* (mapcat #(.GetInterfaces %) interfaces*)))
           candidate-methods (into #{} (concat (.GetMethods Object)
                                               (mapcat #(.GetMethods %) all-interfaces)))

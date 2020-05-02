@@ -24,8 +24,6 @@
 (def compile)
 (def base-compilers)
 
-(def ^:dynamic *module* nil)
-
 (defn load-argument-address [arg-id]
   (cond
     (< arg-id 16) (il/ldarga-s (byte arg-id))

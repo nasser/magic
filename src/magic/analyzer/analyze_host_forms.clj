@@ -7,7 +7,8 @@
    [magic.analyzer
     [errors :refer [error] :as errors]
     [binder :refer [select-method]]
-    [types :refer [read-generic-name ast-type class-for-name]]])
+    [types :refer [read-generic-name ast-type class-for-name]]]
+   [magic.emission :refer [*module*]])
   (:import [System.Reflection BindingFlags]
            [System.Reflection.Emit TypeBuilder]))
 
@@ -26,8 +27,8 @@
 
 (defn ensure-class [c form]
   (or 
-   (and magic/*module*
-        (.GetType magic/*module* (str c)))
+   (and *module*
+        (.GetType *module* (str c)))
    (class-for-name c)
    (error
     ::errors/missing-type
