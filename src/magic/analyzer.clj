@@ -9,37 +9,18 @@
              [intrinsics :as intrinsics]
              [util :as util]
              [errors :refer [error] :as errors]
-             [types :refer [class-for-name] :as types]]
+             [types :as types]]
             [clojure.walk :as w]
             [magic.core :as magic]
             [magic.emission :refer [*module*]]))
 
-;; TODO this is duplicated in magic.analyzer.analyze-host-forms
-(defn ensure-class 
-  ([c] (ensure-class c c))
-  ([c form]
-   (or (class-for-name c)
-       (and *module*
-            (.GetType *module* (str c)))
-       (error
-        ::errors/missing-type
-        {:type c :form form}))))
-
-(defn maybe-class 
-  ([c] (maybe-class c c))
-  ([c _form]
-   (and c
-        (or (class-for-name c)
-            (and *module*
-                 (.GetType *module* (str c)))))))
-
 (defn desugar-host-expr [form env]
   (cond
    (symbol? form)
-   (let [target (maybe-class (namespace form))]
+   (let [target (types/resolve (namespace form))]
      (if (and target
               (not (resolve-ns (symbol (namespace form)) env))
-              (maybe-class target form))       ;; Class/field
+              (types/resolve target))       ;; Class/field
        (with-meta (list '. target (symbol (str "-" (symbol (name form))))) ;; transform to (. Class -field)
          (meta form))
        form))
@@ -58,7 +39,7 @@
                 ;; cleaned up in later analysis passes
                 ;; e.g. (.GetMethods DateTime) vs (DateTime/Now)
                 target (if-let [target (and (not (get (:locals env) target))
-                                            (class-for-name target))]
+                                            (types/resolve target))]
                          (with-meta (list 'clojure.core/identity target)
                            {:tag 'System.Type})                                       ;;; java.lang.Class
                          target)
@@ -67,11 +48,11 @@
                                          (first args) args))  ;; a method call or a field access
               (meta form)))
 
-          (and (maybe-class opns)
+          (and (types/resolve opns)
                (not (resolve-ns (symbol opns) env))) ; (class/field ..)
-          (let [target (maybe-class opns)
+          (let [target (types/resolve opns)
                 op (symbol opname)]
-            (ensure-class target form)
+            (types/resolve target)
             (with-meta (list '. target (if (zero? (count expr))
                                          op
                                          (list* op expr)))

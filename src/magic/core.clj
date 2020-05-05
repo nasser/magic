@@ -93,8 +93,12 @@
     nil ; (throw (Exception. "cannot convert from disregarded type"))
     (= to :magic.analyzer.types/disregard)
     (throw (Exception. "cannot convert to disregarded type"))
+
     (nil? from)
-    nil
+    (recur Object to)
+
+    (nil? to)
+    (recur from Object)
 
     ;; do nothing if the types are the same
     (= from to)
@@ -835,6 +839,10 @@
 
 (defn invoke-compiler
   [{:keys [fn args] :as ast} compilers]
+  [(compile fn compilers)
+   (ifn-invoke-compiler ast compilers)]
+  ;; TODO revisit high performance generic function interfaces
+  #_
   (let [fn-type (var-type fn)
         arg-types (map ast-type args)
         ;; TODO this is hacky and gross
