@@ -7,7 +7,7 @@
    [magic.analyzer
     [errors :refer [error] :as errors]
     [binder :refer [select-method]]
-    [types :refer [read-generic-name ast-type class-for-name]]]
+    [types :refer [read-generic-name ast-type] :as types]]
    [magic.emission :refer [*module*]])
   (:import [System.Reflection BindingFlags]
            [System.Reflection.Emit TypeBuilder]))
@@ -29,7 +29,7 @@
   (or 
    (and *module*
         (.GetType *module* (str c)))
-   (class-for-name c)
+   (types/resolve c)
    (error
     ::errors/missing-type
     {:type c :form form})))

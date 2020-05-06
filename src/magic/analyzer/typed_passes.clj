@@ -10,25 +10,13 @@
     [analyze-host-forms :as host]
     [intrinsics :as intrinsics]
     [errors :refer [error] :as errors]
-    [types :refer [ast-type class-for-name non-void-ast-type] :as types]]
+    [types :refer [ast-type non-void-ast-type] :as types]]
    [magic.core :as magic]
    [magic.interop :as interop]
    [magic.emission :refer [*module*]])
   (:import [System Type SByte Int16 UInt16 Int32 UInt32 Char Single IntPtr UIntPtr]
            [System.Reflection MethodAttributes FieldAttributes]
            System.Runtime.CompilerServices.IsVolatile))
-
-;; TODO this is duplicated in magic.analyzer.analyze-host-forms
-(defn ensure-class
-  ([c] (ensure-class c c))
-  ([c form]
-   (or (class-for-name c)
-       (and *module*
-            (.GetType *module* (str c)))
-       (error
-        ::errors/missing-type
-        {:type c :form form}))))
-
 
 (defn analyze-gen-interface
   [{:keys [name methods extends] :as ast}]
@@ -43,7 +31,7 @@
           (fn [t]
             (if (= (str t) (str name))
               gen-interface-type
-              (ensure-class t)))]
+              (types/resolve t)))]
       (doseq [m methods]
         (let [[name args return] m]
           (.DefineMethod

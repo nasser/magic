@@ -5,7 +5,12 @@
              [util :refer [throw! var-interfaces var-type] :as util]
              [reflection :refer [find-method]]]
             [magic.emission :refer [*module*]])
-  (:import Magic.Runtime))
+  (:import Magic.Runtime
+           [System Double Single 
+            Int16 Int32 Int64
+            UInt16 UInt32 UInt64
+            IntPtr UIntPtr Char
+            SByte Decimal]))
 
 (defn read-generic-name [name]
   (let [reader (-> name str
@@ -13,14 +18,11 @@
                  clojure.lang.PushbackTextReader.)]
     [(read reader) (read reader)]))
 
+#_
 (defn class-for-name [s]
   (if s
     (or (.GetMapping *ns* (symbol (str s)))
         (Runtime/FindType (str s)))))
-
-;; TODO look into this, does this do anything useful?  
-(defn maybe-class [c]
-  (or (class-for-name c) c))
 
 (defn superchain [t]
   (if-let [b (.BaseType t)]
@@ -44,56 +46,63 @@
       (.GetMethod class name Type/EmptyTypes)))
 
 (def shorthand
-  {'float    Single
-   'double   Double
-   'short    Int16
-   'ushort   UInt16
-   'int      Int32
-   'uint     UInt32
-   'long     Int64
-   'ulong    UInt64
-   'bool     Boolean
-   'object   Object
-   'intptr   IntPtr
-   'uintptr  UIntPtr
-   'char     Char
-   'byte     Byte
-   'sbyte    SByte
-   'decimal  Decimal
-   'string   String
-   'floats   System.Single|[]|
-   'doubles  System.Double|[]|
-   'shorts   System.Int16|[]|
-   'ushorts  System.UInt16|[]|
-   'ints     System.Int32|[]|
-   'uints    System.UInt32|[]|
-   'longs    System.Int64|[]|
-   'ulongs   System.UInt64|[]|
-   'bools    System.Boolean|[]|
-   'objects  System.Object|[]|
-   'intptrs  System.IntPtr|[]|
-   'uintptrs System.UIntPtr|[]|
-   'chars    System.Char|[]|
-   'bytes    System.Byte|[]|
-   'sbytes   System.SByte|[]|
-   'decimals System.Decimal|[]|
-   'strings  System.String|[]|})
+  {"float"    Single
+   "double"   Double
+   "short"    Int16
+   "ushort"   UInt16
+   "int"      Int32
+   "uint"     UInt32
+   "long"     Int64
+   "ulong"    UInt64
+   "bool"     Boolean
+   "object"   Object
+   "intptr"   IntPtr
+   "uintptr"  UIntPtr
+   "char"     Char
+   "byte"     Byte
+   "sbyte"    SByte
+   "decimal"  Decimal
+   "string"   String
+   "floats"   System.Single|[]|
+   "doubles"  System.Double|[]|
+   "shorts"   System.Int16|[]|
+   "ushorts"  System.UInt16|[]|
+   "ints"     System.Int32|[]|
+   "uints"    System.UInt32|[]|
+   "longs"    System.Int64|[]|
+   "ulongs"   System.UInt64|[]|
+   "bools"    System.Boolean|[]|
+   "objects"  System.Object|[]|
+   "intptrs"  System.IntPtr|[]|
+   "uintptrs" System.UIntPtr|[]|
+   "chars"    System.Char|[]|
+   "bytes"    System.Byte|[]|
+   "sbytes"   System.SByte|[]|
+   "decimals" System.Decimal|[]|
+   "strings"  System.String|[]|})
 
-(defn resolve
-  ([t]
-   (if (symbol? t)
+(def cached-ns-imports ns-imports)
+
+(defn resolve 
+  ([t] (resolve t *ns*))
+  ([t ns]
+   (println "[resolve]" *ns* t)
+   (cond
+     (nil? t)
+     nil
+     (instance? Type t)
+     t
+     (symbol? t)
+     (recur (str t) ns)
+     (string? t)
      (or (shorthand t)
          (and *module*
-          (.GetType *module* (str t)))
-         (clojure.core/resolve t)
-         (throw! "Could not resolve " t " as  type."))
-     t))
-  ([t ast]
-   (if (symbol? t)
-     (or (clojure.core/resolve t)
-         (throw! "Could not resolve " t " as  type in " (:form ast)))
-     t)))
-
+              (.GetType *module* t))
+         (Runtime/FindType t)
+         (and ns 
+              (get (cached-ns-imports ns) (symbol t))))
+     :else
+     nil)))
 (defn tag [x]
   (if-let [t (-> x meta :tag)]
     (resolve t)))
@@ -101,6 +110,10 @@
 (defmulti ast-type
   "The CLR type of an AST node"
   :op)
+
+(defn ast-type-or-object [ast]
+  (or (ast-type ast)
+      Object))
 
 (defn disregard-type? [ast]
   (case (:op ast)
@@ -280,7 +293,8 @@
             first
             meta
             :tag)
-       (let [arg-types (map ast-type args)
+       ;; TODO revisit high performance generic function interfaces
+       #_ (let [arg-types (map ast-type args)
              target-interfaces (var-interfaces fn)
               ;; TODO this is hacky and gross
              vt (var-type fn)
