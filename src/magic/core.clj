@@ -803,9 +803,7 @@
 
 (defn implementing-interface [t bm]
   (->> (.GetInterfaces t)
-       ;; TODO magic's Function interfaces should be in their own namespace
-       ;; e.g. Magic.Function. Check for that instead of nil? here 
-       (filter #(nil? (.Namespace %)))
+       (filter #(= "Magic" (.Namespace %)))
        (filter
          #(contains?
             (set (.. t (GetInterfaceMap %) TargetMethods))
@@ -839,10 +837,7 @@
 
 (defn invoke-compiler
   [{:keys [fn args] :as ast} compilers]
-  [(compile fn compilers)
-   (ifn-invoke-compiler ast compilers)]
   ;; TODO revisit high performance generic function interfaces
-  #_
   (let [fn-type (var-type fn)
         arg-types (map ast-type args)
         ;; TODO this is hacky and gross
@@ -858,8 +853,8 @@
      (if interface-match
        [(il/castclass interface-match)
         (interleave
-          (map #(compile % compilers) args)
-          (map #(convert %1 %2) arg-types param-types))
+         (map #(compile % compilers) args)
+         (map #(convert %1 %2) arg-types param-types))
         (il/callvirt (apply interop/method interface-match "invoke" param-types))]
        (ifn-invoke-compiler ast compilers))]))
 

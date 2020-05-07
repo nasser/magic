@@ -292,8 +292,7 @@
             first
             meta
             :tag)
-       ;; TODO revisit high performance generic function interfaces
-       #_ (let [arg-types (map ast-type args)
+       (let [arg-types (map ast-type args)
              target-interfaces (var-interfaces fn)
               ;; TODO this is hacky and gross
              vt (var-type fn)
