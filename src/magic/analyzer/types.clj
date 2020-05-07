@@ -86,7 +86,6 @@
 (defn resolve 
   ([t] (resolve t *ns*))
   ([t ns]
-   (println "[resolve]" *ns* t)
    (cond
      (nil? t)
      nil
