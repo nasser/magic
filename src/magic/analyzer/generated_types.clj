@@ -19,7 +19,7 @@
   (fresh-type module-builder name Object interfaces interface))
 
 (defn fn-type [module-builder name interfaces]
-  (fresh-type module-builder name clojure.lang.AFunction interfaces public))
+  (fresh-type module-builder name clojure.lang.AFn interfaces public))
 
 (defn proxy-type [module-builder super interfaces]
   (fresh-type module-builder (str (gensym "proxy")) super interfaces public))

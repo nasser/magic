@@ -962,7 +962,7 @@
     CallingConventions/Standard
     []
     [(il/ldarg-0)
-     (il/call (private-constructor clojure.lang.AFunction))
+     (il/call (private-constructor clojure.lang.AFn))
      (il/ret)]))
 
 (defn compile-fn-type [{:keys [methods closed-overs fn-type] :as ast} compilers]
@@ -989,7 +989,7 @@
                 (enum-or MethodAttributes/Public)
                 CallingConventions/Standard []
                 [(il/ldarg-0)
-                 (il/call (private-constructor clojure.lang.AFunction))
+                 (il/call (private-constructor clojure.lang.AFn))
                  (il/ret)])
           methods* (map #(compile % specialized-compilers) methods)]
       (reduce (fn [ctx x] (il/emit! ctx x))
@@ -1696,7 +1696,9 @@
 (defn def-compiler [{:keys [var init meta]} compilers]
   (let [var-ns (.. var Namespace Name)
         var-name (.. var Symbol)
-        init-with-meta? (= :with-meta (:op init))]
+        [init meta] (if (= :with-meta (:op init))
+                      [(:expr init) (:meta init)]
+                      [init meta])]
     [(il/ldstr (str var-ns))
      (il/ldstr (str var-name))
      (il/call (interop/method clojure.lang.RT "var" String String))
@@ -1705,7 +1707,7 @@
         (compile init compilers)
         (convert (ast-type init) Object)
         (il/call (interop/method clojure.lang.Var "bindRoot" Object))])
-     (when-not init-with-meta?
+     (when-not (nil? meta)
        [(il/dup)
         (compile meta compilers)
         (convert (ast-type meta) clojure.lang.IPersistentMap)
