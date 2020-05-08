@@ -145,6 +145,9 @@
             target-type (cond
                           identity-hack?
                           System.Type
+                          (and (= :const (:op target))
+                               (= :class (:type target)))
+                          (:val target)
                           :else
                           (ast-type target))
             m-or-f (str m-or-f)
