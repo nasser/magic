@@ -141,23 +141,24 @@
    "$"))
 
 (defn analyze-fn
-  [{:keys [op local methods] :as ast}]
+  [{:keys [op local methods variadic?] :as ast}]
   (case op
     :fn
     (let [name (:form local)
-          param-types (->> methods
-                           (map :params)
-                           (mapcat #(vector (map non-void-ast-type %)
-                                            (map (constantly Object) %))))
-          return-types (->> methods
-                            (mapcat #(vector
-                                      (or (-> % :form first meta :tag types/resolve)
-                                          (-> % :body non-void-ast-type))
-                                      Object)))
-          interfaces (map #(interop/generic-type "Magic.Function" (conj %1 %2))
-                          param-types
-                          return-types)
-          fn-type (gt/fn-type *module* (gen-fn-name name) interfaces)]
+          fixed-arity-methods (remove :variadic? methods)
+          signatures (->> fixed-arity-methods
+                          (map (fn [method]
+                                 (let [return-type (or (-> method :form first meta :tag types/resolve)
+                                                       (-> method :body non-void-ast-type))
+                                       param-types (map non-void-ast-type (:params method))]
+                                   (list* return-type param-types))))
+                          (remove (fn [sig] (every? #(= Object %) sig))))
+          interfaces (->> (map #(interop/generic-type "Magic.Function" %) signatures)
+                          (into #{}))
+          fn-name (gen-fn-name name)
+          fn-type (if variadic? 
+                    (gt/variadic-fn-type *module* fn-name interfaces)
+                    (gt/fn-type *module* fn-name interfaces))]
       (assoc ast :fn-type fn-type))
     ast))
 

@@ -842,7 +842,7 @@
         arg-types (map ast-type args)
         ;; TODO this is hacky and gross
         best-method (when fn-type
-                      (select-method (filter #(= (.Name %) "invoke")
+                      (select-method (filter #(= (.Name %) "invokeTyped")
                                              (.GetMethods fn-type))
                                      arg-types))
         param-types (when best-method
@@ -855,7 +855,7 @@
         (interleave
          (map #(compile % compilers) args)
          (map #(convert %1 %2) arg-types param-types))
-        (il/callvirt (apply interop/method interface-match "invoke" param-types))]
+        (il/callvirt (apply interop/method interface-match "invokeTyped" param-types))]
        (ifn-invoke-compiler ast compilers))]))
 
 (defn var-compiler
@@ -935,23 +935,39 @@
 
 (defn has-arity-method
   "Symbolic bytecode for the IFnArity.HasArity method"
-  [arities]
+  [fixed-arities variadic-arity]
   (il/method
     "HasArity"
     (enum-or MethodAttributes/Public
              MethodAttributes/Virtual)
     Boolean [(il/parameter Int32)]
     (let [ret-true (il/label)]
-      [(map (fn [arity]
-              [(il/ldarg-1)
-               (load-constant (int arity))
-               (il/beq ret-true)])
-            arities)
-       (il/ldc-i4-0)
-       (il/ret)
-       ret-true
-       (il/ldc-i4-1)
-       (il/ret)])))
+       [(when variadic-arity
+          [(il/ldarg-1)
+           (load-constant (int variadic-arity))
+           (il/bge ret-true)])
+        (map (fn [arity]
+               [(il/ldarg-1)
+                (load-constant (int arity))
+                (il/beq ret-true)])
+             fixed-arities)
+        (il/ldc-i4-0)
+        (il/ret)
+        ret-true
+        (il/ldc-i4-1)
+        (il/ret)])))
+
+(defn get-required-arity-method
+  "Symbolic bytecode for the RestFn.getRequiredArity method"
+  [variadic-arity]
+  (when variadic-arity
+    (il/method
+     "getRequiredArity"
+     (enum-or MethodAttributes/Public
+              MethodAttributes/Virtual)
+     Int32 []
+    [(load-constant (int variadic-arity))
+     (il/ret)] )))
 
 (defn private-constructor [t]
   (first (.GetConstructors t (enum-or BindingFlags/NonPublic BindingFlags/Instance))))
@@ -965,9 +981,16 @@
      (il/call (private-constructor clojure.lang.AFn))
      (il/ret)]))
 
-(defn compile-fn-type [{:keys [methods closed-overs fn-type] :as ast} compilers]
+(defn compile-fn-type [{:keys [methods variadic? closed-overs fn-type] :as ast} compilers]
   (when-not (.IsCreated fn-type)
-    (let [arities (map :fixed-arity methods)
+    (let [fixed-arities (->> methods
+                             (remove :variadic?)
+                             (map :fixed-arity))
+          variadic-arity (when variadic?
+                           (->> methods
+                                (filter :variadic?)
+                                first
+                                :fixed-arity))
           closed-over-field-map
           (reduce-kv
            (fn [m k v]
@@ -989,12 +1012,15 @@
                 (enum-or MethodAttributes/Public)
                 CallingConventions/Standard []
                 [(il/ldarg-0)
-                 (il/call (private-constructor clojure.lang.AFn))
+                 (il/call (private-constructor 
+                           (if variadic?
+                             clojure.lang.RestFn
+                             clojure.lang.AFn)))
                  (il/ret)])
           methods* (map #(compile % specialized-compilers) methods)]
       (reduce (fn [ctx x] (il/emit! ctx x))
               {::il/type-builder fn-type}
-              [ctor methods* (has-arity-method arities)]))
+              [ctor methods* (has-arity-method fixed-arities variadic-arity) (get-required-arity-method variadic-arity)]))
     (.CreateType fn-type)))
 
 (defn fn-compiler
@@ -1007,7 +1033,7 @@
     (.GetFields fn-type (enum-or BindingFlags/NonPublic BindingFlags/Instance)))])
 
 (defn fn-method-compiler
-  [{:keys [body params form]} compilers]
+  [{:keys [body params form variadic?]} compilers]
   (let [param-hint (-> form first tag)
         param-types (mapv ast-type params)
         param-names (into #{} (map :name params))
@@ -1018,6 +1044,7 @@
         non-void-return-type (or param-hint (non-void-ast-type body))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         recur-target (il/label)
+        invoke-method-name (if variadic? "doInvoke" "invoke")
         specialized-compilers
         (merge compilers
                {:recur (fn fn-recur-compiler
@@ -1039,7 +1066,7 @@
                            (compile ast compilers)))})
         unhinted-method
         (il/method
-         "invoke"
+         invoke-method-name
          public-virtual
          Object param-il-unhinted
          [recur-target
@@ -1048,7 +1075,7 @@
           (il/ret)])
         hinted-method
         (il/method
-         "invoke"
+         "invokeTyped"
          public-virtual
          non-void-return-type param-il
          [recur-target
@@ -1057,7 +1084,7 @@
           (il/ret)])
         unhinted-shim
         (il/method
-         "invoke"
+         invoke-method-name
          public-virtual
          Object param-il-unhinted
          [(il/ldarg-0)

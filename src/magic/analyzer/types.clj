@@ -297,7 +297,7 @@
               ;; TODO this is hacky and gross
              vt (var-type fn)
              invokes (when vt
-                       (filter #(= (.Name %) "invoke")
+                       (filter #(= (.Name %) "invokeTyped")
                                (.GetMethods vt)))
              exact-match (when invokes
                            (select-method invokes arg-types))]

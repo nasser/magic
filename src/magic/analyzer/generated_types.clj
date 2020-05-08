@@ -21,6 +21,9 @@
 (defn fn-type [module-builder name interfaces]
   (fresh-type module-builder name clojure.lang.AFn interfaces public))
 
+(defn variadic-fn-type [module-builder name interfaces]
+  (fresh-type module-builder name clojure.lang.RestFn interfaces public))
+
 (defn proxy-type [module-builder super interfaces]
   (fresh-type module-builder (str (gensym "proxy")) super interfaces public))
 
