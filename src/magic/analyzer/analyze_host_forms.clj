@@ -145,8 +145,6 @@
             target-type (cond
                           identity-hack?
                           System.Type
-                          (= System.Type (ast-type target))
-                          (:val target)
                           :else
                           (ast-type target))
             m-or-f (str m-or-f)
