@@ -1726,7 +1726,7 @@
   (let [var-ns (.. var Namespace Name)
         var-name (.. var Symbol)
         [init meta] (if (= :with-meta (:op init))
-                      [(:expr init) (:meta init)]
+                      [(:expr init) meta]
                       [init meta])]
     [(il/ldstr (str var-ns))
      (il/ldstr (str var-name))
