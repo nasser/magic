@@ -1064,13 +1064,15 @@
                              [(load-argument-standard (inc arg-id))
                               (convert (param-types arg-id) (ast-type ast))])
                            (compile ast compilers)))})
+        compiled-body
+        (compile body specialized-compilers)
         unhinted-method
         (il/method
          invoke-method-name
          public-virtual
          Object param-il-unhinted
          [recur-target
-          (compile body specialized-compilers)
+          compiled-body
           (convert return-type Object)
           (il/ret)])
         hinted-method
@@ -1079,7 +1081,7 @@
          public-virtual
          non-void-return-type param-il
          [recur-target
-          (compile body specialized-compilers)
+          compiled-body
           (convert return-type non-void-return-type)
           (il/ret)])
         unhinted-shim
