@@ -122,16 +122,18 @@
     :do (disregard-type? (:ret ast))
     (= ::disregard (ast-type ast))))
 
-(defn non-void-ast-type
-  ([ast]
-   (non-void-ast-type ast Object))
-  ([ast non-void-type]
-   (if (disregard-type? ast)
-     non-void-type
-     (let [t (ast-type ast)]
-       (if (= t System.Void)
-         non-void-type
-         t)))))
+(def non-void-ast-type
+  (memoize
+   (fn non-void-ast-type
+     ([ast]
+      (non-void-ast-type ast Object))
+     ([ast non-void-type]
+      (if (disregard-type? ast)
+        non-void-type
+        (let [t (ast-type ast)]
+          (if (= t System.Void)
+            non-void-type
+            t)))))))
 
 ;;;;; intrinsics
 
