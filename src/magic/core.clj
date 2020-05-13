@@ -931,7 +931,14 @@
        (il/call (magic.interop/method Magic.Dispatch "SetMember" Object String Object))
        (convert Object (ast-type val))
        (when-not value-used?
-         (il/pop))])))
+         (il/pop))]
+      (= target-op :var)
+      (if (:assignable? target)
+        [(load-var (:var target))
+         (compile val compilers)
+         (convert (ast-type val) Object)
+         (il/call (interop/method clojure.lang.Var "set" Object))]
+        (throw! "Cannot assign to non-assignable var " (:var target))))))
 
 (defn has-arity-method
   "Symbolic bytecode for the IFnArity.HasArity method"
