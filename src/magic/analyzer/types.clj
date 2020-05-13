@@ -96,7 +96,10 @@
      (string? t)
      (or (shorthand t)
          (and *module*
-              (.GetType *module* t))
+              (try 
+                (.GetType *module* t)
+                (catch ArgumentException e
+                  nil)))
          (Runtime/FindType t)
          (and ns 
               (get (cached-ns-imports ns) (symbol t))))
