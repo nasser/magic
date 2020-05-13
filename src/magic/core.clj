@@ -253,6 +253,13 @@
 
 (defmulti load-constant type)
 
+(defn load-var [v]
+  (let [nsname  (.. v Namespace Name ToString)
+        symname (.. v Symbol ToString)]
+    [(load-constant nsname)
+     (load-constant symname)
+     (il/call (interop/method RT "var" String String))]))
+
 (defn new-array [items]
   [(load-constant (int (count items)))
    (il/newarr Object)
@@ -274,6 +281,9 @@
 
 (defmethod load-constant :default [k]
   (throw! "load-constant not implemented for " k " (" (type k) ")" ))
+
+(defmethod load-constant clojure.lang.Var [v]
+  (load-var v))
 
 (defmethod load-constant nil [k]
   (il/ldnull))
@@ -398,13 +408,6 @@
           new-array)
      (il/call method)
      (convert (.ReturnType method) (types/data-structure-types :map))]))
-
-(defn load-var [v]
-  (let [nsname  (.. v Namespace Name ToString)
-        symname (.. v Symbol ToString)]
-    [(load-constant nsname)
-     (load-constant symname)
-     (il/call (interop/method RT "var" String String))]))
 
 ;; TODO remaining element types
 (defn load-element [type]
