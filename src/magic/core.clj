@@ -1006,8 +1006,9 @@
            (fn [m k v]
              (assoc m k (il/unique (il/field (ast-type v) (str (:form v))
                                              FieldAttributes/Assembly))))
-           (sorted-map)
+           {}
            closed-overs)
+          closed-over-fields (-> closed-over-field-map vals vec)
           specialized-compilers
           (merge
            compilers
@@ -1030,7 +1031,7 @@
           methods* (map #(compile % specialized-compilers) methods)]
       (reduce (fn [ctx x] (il/emit! ctx x))
               {::il/type-builder fn-type}
-              [ctor methods* (has-arity-method fixed-arities variadic-arity) (get-required-arity-method variadic-arity)]))
+              [closed-over-fields ctor methods* (has-arity-method fixed-arities variadic-arity) (get-required-arity-method variadic-arity)]))
     (.CreateType fn-type)))
 
 (defn fn-compiler
@@ -1530,8 +1531,9 @@
           (reduce-kv
            (fn [m k v]
              (assoc m k (il/unique (il/field (ast-type v) (str (:form v))))))
-           (sorted-map)
+           {}
            closed-overs)
+          closed-over-fields (-> closed-over-field-map vals vec)
           specialized-compilers
           (merge
            compilers
@@ -1593,7 +1595,7 @@
           methods* (merge iface-methods provided-methods)]
       (reduce (fn [ctx method] (il/emit! ctx method))
               {::il/type-builder reify-type}
-              [ctor meta-ctor (vals methods*)
+              [closed-over-fields ctor meta-ctor (vals methods*)
                (iobj-implementation meta-il meta-field meta-ctor closed-over-field-map)]))
     (.CreateType reify-type)))
 
