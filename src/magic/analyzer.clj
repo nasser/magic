@@ -376,7 +376,10 @@
                     res))
 
                 inline?
-                (let [res (apply inline? args)]
+                (let [inlinefn (if (ifn? inline?) 
+                                 inline?
+                                 (eval inline?))
+                      res (apply inlinefn args)]
                   (update-ns-map!)
                   (if (obj? res)
                     (vary-meta res merge
