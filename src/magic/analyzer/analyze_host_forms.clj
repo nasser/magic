@@ -102,6 +102,10 @@
                    :else
                    (if-let [best-ctor (select-method (.GetConstructors target-type) (map ast-type args))]
                      {:constructor best-ctor}
+                     ;; TODO check if arguments are not hinted
+                     {:op :dynamic-constructor
+                      :type target-type}
+                     #_
                      (error ::errors/missing-constructor ast)))))
     ast))
 

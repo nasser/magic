@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Reflection;
 using System.Linq;
 
@@ -100,6 +100,11 @@ namespace Magic
             if (method != null)
                 return method.Invoke(o, args);
             throw new Exception($"Could not invoke member method `{name}` on target {o.ToString()} ({o.GetType()}) with argument types { String.Join<Type>(", ", argumentTypes) }.");
+        }
+
+        public static object InvokeConstructor(Type t, object[] args)
+        {
+            return Activator.CreateInstance(t, args);
         }
     }
 }

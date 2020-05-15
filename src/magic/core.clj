@@ -572,6 +572,14 @@
    (load-constant (str m-or-f))
    (il/call (interop/method Magic.Dispatch "InvokeZeroArityMember" Object String))])
 
+(defn dynamic-constructor-compiler
+  "Symbolic bytecode for dynamic constructors"
+  [{:keys [type args]} compilers]
+  [(load-constant type)
+   (prepare-array args compilers)
+   (il/call (interop/method Magic.Dispatch "InvokeConstructor" Type |System.Object[]|))
+   (convert Object type)])
+
 (defn static-method-compiler
   "Symbolic bytecode for static methods"
   [{:keys [method args] :as ast} compilers]

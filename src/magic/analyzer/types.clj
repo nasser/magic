@@ -184,6 +184,8 @@
 
 (defmethod ast-type :import [_] System.Type)
 
+(defmethod ast-type :dynamic-constructor [{:keys [type]}] type)
+
 (defmethod ast-type :dynamic-zero-arity [_] Object)
 
 (defmethod ast-type :dynamic-method [_] Object)
