@@ -43,7 +43,7 @@ namespace Magic
                     if(parameters[i].ParameterType.IsEnum) {
                         args[i] = Enum.ToObject(parameters[i].ParameterType, args[i]);
 
-                    } else {
+                    } else if(args[i] is IConvertible) {
                         args[i] = Convert.ChangeType(args[i], parameters[i].ParameterType);
 
                     }
