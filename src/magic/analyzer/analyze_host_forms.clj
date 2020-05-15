@@ -86,7 +86,8 @@
   (if (= :new op)
       ;; target must be a class literal, use :val directly
       ;; (ast-type class) will always be Type here 
-    (let [target-type (:val class)]
+    (let [target-type (:val class)
+          arg-types (map ast-type args)]
         ;; TODO OK to drop :class like this?
       (merge (dissoc ast :class)
              {:type target-type
@@ -100,13 +101,15 @@
                    (instance? TypeBuilder target-type)
                    {:constructor nil}
                    :else
-                   (if-let [best-ctor (select-method (.GetConstructors target-type) (map ast-type args))]
+                   (if-let [best-ctor (select-method (.GetConstructors target-type) arg-types)]
                      {:constructor best-ctor}
-                     ;; TODO check if arguments are not hinted
-                     {:op :dynamic-constructor
-                      :type target-type}
-                     #_
-                     (error ::errors/missing-constructor ast)))))
+                     ;; a more strict implementation would use every? instead of some
+                     ;; so that we only emit a dynamic constructor in the case when
+                     ;; none of the types are known. probably overkill for clojure.
+                     (if (some #(= Object %) arg-types)
+                       {:op :dynamic-constructor
+                        :type target-type}
+                       (error ::errors/missing-constructor ast))))))
     ast))
 
 (defn analyze-generic-host-interop
