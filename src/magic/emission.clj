@@ -1,5 +1,6 @@
 (ns magic.emission
-  (:import [System.Reflection.Emit AssemblyBuilderAccess]))
+  (:import [System.Reflection AssemblyName]
+           [System.Reflection.Emit AssemblyBuilderAccess]))
 
 (defn fresh-module 
   "Creates a fresh ModuleBuilder, suitable for binding to *module*"
