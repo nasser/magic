@@ -27,8 +27,6 @@
 
 (defn ensure-class [c form]
   (or 
-   (and *module*
-        (.GetType *module* (str c)))
    (types/resolve c)
    (error
     ::errors/missing-type
