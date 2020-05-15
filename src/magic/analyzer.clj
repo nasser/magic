@@ -126,14 +126,14 @@
   [[_ sym shift mask default imap switch-type mode skip-check :as form] env]
   (let [switch-values (->> imap keys vec)
         tests (->> imap vals (map first) vec)
-        expressions (->> imap vals (map last) (map #(ana/analyze % (ctx env :ctx/expr))) vec)]
+        expressions (->> imap vals (map last) (map #(ana/analyze % env)) vec)]
     {:op :case
      :env env
      :form form
      :local (ana/analyze (with-meta sym {}) (ctx env :ctx/expr))
      :shift shift
      :mask mask
-     :default (ana/analyze default (ctx env :ctx/expr))
+     :default (ana/analyze default env)
      :imap imap
      :switch-type switch-type
      :mode mode
