@@ -363,12 +363,7 @@
            (assoc
             (update-children ast typed-passes)
             :closed-overs closed-overs*))))
-      :reify-method
-      (let [{locals* :locals} (update-bindings (:params ast))]
-        (binding [*typed-pass-locals* locals*]
-          (typed-pass*
-           (update-children ast typed-passes))))
-      :deftype-method
+      (:reify-method :deftype-method :fn-method)
       (let [{locals* :locals} (update-bindings (:params ast))]
         (binding [*typed-pass-locals* locals*]
           (typed-pass*
