@@ -1,5 +1,5 @@
 (ns magic.analyzer.generated-types
-  (:import [System.Reflection.TypeAttributes]))
+  (:import [System.Reflection TypeAttributes]))
 
 (def public TypeAttributes/Public)
 (def interface (enum-or 
