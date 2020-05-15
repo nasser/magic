@@ -92,7 +92,7 @@ namespace Magic
         {
             var argumentTypes = new Type[args.Length];
             for (int i = 0; i < args.Length; i++)
-                argumentTypes[i] = args[i].GetType();
+                argumentTypes[i] = args[i] == null ? typeof(Object) : args[i].GetType();
             // var method = o.GetType().GetMethod(name, argumentTypes);
             var methods = o.GetType().GetMethods().Where(m => m.Name == name).ToArray();
             Object state;

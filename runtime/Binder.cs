@@ -29,7 +29,7 @@ namespace Magic
             } catch(MissingMemberException) {
                 // ignore
             }
-            var argumentTypes = args.Select(a => a.GetType()).ToArray();
+            var argumentTypes = args.Select(a => a == null ? typeof(Object) : a.GetType()).ToArray();
             state = new Object(); // ???
             var result = SelectMethod(bindingAttr, match, argumentTypes, modifiers);
             if(result != null)
