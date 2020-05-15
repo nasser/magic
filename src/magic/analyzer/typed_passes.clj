@@ -140,11 +140,14 @@
    "."
    "$"))
 
+(defn ifn-type? [t]
+  (.IsAssignableFrom clojure.lang.IFn t))
+
 (defn analyze-fn
-  [{:keys [op local methods variadic?] :as ast}]
+  [{:keys [op name local methods variadic?] :as ast}]
   (case op
     :fn
-    (let [name (:form local)
+    (let [name (or name (:form local))
           fixed-arity-methods (remove :variadic? methods)
           signatures (->> fixed-arity-methods
                           (map (fn [method]
@@ -152,7 +155,8 @@
                                                        (-> method :body non-void-ast-type))
                                        param-types (map non-void-ast-type (:params method))]
                                    (list* return-type param-types))))
-                          (remove (fn [sig] (every? #(= Object %) sig))))
+                          (remove (fn [sig] (every? #(= Object %) sig))) ;; remove signatures that are all Object
+                          (remove (fn [sig] (some ifn-type? sig)))) ;; remove signatures with function types
           interfaces (->> (map #(interop/generic-type "Magic.Function" %) signatures)
                           (into #{}))
           fn-name (gen-fn-name name)
