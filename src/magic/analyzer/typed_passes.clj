@@ -221,6 +221,12 @@
              :methods methods))
     ast))
 
+(defn hint-variadic-parameter [{:keys [op variadic?] :as ast}]
+  (if (and (= op :binding)
+           variadic?)
+    (update ast :form vary-meta assoc :tag clojure.lang.ISeq)
+    ast))
+
 (defn typed-pass* [ast]
   (-> ast
       analyze-proxy
@@ -228,6 +234,7 @@
       analyze-fn
       analyze-deftype
       analyze-gen-interface
+      hint-variadic-parameter
       host/analyze-byref
       host/analyze-type
       host/analyze-host-field
