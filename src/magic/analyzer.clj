@@ -407,7 +407,7 @@
   [sym {:keys [ns]}]
   (let [v (get-in (env/deref-env) [:namespaces ns :mappings (symbol (name sym))])]
     (if (and v (or (class? v)
-                   (= ns (ns-name (.ns ^Var v)))))
+                   (= ns (ns-name (.ns ^clojure.lang.Var v)))))
       v
       (doto (intern ns sym)
         (reset-meta! (meta sym))))))
