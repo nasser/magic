@@ -344,7 +344,9 @@
                 (-> form locals :form meta :tag))
         type (cond tag
                    (if (symbol? tag)
-                     (resolve tag)
+                     (if-let [t (resolve tag)]
+                       t
+                       (throw! "Could not resolve type hint " tag " while analyzing form " form))
                      tag)
                    (= local :arg)
                    Object
