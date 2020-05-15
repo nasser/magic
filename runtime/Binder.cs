@@ -40,7 +40,13 @@ namespace Magic
                     // this is assumed to work at this point. a situation where
                     // we could not convert the argument types should not have
                     // bound and SelectMethod should have returned null
-                    args[i] = Convert.ChangeType(args[i], parameters[i].ParameterType);
+                    if(parameters[i].ParameterType.IsEnum) {
+                        args[i] = Enum.ToObject(parameters[i].ParameterType, args[i]);
+
+                    } else {
+                        args[i] = Convert.ChangeType(args[i], parameters[i].ParameterType);
+
+                    }
                 }
             }
 
