@@ -666,7 +666,7 @@
                          (-> binding :name)
                          (il/local (non-void-ast-type binding)
                                    (str (-> binding :name)))))
-                (sorted-map)
+                {}
                 bindings)
         binding-vector (mapv #(binding-map (-> % :name)) bindings)
         recur-target (il/label)
