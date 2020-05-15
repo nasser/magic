@@ -400,14 +400,24 @@
    :collect-closed-overs/top-level? false
    :uniquify/uniquify-env           true})
 
+;; https://github.com/clojure/tools.analyzer.jvm/blob/master/src/main/clojure/clojure/tools/analyzer/jvm.clj
+(defn create-var
+  "Creates a Var for sym and returns it.
+   The Var gets interned in the env namespace."
+  [sym {:keys [ns]}]
+  (let [v (get-in (env/deref-env) [:namespaces ns :mappings (symbol (name sym))])]
+    (if (and v (or (class? v)
+                   (= ns (ns-name (.ns ^Var v)))))
+      v
+      (doto (intern ns sym)
+        (reset-meta! (meta sym))))))
+
 (defn analyze
   ([form] (analyze form (empty-env)))
   ([form env] (analyze form env (comp typed-passes untyped-passes)))
   ([form env passes-fn]
    (binding [ana/macroexpand-1 macroexpand-1
-             ana/create-var    (fn [sym env]
-                                 (doto (intern (:ns env) sym)
-                                   (reset-meta! (meta sym))))
+             ana/create-var    create-var
              ana/parse         parse
              ana/var?          var?]
      (env/ensure (global-env)
