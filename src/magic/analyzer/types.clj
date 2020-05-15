@@ -170,7 +170,7 @@
   (throw! "ast-type not implemented for :op " (:op ast) " while analyzing " (-> ast :raw-forms first pr-str)))
 
 (defmethod ast-type :fn
-  [{:keys [fn-type]}] fn-type)
+  [{:keys [fn-type]}] clojure.lang.IFn #_fn-type)
 
 (defmethod ast-type :proxy
   [{:keys [proxy-type]}] proxy-type)
