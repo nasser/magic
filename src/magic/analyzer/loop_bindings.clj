@@ -86,9 +86,7 @@
               body-env' (assoc body-env :locals
                           (reduce-kv
                            (fn [m k v] (if-let [better-type (binding-map k)]
-                                         (do
-                                           (println "alter" k better-type)
-                                           (assoc m k (update v :form vary-meta assoc :tag better-type)))
+                                         (assoc m k (update v :form vary-meta assoc :tag better-type))
                                          m))
                            (:locals body-env)
                            (:locals body-env)))

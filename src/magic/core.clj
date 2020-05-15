@@ -1121,11 +1121,15 @@
        [hinted-method unhinted-shim])]))
 
 (defn try-compiler
-  [{:keys [catches closed-overs body finally] :as ast {:keys [empty-stack?]} :env} compilers]
+  [{:keys [catches closed-overs body finally top-level outside-fn?] :as ast {:keys [empty-stack?]} :env} compilers]
   (if (and (empty? catches)
            (nil? finally))
     (compile body compilers)
     (let [expr-type (ast-type ast)
+          method-attributes
+          (if outside-fn?
+           (enum-or MethodAttributes/Assembly MethodAttributes/Static)
+            (enum-or MethodAttributes/Assembly))
           closed-overs-map
           (into {} (map (fn [name i] [name i]) (keys closed-overs) (range)))
           closure-compilers
@@ -1133,7 +1137,7 @@
                  {:local (fn try-local-compiler 
                            [{:keys [name] :as ast} _compilers]
                            (if-let [arg-id (closed-overs-map name)]
-                             (load-argument-standard (inc arg-id))
+                             (load-argument-standard (if outside-fn? arg-id (inc arg-id)))
                              (compile ast compilers)))})          
           bodyfn
           (fn [compilers]
@@ -1157,12 +1161,18 @@
           method-il
           (il/method 
            (str (gensym "try"))
-           MethodAttributes/Private
+           method-attributes
            expr-type (->> closed-overs vals (mapv non-void-ast-type))
            [(bodyfn closure-compilers)
             (il/ret)])]
-      (if empty-stack?
+      (println "[try]" top-level empty-stack? outside-fn?)
+      (cond
+        (or top-level empty-stack?)
         (bodyfn compilers)
+        outside-fn?
+        [(->> closed-overs vals (map #(compile % compilers)))
+         (il/call method-il)]
+        :else
         [(load-argument-standard 0)
          (->> closed-overs vals (map #(compile % compilers)))
          (il/call method-il)]))))

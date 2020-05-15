@@ -63,9 +63,21 @@
     (assoc ast :meta (meta form))
     ast))
 
+(defn compute-outside-fn
+  {:pass-info {:walk :none}}
+  [{:keys [op] :as ast}]
+  (case op
+    :fn
+    ast
+    #_else
+    (-> ast
+        (assoc :outside-fn? true)
+        (update-children compute-outside-fn))))
+
 (def untyped-pass-set
 #{#'collect-vars
   #'propagate-defn-name
+  #'compute-outside-fn
   #'extract-form-meta
   #'remove-local-children
   #'collect-closed-overs
