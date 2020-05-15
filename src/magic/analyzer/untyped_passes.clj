@@ -42,14 +42,37 @@
       ast)
     ast))
 
+(defn propagate-defn-name
+  {:pass-info {:walk :any}}
+  [{:keys [op name init] :as ast}]
+  (case op
+    :def
+    (case (:op init)
+      :fn
+      (assoc-in ast [:init :name] name)
+      :with-meta
+      (assoc-in ast [:init :expr :name] name)
+      ast)
+    ast))
+
+(defn extract-form-meta
+  {:pass-info {:walk :any}}
+  [{:keys [op form] :as ast}]
+  (case op
+    (:binding) ;; TODO just bindings now to fix issue with parameters
+    (assoc ast :meta (meta form))
+    ast))
+
 (def untyped-pass-set
 #{#'collect-vars
-    #'remove-local-children
-    #'collect-closed-overs
-    #'trim
-    #'uniquify-locals
-    #'compute-empty-stack-context
-    #'remove-empty-throw-children})
+  #'propagate-defn-name
+  #'extract-form-meta
+  #'remove-local-children
+  #'collect-closed-overs
+  #'trim
+  #'uniquify-locals
+  #'compute-empty-stack-context
+  #'remove-empty-throw-children})
 
 (def scheduled-passes
   (schedule untyped-pass-set))
