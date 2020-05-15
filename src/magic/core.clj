@@ -1165,7 +1165,6 @@
            expr-type (->> closed-overs vals (mapv non-void-ast-type))
            [(bodyfn closure-compilers)
             (il/ret)])]
-      (println "[try]" top-level empty-stack? outside-fn?)
       (cond
         (or top-level empty-stack?)
         (bodyfn compilers)
