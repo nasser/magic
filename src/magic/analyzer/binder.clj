@@ -66,12 +66,16 @@
   ([methods arg-types]
    (select-method methods arg-types BindingFlags/Default nil))
   ([methods arg-types flags modifiers]
-   (.SelectMethod
-     binder
-     flags
-     (into-array MethodBase methods)
-     (into-array Type arg-types)
-     modifiers)))
+   (try
+     (.SelectMethod
+      binder
+      flags
+      (into-array MethodBase methods)
+      (into-array Type arg-types)
+      modifiers)
+     (catch System.Reflection.AmbiguousMatchException e
+       ;; TODO is it ok if this is silent?
+       nil))))
 
 (comment
   ;; https://stackoverflow.com/questions/14315437/get-best-matching-overload-from-set-of-overloads
