@@ -60,7 +60,7 @@
    the type of the variable needs to be assignable to from the type of every recur
    expression."
   {:pass-info {:walk :post :after #{#'intrinsics/analyze}}}
-  [{:keys [op bindings form env] :as ast}]
+  [{:keys [op bindings body] :as ast}]
   (if (= :loop op)
     (let [analyzefn        (find-var 'magic.analyzer/analyze)
           recurs           (gather-recur-asts ast)
@@ -77,15 +77,23 @@
           best-types (mapv (fn [c h] (or h c)) candidate-types binding-type-hints)]
       (if (= binding-types best-types)
         ast
-        (let [sexpr-head (first form)
-              sexpr-bindings (second form)
-              sexpr-body (drop 2 form)
-              patched-bindings (->> sexpr-bindings
-                                    (partition 2)
-                                    (mapcat (fn [type [sym init]] 
-                                              [(vary-meta sym assoc :tag type) init])
-                                            best-types)
-                                    vec)
-              form' (list* sexpr-head patched-bindings sexpr-body)]
-          (analyzefn form' env))))
+        (let [sexpr-body (:form body)
+              body-env (:env body)
+              bindings' (mapv (fn [binding type]
+                                (update binding :form vary-meta assoc :tag type))
+                              bindings best-types)
+              binding-map (into {} (mapv vector (map :form bindings) best-types))
+              body-env' (assoc body-env :locals
+                          (reduce-kv
+                           (fn [m k v] (if-let [better-type (binding-map k)]
+                                         (do
+                                           (println "alter" k better-type)
+                                           (assoc m k (update v :form vary-meta assoc :tag better-type)))
+                                         m))
+                           (:locals body-env)
+                           (:locals body-env)))
+              body' (analyzefn sexpr-body body-env')]
+          (assoc ast
+                 :body body'
+                 :bindings bindings'))))
     ast))
