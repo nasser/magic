@@ -1827,6 +1827,7 @@
    :dynamic-field       #'dynamic-field-compiler
    :dynamic-method      #'dynamic-method-compiler
    :dynamic-zero-arity  #'dynamic-zero-arity-compiler
+   :dynamic-constructor #'dynamic-constructor-compiler
    :static-method       #'static-method-compiler
    :instance-method     #'instance-method-compiler
    :initobj             #'initobj-compiler
