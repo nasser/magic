@@ -108,6 +108,10 @@ namespace Magic
             return result;
         }
 
+        static bool MatchesByEnumConversionConversion(Type argumentType, Type parameterType)
+            => parameterType.IsEnum
+               && parameterType.GetEnumUnderlyingType() == argumentType;
+
         static bool MatchesByObjectConversion(Type argumentType, Type parameterType)
             => argumentType == typeof(object)
                || parameterType.IsAssignableFrom(argumentType);
@@ -130,6 +134,7 @@ namespace Magic
                 var parameterType = parameters[i].ParameterType;
                 var argumentType = argumentTypes[i];
                 if(MatchesByNarrowingConversion(argumentType, parameterType)
+                   || MatchesByEnumConversionConversion(argumentType, parameterType)
                    || MatchesByObjectConversion(argumentType, parameterType))
                 {
                     continue;
