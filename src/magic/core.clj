@@ -200,6 +200,10 @@
     (il/call (if *unchecked-math*
                (interop/method RT "uncheckedLongCast" from)
                (interop/method RT "longCast" from)))
+    (and (= from Object) (= to Byte))
+    (il/call (if *unchecked-math*
+               (interop/method RT "uncheckedByteCast" from)
+               (interop/method RT "byteCast" from)))
 
     ;; unbox objects to valuetypes
     (and (= from Object) (.IsValueType to))
