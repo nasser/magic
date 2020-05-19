@@ -74,7 +74,7 @@ namespace Magic
         // (.name o)
         public static object InvokeZeroArityMember(object o, string name)
         {
-            var oType = o.GetType();
+            var oType = o == null ? typeof(Object) : o.GetType();
             var field = oType.GetField(name);
             if (field != null)
                 return field.GetValue(o);
@@ -84,7 +84,7 @@ namespace Magic
             var method = oType.GetMethod(name, Type.EmptyTypes);
             if (method != null)
                 return method.Invoke(o, null);
-            throw new Exception($"Could not invoke zero arity member `{name}` on target {o.ToString()}.");
+            throw new Exception($"Could not invoke zero arity member `{name}` on target {(o == null ? "null" : o.ToString())}.");
         }
 
         // (.name o args)
