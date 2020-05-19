@@ -844,24 +844,27 @@
 (defn invoke-compiler
   [{:keys [fn args] :as ast} compilers]
   ;; TODO revisit high performance generic function interfaces
-  (let [fn-type (var-type fn)
-        arg-types (map ast-type args)
+  (let [;; fn-type (var-type fn)
+        ;; arg-types (map ast-type args)
         ;; TODO this is hacky and gross
-        best-method (when fn-type
-                      (select-method (filter #(= (.Name %) "invokeTyped")
-                                             (.GetMethods fn-type))
-                                     arg-types))
-        param-types (when best-method
-                      (map #(.ParameterType %) (.GetParameters best-method)))
-        interface-match (when best-method
-                          (implementing-interface fn-type best-method))]
+        ;; best-method (when fn-type
+        ;;               (select-method (filter #(= (.Name %) "invokeTyped")
+        ;;                                      (.GetMethods fn-type))
+        ;;                              arg-types))
+        ;; param-types (when best-method
+        ;;               (map #(.ParameterType %) (.GetParameters best-method)))
+        ;; interface-match (when best-method
+        ;;                   (implementing-interface fn-type best-method))
+        ]
     [(compile fn compilers)
-     (if interface-match
+     (ifn-invoke-compiler ast compilers)
+     #_ (if interface-match
        [(il/castclass interface-match)
         (interleave
          (map #(compile % compilers) args)
          (map #(convert %1 %2) arg-types param-types))
-        (il/callvirt (apply interop/method interface-match "invokeTyped" param-types))]
+        (il/callvirt (apply interop/method interface-match "invokeTyped" param-types))
+        (convert (.ReturnType best-method) (ast-type ast))]
        (ifn-invoke-compiler ast compilers))]))
 
 (defn var-compiler
