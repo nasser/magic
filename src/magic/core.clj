@@ -997,9 +997,23 @@
      (il/call (private-constructor clojure.lang.AFn))
      (il/ret)]))
 
+(defn ifn-type? [t]
+  (.IsAssignableFrom clojure.lang.IFn t))
+
 (defn compile-fn-type [{:keys [methods variadic? closed-overs fn-type] :as ast} compilers]
   (when-not (.IsCreated fn-type)
-    (let [fixed-arities (->> methods
+    (let [fixed-arity-methods (remove :variadic? methods)
+          signatures (->> fixed-arity-methods
+                          (map (fn [method]
+                                 (let [return-type (or (-> method :form first meta :tag types/resolve)
+                                                       (-> method :body non-void-ast-type))
+                                       param-types (map non-void-ast-type (:params method))]
+                                   (list* return-type param-types))))
+                          (remove (fn [sig] (every? #(= Object %) sig))) ;; remove signatures that are all Object
+                          (remove (fn [sig] (some ifn-type? sig)))) ;; remove signatures with function types
+          interfaces (->> (map #(interop/generic-type "Magic.Function" %) signatures)
+                          (into #{}))
+          fixed-arities (->> methods
                              (remove :variadic?)
                              (map :fixed-arity))
           variadic-arity (when variadic?
@@ -1037,7 +1051,9 @@
           methods* (map #(compile % specialized-compilers) methods)]
       (reduce (fn [ctx x] (il/emit! ctx x))
               {::il/type-builder fn-type}
-              [closed-over-fields ctor methods* (has-arity-method fixed-arities variadic-arity) (get-required-arity-method variadic-arity)]))
+              [closed-over-fields ctor methods* (has-arity-method fixed-arities variadic-arity) (get-required-arity-method variadic-arity)])
+      (doseq [i interfaces]
+        (.AddInterfaceImplementation fn-type i)))
     (.CreateType fn-type)))
 
 (defn fn-compiler

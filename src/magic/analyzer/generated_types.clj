@@ -1,16 +1,40 @@
 (ns magic.analyzer.generated-types
   (:import [System.Reflection TypeAttributes]))
 
+(def ^:dynamic
+  *reusable-types*
+  nil)
+
 (def public TypeAttributes/Public)
-(def interface (enum-or 
+(def interface (enum-or
                 TypeAttributes/Public
                 TypeAttributes/Abstract
                 TypeAttributes/Interface))
 (def public-sealed (enum-or TypeAttributes/Public TypeAttributes/Sealed))
 
-(defn fresh-type [module-builder name super interfaces attributes]
+(defn type-match [type super interfaces attributes]
+  (when (and (= super (.BaseType type))
+             (= attributes (.Attributes type))
+             (= (into #{} interfaces)
+                (into #{} (.GetInterfaces type))))
+    type))
+
+(defn define-new-type [module-builder name super interfaces attributes]
   (.DefineType
    module-builder name attributes super (into-array Type interfaces)))
+
+(defn fresh-type [module-builder name super interfaces attributes]
+  (if *reusable-types*
+    (if-let [type (some #(type-match % super interfaces attributes) @*reusable-types*)]
+      (do 
+        (swap! *reusable-types* disj type)
+        type)
+      (do
+        (println "[fresh-type] making new type")
+        (define-new-type
+          module-builder name super interfaces attributes)))
+    (define-new-type
+      module-builder name super interfaces attributes)))
 
 (defn deftype-type [module-builder name interfaces]
   (fresh-type module-builder name Object interfaces public))
@@ -30,25 +54,3 @@
 (defn reify-type [module-builder interfaces]
   (fresh-type
    module-builder (str (gensym "reify")) Object interfaces public-sealed))
-
-#_
-(defn bind-interface-method [f name params candidate-methods]
-  (let [name (str name)
-        params* (drop 1 params) ;; reify uses explicit this
-        [interface-name method-name]
-        (if (string/includes? name ".")
-          (let [last-dot (string/last-index-of name ".")]
-            [(subs name 0 last-dot)
-             (subs name (inc last-dot))])
-          [nil name])
-        candidate-methods (filter #(= method-name (.Name %)) candidate-methods)
-        candidate-methods (if interface-name
-                            (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
-                            candidate-methods)]
-    (if-let [best-method (select-method candidate-methods (map ast-type params*))]
-      (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [reify-type] (map #(.ParameterType %) (.GetParameters best-method))))]
-        (assoc f
-               :params hinted-params
-               :source-method best-method
-               :reify-type reify-type))
-      (throw (ex-info "no match" {:name name :params (map ast-type params)})))))

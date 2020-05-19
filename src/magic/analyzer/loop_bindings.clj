@@ -1,10 +1,10 @@
 (ns magic.analyzer.loop-bindings
-  (:require 
+  (:require
    [clojure.set :as s]
-   [clojure.tools.analyzer.passes.uniquify :refer [uniquify-locals]]
    [clojure.tools.analyzer.ast :as ast]
    [magic.analyzer.types :refer [ast-type numeric-type? best-numeric-promotion]]
-   [magic.analyzer.intrinsics :as intrinsics]))
+   [magic.analyzer.generated-types :refer [*reusable-types*]]
+   [magic.emission :refer [*module*]]))
 
 (defn gather-recur-asts [ast]
   (let [children (->> ast ast/children (remove #(= :loop (:op %))))]
@@ -52,6 +52,14 @@
       (resolve x)
       x)))
 
+
+(defn collect-incomplete-types []
+  (->> *module*
+       .GetTypes
+       (filter #(instance? System.Reflection.Emit.TypeBuilder %))
+       (remove #(.IsCreated %))
+       (into #{})))
+
 (defn infer-binding-types
   "Collect the best types for loop bindings
 
@@ -59,7 +67,6 @@
    write to the local variables created by the loop expression. That means that
    the type of the variable needs to be assignable to from the type of every recur
    expression."
-  {:pass-info {:walk :post :after #{#'intrinsics/analyze}}}
   [{:keys [op bindings body] :as ast}]
   (if (= :loop op)
     (let [analyzefn        (find-var 'magic.analyzer/analyze)
@@ -80,7 +87,9 @@
         (let [sexpr-body (:form body)
               body-env (:env body)
               bindings' (mapv (fn [binding type]
-                                (update binding :form vary-meta assoc :tag type))
+                                (-> binding
+                                    (update :form vary-meta assoc :tag type)
+                                    (assoc :inferred-type type))) ;; to avoid any unwanted cache effects
                               bindings best-types)
               binding-map (into {} (mapv vector (map :form bindings) best-types))
               body-env' (assoc body-env :locals
@@ -90,7 +99,8 @@
                                          m))
                            (:locals body-env)
                            (:locals body-env)))
-              body' (analyzefn sexpr-body body-env')]
+              body' (binding [*reusable-types* (atom (collect-incomplete-types))]
+                      (analyzefn sexpr-body body-env'))]
           (assoc ast
                  :body body'
                  :bindings bindings'))))
