@@ -1073,7 +1073,8 @@
         obj-params (mapv (constantly Object) params)
         param-il (map #(il/parameter (ast-type %) (-> % :form str)) params)
         param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
-        return-type (or param-hint (ast-type body))
+        body-type (ast-type body)
+        return-type (or param-hint body-type)
         non-void-return-type (or param-hint (non-void-ast-type body))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         recur-target (il/label)
@@ -1115,7 +1116,7 @@
          non-void-return-type param-il
          [recur-target
           compiled-body
-          (convert return-type non-void-return-type)
+          (convert body-type non-void-return-type)
           (il/ret)])
         unhinted-shim
         (il/method
