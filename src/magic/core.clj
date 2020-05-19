@@ -206,22 +206,10 @@
                (interop/method RT "byteCast" from)))
 
     ;; unbox objects to valuetypes
+    ;; TODO this will throw an exception of the object
+    ;; does not have the exact runtime type of the valuetype
+    ;; ie it does not perform a conversion like the above clauses
     (and (= from Object) (.IsValueType to))
-    #_(let [fail (il/label)
-            end (il/label)]
-        [(il/dup)
-         (il/isinst to)
-         (il/brfalse fail)
-         (il/unbox-any to)
-         (il/br end)
-         fail
-         (il/callvirt (interop/method Object "GetType"))
-         (il/callvirt (interop/method Type "get_FullName"))
-         (il/ldstr (str " to " to))
-         (il/call (interop/method String "Concat" String String))
-         (il/newobj (interop/constructor InvalidCastException String))
-         (il/throw)
-         end])
     (il/unbox-any to)
 
     ;; castclass if to is a subclass of from
