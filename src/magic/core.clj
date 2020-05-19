@@ -239,6 +239,9 @@
         il/callvirt)
       (interop/method from "ToString"))]
 
+    (and (not (.IsValueType from))
+         (not (.IsValueType to)))
+    (il/castclass to)
 
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
