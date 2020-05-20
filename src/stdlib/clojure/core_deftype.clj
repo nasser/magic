@@ -234,7 +234,7 @@
                    `(seq [this#] (seq (concat [~@(map #(list `clojure.lang.MapEntry/create (keyword %) %) base-fields)]
                                           ~'__extmap)))
 				   `(|System.Collections.Generic.IEnumerable`1[clojure.lang.IMapEntry]|.GetEnumerator [this#]  (.GetEnumerator (clojure.lang.RecordEnumerable. this# [~@(map keyword base-fields)] (clojure.lang.RT/iter ~'__extmap))))
-                   `(^clojure.lang.IPersistentMap assoc [this# k# ~gs]                        ;;; type hint added
+                   `(clojure.lang.IPersistentMap.assoc [this# k# ~gs]
                      (condp identical? k#
                        ~@(mapcat (fn [fld]
                                    [(keyword fld) (list* `new tagname (replace {fld gs} (remove '#{__hash __hasheq} fields)))])
