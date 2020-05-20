@@ -1784,7 +1784,9 @@
        [(il/dup)
         (compile meta compilers)
         (convert (ast-type meta) clojure.lang.IPersistentMap)
-        (il/call (interop/method clojure.lang.Var "setMeta" clojure.lang.IPersistentMap))])]))
+        (il/call (interop/method clojure.lang.Var "setMeta" clojure.lang.IPersistentMap))])
+     (when (-> meta :form :dynamic)
+       (il/call (interop/method clojure.lang.Var "setDynamic")))]))
 
 ;; TODO this implementation tracks ClojureCLR's and will likely have to change
 (defn import-compiler
