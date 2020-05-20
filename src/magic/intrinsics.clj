@@ -341,10 +341,11 @@
      (il/add)]))
 
 (defintrinsic clojure.core/instance?
-  (fn [{[first-arg] :args}]
-    (when (and (= :const (:op first-arg))
-               (= :class (:type first-arg)))
-      Boolean))
+  (fn [{[first-arg] :args :keys [args]}]
+    (and (= 2 (count args))
+         (when (and (= :const (:op first-arg))
+                    (= :class (:type first-arg)))
+           Boolean)))
   (fn intrinsic-instance?-compiler
     [{[{:keys [val] :as type-arg} obj-arg] :args} type compilers]
     [(magic/compile obj-arg compilers)
