@@ -993,13 +993,14 @@
 (defn private-constructor [t]
   (first (.GetConstructors t (enum-or BindingFlags/NonPublic BindingFlags/Instance))))
 
+;; TODO this is unused
 (def default-constructor
   (il/constructor
     (enum-or MethodAttributes/Public)
     CallingConventions/Standard
     []
     [(il/ldarg-0)
-     (il/call (private-constructor clojure.lang.AFn))
+     (il/call (private-constructor clojure.lang.AFunction))
      (il/ret)]))
 
 (defn ifn-type? [t]
@@ -1051,7 +1052,7 @@
                  (il/call (private-constructor 
                            (if variadic?
                              clojure.lang.RestFn
-                             clojure.lang.AFn)))
+                             clojure.lang.AFunction)))
                  (il/ret)])
           methods* (map #(compile % specialized-compilers) methods)]
       (reduce (fn [ctx x] (il/emit! ctx x))

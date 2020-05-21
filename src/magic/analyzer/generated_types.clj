@@ -43,7 +43,7 @@
   (fresh-type module-builder name Object interfaces interface))
 
 (defn fn-type [module-builder name interfaces]
-  (fresh-type module-builder name clojure.lang.AFn interfaces public))
+  (fresh-type module-builder name clojure.lang.AFunction interfaces public))
 
 (defn variadic-fn-type [module-builder name interfaces]
   (fresh-type module-builder name clojure.lang.RestFn interfaces public))
