@@ -208,7 +208,7 @@
    :env env})
 
 (defn parse-deftype*
-  [[_ classname fields & opts-specs :as form] env]
+  [[_ _name classname fields & opts-specs :as form] env]
   (let [env* (->
               (reduce
                (fn [e f]

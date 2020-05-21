@@ -212,7 +212,19 @@
   "Analyze (Foo/Bar a) into static method invocation or (.Foo a b c) into an instance method invocation"
   {:pass-info {:walk :post :after #{#'uniquify-locals}}}
   [{:keys [method target args op] :as ast}]
-  (if (= :host-call op)
+  (cond
+    ;; defrecord expands to this case, type did not exist at parse time, so we pick it up here
+    (and (= :invoke op)
+         (= :maybe-host-form (-> ast :fn :op)))
+    (let [{:keys [class field]} (:fn ast)
+          resolved-type (types/resolve class)
+          field (str field)
+          method (->> resolved-type .GetMethods (filter #(= field (.Name %))) first)]
+      (if method
+        (merge ast {:op :static-method
+                    :method method})
+        ast))
+    (= :host-call op)
     (if (re-find #"\[" (str method))
       (analyze-generic-host-call ast)
       (let [static? (= :class (:type target))

@@ -640,7 +640,12 @@
 (defn new-compiler
   "Symbolic bytecode for constructor invocation"
   [{:keys [type constructor args] :as ast} compilers]
-  (let [arg-types (map ast-type args)]
+  (let [arg-types (map ast-type args)
+        ;; to get around an SRE limitation we have to bind to constructors
+        ;; of TypeBuilders late
+        constructor (if (instance? System.Reflection.Emit.TypeBuilder type)
+                      (select-method (.GetConstructors type) arg-types)
+                      constructor)]
     [(interleave
       (map #(compile % compilers) args)
       (map convert
@@ -1636,7 +1641,7 @@
   [(map #(compile % compilers) (vals closed-overs))
    (il/newobj (first (.GetConstructors reify-type)))])
 
-(defn compile-getbasis [tb symbols]
+(defn compile-deftype-getbasis [ctx tb symbols]
   (let [ilg (->> tb
                  .GetMethods
                  (filter #(= "getBasis" (.Name %)))
@@ -1646,6 +1651,37 @@
      {::il/ilg ilg}
      [(load-constant symbols)
       (il/ret)])))
+
+(defn compile-defrecord-create [ctx tb symbols ctor]
+  (let [keywords (mapv keyword symbols)
+        ilg (->> tb
+                 .GetMethods
+                 (filter #(= "create" (.Name %)))
+                 first
+                 .GetILGenerator)]
+    (il/emit!
+     (merge ctx {::il/ilg ilg})
+     (let [kw-local (il/local clojure.lang.Keyword)]
+       [(map
+         (fn [kw]
+           [(load-constant kw)
+            (il/stloc kw-local)
+            (il/ldarg-0)
+            (il/ldloc kw-local)
+            (il/ldnull)
+            (il/callvirt (interop/method clojure.lang.ILookup "valAt" Object Object))
+            (il/ldarg-0)
+            (il/ldloc kw-local)
+            (il/callvirt (interop/method clojure.lang.IPersistentMap "without" Object))
+            (il/starg-s (byte 0))])
+         keywords)
+        (il/ldnull)
+        (il/ldarg-0)
+        (il/call (interop/method clojure.lang.RT "seqOrElse" Object))
+        (load-constant (int 0))
+        (load-constant (int 0))
+        (il/newobj ctor)
+        (il/ret)]))))
 
 (defn deftype-compiler [{:keys [fields methods options implements deftype-type]} compilers]
   (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
@@ -1658,6 +1694,7 @@
                         #(vector % (default-override-method % iface-override))
                         (all-abstract-methods iface))))
              (into {}))
+        defrecord? (.IsAssignableFrom clojure.lang.IRecord deftype-type)
         fieldinfos (.GetFields deftype-type)
         fieldinfos-set (into #{} (.GetFields deftype-type))
         field-metas (into {} (map #(vector (str %) (meta %)) fields))
@@ -1683,6 +1720,37 @@
                      (il/volatile))
                    (il/stfld field)])))
           (il/ret)])
+        ctors 
+        (merge 
+         {(count ctor-params) ctor}
+         ;; defrecord gets extra constructors that invoke the main ctor
+         (when defrecord?
+           {(- (count ctor-params) 2)
+            (il/constructor
+             MethodAttributes/Public
+             CallingConventions/Standard
+             (drop-last 2 ctor-params)
+             [(il/ldarg-0)
+              (map #(load-argument-standard (inc %))
+                   (range (- (count ctor-params) 2)))
+              (load-constant (int 0))
+              (load-constant (int 0))
+              (il/call ctor)
+              (il/ret)])
+            (- (count ctor-params) 4)
+            (il/constructor
+             MethodAttributes/Public
+             CallingConventions/Standard
+             (drop-last 4 ctor-params)
+             [(il/ldarg-0)
+              (map #(load-argument-standard (inc %))
+                   (range (- (count ctor-params) 4)))
+              (il/ldnull)
+              (il/ldnull)
+              (load-constant (int 0))
+              (load-constant (int 0))
+              (il/call ctor)
+              (il/ret)])}))
         specialized-compilers
         (merge
          compilers
@@ -1693,14 +1761,16 @@
           (fn deftype-new-compiler
             [{:keys [type args] :as ast} local-compilers]
             (if (= type deftype-type)
-              (let [arg-types (map ast-type args)]
+              (let [arg-types (map ast-type args)
+                    arg-count (count args)]
                 [(interleave
                   (map #(compile % local-compilers) args)
                   (map convert
                        arg-types
                        ctor-params))
-                 (il/newobj ctor)])
-              (compile ast compilers)))
+                 (il/newobj (ctors arg-count))])
+              (compile ast (assoc local-compilers 
+                                  :new (:new compilers)))))
           :instance-field
           (fn deftype-instance-field-compiler 
             [{:keys [field] :as ast} _compilers]
@@ -1718,7 +1788,7 @@
               (compile {:op :instance-field
                         :field (field-map (str name))}
                        inner-compilers)
-              (local-compiler ast compilers)))
+              (compile ast compilers)))
           :set!
           (fn deftype-set!-compiler 
             [{:keys [target val] :as ast} cmplrs]
@@ -1748,15 +1818,16 @@
                                    :field (field-map (-> target :name str))}) 
                            cmplrs)
                     :else
-                    (compile ast compilers))))
-          })
+                    (compile ast compilers))))})
         provided-methods
-        (into {} (map (fn [m] [(:source-method m) (compile m specialized-compilers)]) methods))
-        methods* (merge iface-methods provided-methods)]
-    (reduce (fn [ctx method] (il/emit! ctx method))
-            {::il/type-builder deftype-type}
-            [ctor (vals methods*)]))
-  (compile-getbasis deftype-type fields)
+        (into {} (mapv (fn [m] [(:source-method m) (compile m specialized-compilers)]) methods))
+        methods* (merge iface-methods provided-methods)
+        ctx' (reduce (fn [ctx method] (il/emit! ctx method))
+                     {::il/type-builder deftype-type}
+                     [(vals ctors) (vals methods*)])]
+    (compile-deftype-getbasis ctx' deftype-type fields)
+    (when defrecord?
+      (compile-defrecord-create ctx' deftype-type (drop-last 4 fields) ctor)))
   (.CreateType deftype-type)
   [(il/ldtoken deftype-type)
    (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])

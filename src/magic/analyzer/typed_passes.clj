@@ -61,7 +61,15 @@
    "getBasis"
    (enum-or MethodAttributes/Public MethodAttributes/Static)
    clojure.lang.IPersistentVector
-   Type/EmptyTypes))
+   Type/EmptyTypes)
+  ;; defrecord gets an extra static method
+  (when (.IsAssignableFrom clojure.lang.IRecord tb)
+    (.DefineMethod
+     tb
+     "create"
+     (enum-or MethodAttributes/Public MethodAttributes/Static)
+     tb
+     (into-array Type [clojure.lang.IPersistentMap]))))
 
 ;; from https://docs.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/volatile
 (defn validate-volatile-field [sym]
@@ -78,6 +86,9 @@
 
 (defn analyze-method [{:keys [params name] :as f} candidate-methods type-key this-type explicit-this?]
   (let [name (str name)
+        name (if (string/includes? name "/")
+               (subs name (inc (string/last-index-of name "/")))
+               name)
         params* (if explicit-this? (drop 1 params) params)
         [interface-name method-name]
         (if (string/includes? name ".")
@@ -92,6 +103,7 @@
     (if-let [best-method (select-method candidate-methods (map ast-type params*))]
       (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [this-type] (map #(.ParameterType %) (.GetParameters best-method))))]
         (assoc f
+               :name name
                :params hinted-params
                :source-method best-method
                type-key this-type))
@@ -125,6 +137,7 @@
              t)
            (gt/deftype-type *module* name interfaces)
            fields)
+          _ (.importClass *ns* deftype-type)
           methods* (mapv #(analyze-method % candidate-methods :deftype-type deftype-type true) methods)]
       (define-special-statics deftype-type)
       (assoc ast
