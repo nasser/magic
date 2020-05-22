@@ -1389,7 +1389,7 @@
        (remove nil?)
        (filter #(.IsAbstract %))))
 
-(defn compile-proxy-type [{:keys [args super interfaces closed-overs fns proxy-type] :as ast}]
+(defn compile-proxy-type [{:keys [args super interfaces closed-overs fns proxy-type] :as ast} compilers]
   (when-not (.IsCreated proxy-type)
     (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
           iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
@@ -1416,7 +1416,7 @@
            closed-overs)
           specialized-compilers
           (merge
-           base-compilers
+           compilers
            {:local
             (fn proxy-local-compiler
               [{:keys [name] :as ast} _cmplrs]
@@ -1459,7 +1459,7 @@
       (.CreateType proxy-type))))
 
 (defn proxy-compiler [{:keys [class-and-interface proxy-type args closed-overs form] :as ast} compilers]  
-  (compile-proxy-type ast)
+  (compile-proxy-type ast compilers)
   (when-not (every? #(and (= :const (:op %))
                           (= :class (:type %)))
                     class-and-interface)
