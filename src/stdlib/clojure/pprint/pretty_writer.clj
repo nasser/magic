@@ -1,4 +1,4 @@
-﻿;;; pretty_writer.clj -- part of the pretty printer for Clojure
+;;; pretty_writer.clj -- part of the pretty printer for Clojure
 
 ;   Copyright (c) Rich Hickey. All rights reserved.
 ;   The use and distribution terms for this software are covered by the
@@ -417,7 +417,7 @@
             (p-write-char this x)
 			Int64
             (p-write-char this x)))
-        ([x off len]
+        ([^String x off len]
            (.Write ^TextWriter this (subs (str x) off (+ off len)))))                 ;;; Added type hint
 
       (ppflush []
