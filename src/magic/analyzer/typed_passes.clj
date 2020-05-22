@@ -258,7 +258,7 @@
                            (let [form* (:form init)]
                              (-> m
                                  (assoc-in [name :env :locals form :init] init)
-                                 (assoc-in [name :form] form*)))
+                                 (assoc-in [name :form] (or form* form))))
                            m))
                        closed-overs
                        closed-overs))
