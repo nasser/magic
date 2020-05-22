@@ -1497,16 +1497,16 @@
                            (map #(convert (ast-type %1) %2) exprs param-types))
                           (map store-argument (->> param-types count inc (range 1) reverse))
                           (il/br recur-target)])
-                :local (fn method-method-local-compiler
+                :local (fn method-local-compiler
                          [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
-                         (let [arg-id (if proxy? (inc arg-id) arg-id)]
-                           (if (and (= local :arg)
-                                    (param-names name))
+                         (if (and (= local :arg)
+                                  (param-names name))
+                           (let [arg-offset (if proxy? (inc arg-id) arg-id)]
                              (if by-ref?
-                               (load-argument-address arg-id)
-                               [(load-argument-standard arg-id)
-                                (convert (param-type-bindings arg-id) (ast-type ast))])
-                             (compile ast compilers))))})]
+                               (load-argument-address arg-offset)
+                               [(load-argument-standard arg-offset)
+                                (convert (param-type-bindings arg-id) (ast-type ast))]))
+                           (compile ast compilers)))})]
     (il/method
      name
      attributes
