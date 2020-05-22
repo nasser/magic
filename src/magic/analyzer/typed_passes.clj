@@ -345,7 +345,9 @@
                             {:local name :form form})))
           :arg
           (if-let [init (*typed-pass-locals* name)]
-            (update ast :form vary-meta assoc :tag (-> init :form meta :tag))
+            (if-not (:tag (meta form))
+              (update ast :form vary-meta assoc :tag (-> init :form meta :tag))
+              ast)
             ast)
           (:let :loop)
           (if-let [init (*typed-pass-locals* name)]
