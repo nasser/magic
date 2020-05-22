@@ -101,7 +101,11 @@
                             (filter #(= interface-name (.. % DeclaringType FullName)) candidate-methods)
                             candidate-methods)]
     (if-let [best-method (select-method candidate-methods (map ast-type params*))]
-      (let [hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params (concat [this-type] (map #(.ParameterType %) (.GetParameters best-method))))]
+      (let [method-param-types (map #(.ParameterType %) (.GetParameters best-method))
+            hinted-param-types (if explicit-this? 
+                                 (concat [this-type] method-param-types)
+                                 method-param-types)
+            hinted-params (mapv #(update %1 :form vary-meta assoc :tag %2) params hinted-param-types)]
         (assoc f
                :name name
                :params hinted-params
