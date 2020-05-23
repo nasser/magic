@@ -277,6 +277,7 @@
      (magic/convert Object type)]))
 
 ;; TODO multidim arrays
+#_
 (defintrinsic clojure.core/aget
   array-element-type
   (fn intrinsic-aget-compiler
@@ -290,12 +291,13 @@
        (magic/load-element type)])))
 
 ;; TODO multidim arrays
+#_
 (defintrinsic clojure.core/aset
   (fn [ast] 
     (if (magic/statement? ast)
       System.Void
       (array-element-type ast)))
-  (fn intrinsic-aget-compiler
+  (fn intrinsic-aset-compiler
     [{:keys [args] :as ast} type compilers]
     (let [[array-arg index-arg value-arg] args
           index-arg (reinterpret index-arg Int32)
