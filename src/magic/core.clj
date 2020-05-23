@@ -1163,13 +1163,13 @@
        [hinted-method unhinted-shim])]))
 
 (defn try-compiler
-  [{:keys [catches closed-overs body finally top-level outside-fn?] :as ast {:keys [empty-stack?]} :env} compilers]
+  [{:keys [catches closed-overs body finally top-level outside-type?] :as ast {:keys [empty-stack?]} :env} compilers]
   (if (and (empty? catches)
            (nil? finally))
     (compile body compilers)
     (let [expr-type (ast-type ast)
           method-attributes
-          (if outside-fn?
+          (if outside-type?
            (enum-or MethodAttributes/Assembly MethodAttributes/Static)
             (enum-or MethodAttributes/Assembly))
           closed-overs-map
@@ -1179,7 +1179,7 @@
                  {:local (fn try-local-compiler 
                            [{:keys [name] :as ast} _compilers]
                            (if-let [arg-id (closed-overs-map name)]
-                             (load-argument-standard (if outside-fn? arg-id (inc arg-id)))
+                             (load-argument-standard (if outside-type? arg-id (inc arg-id)))
                              (compile ast compilers)))})          
           bodyfn
           (fn [compilers]
@@ -1207,14 +1207,16 @@
            expr-type (->> closed-overs vals (mapv non-void-ast-type))
            [(bodyfn closure-compilers)
             (il/ret)])]
-      (cond
-        (or top-level empty-stack?)
+      (if (or top-level empty-stack?)
+        ;; at the top level or when the stack is known to be empty we can
+        ;; emit a normal try statement inline
         (bodyfn compilers)
-        outside-fn?
-        [(->> closed-overs vals (map #(compile % compilers)))
-         (il/call method-il)]
-        :else
-        [(load-argument-standard 0)
+        ;; otherwise we lift the try into a method closure.
+        
+        [(when-not outside-type? 
+           ;; if we're inside of a type the try method is an instance method
+           ;; and we emit `this` to invoke it
+           (load-argument-standard 0))
          (->> closed-overs vals (map #(compile % compilers)))
          (il/call method-il)]))))
 

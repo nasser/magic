@@ -63,16 +63,16 @@
     (assoc ast :meta (meta form))
     ast))
 
-(defn compute-outside-fn
+(defn compute-outside-type
   {:pass-info {:walk :none}}
   [{:keys [op] :as ast}]
   (case op
-    :fn
+    (:fn :proxy :reify)
     ast
     #_else
     (-> ast
-        (assoc :outside-fn? true)
-        (update-children compute-outside-fn))))
+        (assoc :outside-type? true)
+        (update-children compute-outside-type))))
 
 (defn track-constant-literals
   {:pass-info {:walk :post}}
@@ -91,7 +91,7 @@
 #{#'collect-vars
   #'track-constant-literals
   #'propagate-defn-name
-  #'compute-outside-fn
+  #'compute-outside-type
   #'extract-form-meta
   #'remove-local-children
   #'collect-closed-overs
