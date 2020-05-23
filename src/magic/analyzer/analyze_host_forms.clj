@@ -32,6 +32,17 @@
     ::errors/missing-type
     {:type c :form form})))
 
+(defn analyze-enums
+  [{:keys [op target field env] :as ast}]
+  (if (and (= op :static-field)
+           (-> target :val .IsEnum))
+    {:op :const
+     :type :enum
+     :literal? true
+     :val (Enum/ToObject (-> target :val) (.GetRawConstantValue field))
+     :env env}
+    ast))
+
 (defn analyze-type
   "Analyze foo into a type"
   {:pass-info {:walk :post :after #{#'uniquify-locals}}}

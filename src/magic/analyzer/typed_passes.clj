@@ -245,6 +245,7 @@
       host/analyze-constructor
       host/analyze-host-interop
       host/analyze-host-call
+      host/analyze-enums
       novel/csharp-operators
       novel/generic-type-syntax
       intrinsics/analyze))
