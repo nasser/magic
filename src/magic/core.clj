@@ -104,6 +104,9 @@
     (= from to)
     nil
 
+    (and (.IsEnum from) (= Object to))
+    (il/box from)
+
     (.IsEnum from)
     (convert (Enum/GetUnderlyingType from) to)
 
@@ -276,6 +279,19 @@
 
 (defmethod load-constant :default [k]
   (throw! "load-constant not implemented for " k " (" (type k) ")" ))
+
+(defmethod load-constant Enum [v]
+  (let [enum-type (Enum/GetUnderlyingType (type v))]
+    (cond 
+      (= enum-type SByte) (load-constant (sbyte v))
+      (= enum-type Int16) (load-constant (short v))
+      (= enum-type Int32) (load-constant (int v))
+      (= enum-type Int64) (load-constant (long v))
+      (= enum-type Byte) (load-constant (byte v))
+      (= enum-type UInt16) (load-constant (ushort v))
+      (= enum-type UInt32) (load-constant (uint v))
+      (= enum-type UInt64) (load-constant (ulong v))
+      :else (throw (Exception. (str "Unsupported enum type " enum-type))))))
 
 (defmethod load-constant clojure.lang.Var [v]
   (load-var v))
