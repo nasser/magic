@@ -36,7 +36,7 @@
 
 (defmethod error ::missing-constructor
   [err {:keys [args class] :as ast}]
-  (throw! "Could not find constructor for " (ast-type class)
+  (throw! "Could not find constructor for " (:form class)
           " with args " (mapv ast-type args)
           " while analyzing form " (user-form ast)))
 
