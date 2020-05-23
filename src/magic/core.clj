@@ -1426,7 +1426,7 @@
               (if-let [fld (closed-over-field-map name)]
                 [(il/ldarg-0)
                  (il/ldfld fld)]
-                (local-compiler ast _cmplrs)))})
+                (compile ast compilers)))})
           provided-methods
           (into {} (map (fn [f] [(:source-method f) (compile f specialized-compilers)]) fns))
           methods (merge iface-methods abstract-methods provided-methods)
