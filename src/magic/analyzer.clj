@@ -193,12 +193,13 @@
     :form form
     :env env}))
 
-(defn parse-recur
+(defn parse-do
   [form {:keys [fn-method-type] :as env}]
-  (case fn-method-type
-    (:deftype :reify)
-    (ana/parse-recur form (update env :loop-locals dec))
-    (ana/parse-recur form env)))
+  (let [env* (case fn-method-type
+               (:reify :deftype)
+               (update env :loop-locals dec)
+               env)]
+    (ana/parse-do form (dissoc env* :fn-method-type))))
 
 (defn deftype-field-local [f env]
   {:op :local 
@@ -308,7 +309,7 @@
     clojure.core/proxy         parse-proxy
     clojure.core/proxy-super   parse-proxy-super
     reify*                     parse-reify
-    recur                      parse-recur
+    do                         parse-do
     clojure.core/deftype       parse-deftype
     deftype*                   parse-deftype*
     clojure.core/definterface  parse-definterface
