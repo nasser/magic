@@ -69,13 +69,16 @@
                             (ast-type target))
             field-name (str field)
             binding-flags (if static? public-static public-instance)
+            ;; a limitation of SRE means we cannot call eg .GetProperty, on 
+            ;; TypeBuilders. target-type might be a TypeBuilder so we have to do
+            ;; our own filtering/lookup 
+            fields (.GetFields target-type binding-flags)
+            properties (.GetProperties target-type binding-flags)
             ast* (merge (dissoc ast :field)
-                        (when-let [field-info (.GetField target-type field-name
-                                                         binding-flags)]
+                        (when-let [field-info (->> fields (filter #(= (.Name %) field-name)) first)]
                           {:op (if static? :static-field :instance-field)
                            :field field-info})
-                        (when-let [property-info (.GetProperty target-type field-name
-                                                               binding-flags)]
+                        (when-let [property-info (->> properties (filter #(= (.Name %) field-name)) first)]
                           {:op (if static? :static-property :instance-property)
                            :property property-info}))]
         (if (= :host-field (:op ast*))
