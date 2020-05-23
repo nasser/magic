@@ -559,7 +559,7 @@
                                "InvokeInstanceMethod"
                                "InvokeStaticMethod")]
     [(compile target compilers)
-     (load-constant (str method))
+     (load-constant (munge (str method)))
      (prepare-array args compilers)
      (il/call (interop/method Magic.Dispatch dispatch-method-name Object String |System.Object[]|))]))
 

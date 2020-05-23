@@ -89,6 +89,7 @@
         name (if (string/includes? name "/")
                (subs name (inc (string/last-index-of name "/")))
                name)
+        name (munge name)
         params* (if explicit-this? (drop 1 params) params)
         [interface-name method-name]
         (if (string/includes? name ".")
