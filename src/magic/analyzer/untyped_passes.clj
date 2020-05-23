@@ -74,8 +74,22 @@
         (assoc :outside-fn? true)
         (update-children compute-outside-fn))))
 
+(defn track-constant-literals
+  {:pass-info {:walk :post}}
+  [{:keys [op items keys vals] :as ast}]
+  (case op
+    (:quote :const)
+    (assoc ast :constant? true)
+    :map
+    (assoc ast :constant? (and (every? :constant? keys)
+                               (every? :constant? vals)))
+    (:set :vector)
+    (assoc ast :constant? (every? :constant? items))
+    #_else ast))
+
 (def untyped-pass-set
 #{#'collect-vars
+  #'track-constant-literals
   #'propagate-defn-name
   #'compute-outside-fn
   #'extract-form-meta

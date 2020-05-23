@@ -1640,10 +1640,14 @@
                (iobj-implementation meta-il meta-field meta-ctor closed-over-field-map)]))
     (.CreateType reify-type)))
 
-(defn reify-compiler [{:keys [closed-overs reify-type] :as ast} compilers]
+(defn reify-compiler [{:keys [closed-overs reify-type meta] :as ast} compilers]
   (compile-reify-type ast compilers)
-  [(map #(compile % compilers) (vals closed-overs))
-   (il/newobj (first (.GetConstructors reify-type)))])
+  (if (:constant? meta)
+    [(map #(compile % compilers) (vals closed-overs))
+     (il/newobj (first (.GetConstructors reify-type)))]
+    [(compile meta compilers)
+     (map #(compile % compilers) (vals closed-overs))
+     (il/newobj (last (.GetConstructors reify-type)))]))
 
 (defn compile-deftype-getbasis [ctx tb symbols]
   (let [ilg (->> tb
