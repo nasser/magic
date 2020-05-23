@@ -188,7 +188,9 @@
 
 (defmethod ast-type :dynamic-zero-arity [_] Object)
 
-(defmethod ast-type :dynamic-method [_] Object)
+(defmethod ast-type :dynamic-instance-method [_] Object)
+
+(defmethod ast-type :dynamic-static-method [_] Object)
 
 (defmethod ast-type :intrinsic
   [{:keys [type]}] type)
