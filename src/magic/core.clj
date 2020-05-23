@@ -554,11 +554,14 @@
 
 (defn dynamic-method-compiler
   "Symbolic bytecode for dynamic methods"
-  [{:keys [method target args]} compilers]
-  [(compile target compilers)
-   (load-constant (str method))
-   (prepare-array args compilers)
-   (il/call (interop/method Magic.Dispatch "InvokeMember" Object String |System.Object[]|))])
+  [{:keys [op method target args]} compilers]
+  (let [dispatch-method-name (if (= op :dynamic-instance-method)
+                               "InvokeInstanceMethod"
+                               "InvokeStaticMethod")]
+    [(compile target compilers)
+     (load-constant (str method))
+     (prepare-array args compilers)
+     (il/call (interop/method Magic.Dispatch dispatch-method-name Object String |System.Object[]|))]))
 
 (defn dynamic-zero-arity-compiler
   "Symbolic bytecode for dynamic fields"
@@ -1900,6 +1903,8 @@
    :instance-field      #'instance-field-compiler
    :dynamic-field       #'dynamic-field-compiler
    :dynamic-method      #'dynamic-method-compiler
+   :dynamic-instance-method #'dynamic-method-compiler
+   :dynamic-static-method   #'dynamic-method-compiler
    :dynamic-zero-arity  #'dynamic-zero-arity-compiler
    :dynamic-constructor #'dynamic-constructor-compiler
    :static-method       #'static-method-compiler

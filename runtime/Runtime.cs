@@ -47,6 +47,20 @@ namespace Magic
     }
     public static class Dispatch
     {
+
+#if CSHARP8
+        static object InvokeUnwrappingExceptions(MethodBase method, object? target, object[]? args)
+#else
+        static object InvokeUnwrappingExceptions(MethodBase method, object target, object[]? args)
+#endif
+        {
+            try {
+                return method.Invoke(target, args);
+            } catch (TargetInvocationException e) {
+                throw e.InnerException;
+            }
+        }
+
         // (set! (.name o) value)
         public static object SetMember(object o, string name, object value)
         {
@@ -80,26 +94,42 @@ namespace Magic
                 return field.GetValue(o);
             var property = oType.GetProperty(name);
             if (property != null)
-                return property.GetMethod.Invoke(o, null);
+                return InvokeUnwrappingExceptions(property.GetMethod, o, null);
             var method = oType.GetMethod(name, Type.EmptyTypes);
             if (method != null)
-                return method.Invoke(o, null);
+                return InvokeUnwrappingExceptions(method, o, null);
             throw new Exception($"Could not invoke zero arity member `{name}` on target {(o == null ? "null" : o.ToString())}.");
         }
 
-        // (.name o args)
-        public static object InvokeMember(object o, string name, object[] args)
+        static MethodBase? BindToMethod(BindingFlags bindingFlags, Type t, string name, object[] args)
         {
-            var argumentTypes = new Type[args.Length];
-            for (int i = 0; i < args.Length; i++)
-                argumentTypes[i] = args[i] == null ? typeof(Object) : args[i].GetType();
-            // var method = o.GetType().GetMethod(name, argumentTypes);
-            var methods = o.GetType().GetMethods().Where(m => m.Name == name).ToArray();
+            var methods = t.GetMethods().Where(m => m.Name == name).ToArray();
             Object state;
-            var method = Binder.Shared.BindToMethod(BindingFlags.Public|BindingFlags.Instance,methods,ref args,null,null,null,out state);
-            if (method != null)
-                return method.Invoke(o, args);
-            throw new Exception($"Could not invoke member method `{name}` on target {o.ToString()} ({o.GetType()}) with argument types { String.Join<Type>(", ", argumentTypes) }.");
+#if CSHARP8
+            MethodBase? method;
+#else
+            MethodBase method;
+#endif
+            method = null;
+            if(methods.Length > 0)
+                 method = Binder.Shared.BindToMethod(bindingFlags,methods,ref args,null,null,null,out state);
+            return method;            
+        }
+
+        public static object InvokeInstanceMethod(object o, string name, object[] args)
+        {
+            var method = BindToMethod(BindingFlags.Public | BindingFlags.Instance, o.GetType(), name, args);
+            if(method != null)
+                return InvokeUnwrappingExceptions(method, o, args);
+            throw new Exception($"Could not invoke instance member method `{name}` on target {o.ToString()} ({o.GetType()}) with argument types { String.Join<Object>(", ", args) }.");
+        }
+
+        public static object InvokeStaticMethod(object t, string name, object[] args)
+        {
+            var method = BindToMethod(BindingFlags.Public | BindingFlags.Static, (Type)t, name, args);
+            if(method != null)
+                return InvokeUnwrappingExceptions(method, null, args);
+            throw new Exception($"Could not invoke static member method `{name}` on target {t} with argument types { String.Join<Object>(", ", args) }.");
         }
 
         public static object InvokeConstructor(Type t, object[] args)

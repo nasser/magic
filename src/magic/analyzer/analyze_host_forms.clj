@@ -245,24 +245,10 @@
                                                (get-all-methods target-type))
                                        (map ast-type args))]
                    {:method best-method}
-                   (cond static?
-                         ;; static method no best match, error
-                         (error ::errors/missing-static-method ast)
-                         ;; instance method, known target type, no best match, error
-                         (and target-type
-                              (not= target-type Object))
-                         (error ::errors/missing-instance-method ast)
-                         ;; instance method unknown target type, dynamic
-                         :else
-                         ;; TODO what is this generic match??
-                         (let [matching-name-methods
-                               (->> (.GetMethods target-type)
-                                    (filter #(and
-                                               (.IsGenericMethod %)
-                                               (= (.Name %) (str method)))))]
-                           (if-let [best-method (select-method matching-name-methods (map ast-type args))]
-                             {:method best-method :what-is-this '???}
-                             {:op :dynamic-method}))))))))
+                   {:op (if static? 
+                          :dynamic-static-method
+                          :dynamic-instance-method)})))))
+    :else
     ast))
 
 (defn analyze-byref
