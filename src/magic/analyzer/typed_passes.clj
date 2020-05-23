@@ -255,12 +255,16 @@
 (defn typed-passes [ast]
   (letfn [(update-closed-overs
             [closed-overs]
-            (reduce-kv (fn [m name {:keys [form]}]
-                         (if-let [init (*typed-pass-locals* name)]
-                           (let [form* (:form init)]
-                             (-> m
-                                 (assoc-in [name :env :locals form :init] init)
-                                 (assoc-in [name :form] (or form* form))))
+            (reduce-kv (fn [m name {:keys [local form]}]
+                         (if-let [resolved (*typed-pass-locals* name)]
+                           (case local
+                             :proxy-this
+                             (assoc-in m [name :proxy-type] resolved)
+                             #_else
+                             (let [form* (:form resolved)]
+                               (-> m
+                                   (assoc-in [name :env :locals form :init] resolved)
+                                   (assoc-in [name :form] (or form* form)))))
                            m))
                        closed-overs
                        closed-overs))
