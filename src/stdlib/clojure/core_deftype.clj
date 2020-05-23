@@ -170,13 +170,9 @@
       (throw (ArgumentException. ":volatile-mutable or :unsynchronized-mutable not supported for record fields")))   ;;; IllegalArgumentException
     (let [gs (gensym)]
       (letfn
-    (letfn 
-      (letfn
        [(irecord [[i m]]
           [(conj i 'clojure.lang.IRecord)
            m])
-        (eqhash [[i m]]
-      (eqhash [[i m]] 
         (eqhash [[i m]]
           [(conj i 'clojure.lang.IHashEq)
            (conj m
@@ -194,65 +190,37 @@
                                            hash#)))
                  `(Equals [this# ~gs] (clojure.lang.APersistentMap/mapEquals this# ~gs)))])       ;;; equals
         (iobj [[i m]]
-      (iobj [[i m]] 
-        (iobj [[i m]]
           [(conj i 'clojure.lang.IObj)
            (conj m `(meta [this#] ~'__meta)
                  `(withMeta [this# ~gs] (new ~tagname ~@(replace {'__meta gs} fields))))])
         (ilookup [[i m]]
-      (ilookup [[i m]] 
-        (ilookup [[i m]]
           [(conj i 'clojure.lang.ILookup 'clojure.lang.IKeywordLookup)
            (conj m `(valAt [this# k#] (.valAt this# k# nil))
                  `(valAt [this# k# else#]
-                `(valAt [this# k# else#] 
-                 `(valAt [this# k# else#]
-                         (case k# ~@(mapcat (fn [fld] [(keyword fld) fld])
-                   (case k# ~@(mapcat (fn [fld] [(keyword fld) fld]) 
                          (case k# ~@(mapcat (fn [fld] [(keyword fld) fld])
                                             base-fields)
                                (get ~'__extmap k# else#)))
                  `(getLookupThunk [this# k#]
                                   (let [~'gclass (class this#)]
-                   (let [~'gclass (class this#)]              
-                                  (let [~'gclass (class this#)]
                                     (case k#
                                       ~@(let [hinted-target (with-meta 'gtarget {:tag tagname})]
                                           (mapcat
-                               (mapcat 
-                                          (mapcat
                                            (fn [fld]
                                              [(keyword fld)
-                                  [(keyword fld) 
-                                             [(keyword fld)
-                                              `(reify clojure.lang.ILookupThunk
-                                   `(reify clojure.lang.ILookupThunk 
                                               `(reify clojure.lang.ILookupThunk
                                                  (get [~'thunk ~'gtarget]
-                                           (get [~'thunk ~'gtarget] 
-                                                 (get [~'thunk ~'gtarget]
-                                                   (if (identical? (class ~'gtarget) ~'gclass)
-                                                (if (identical? (class ~'gtarget) ~'gclass) 
                                                    (if (identical? (class ~'gtarget) ~'gclass)
                                                      (. ~hinted-target ~(symbol (str "-" fld)))
                                                      ~'thunk)))])
                                            base-fields))
                                       nil))))])
-                           nil))))])      
-                                      nil))))])
-        (imap [[i m]]
-      (imap [[i m]] 
         (imap [[i m]]
           [(conj i 'clojure.lang.IPersistentMap)
-           (conj m
-             (conj m 
            (conj m
                  `(clojure.lang.IPersistentMap.count [this#] (+ ~(count base-fields) (count ~'__extmap)))
                  `(empty [this#] (throw (InvalidOperationException. (str "Can't create empty: " ~(str classname)))))   ;;; UnsupportedOperationException
                  `(clojure.lang.IPersistentMap.cons [this# e#] ((var imap-cons) this# e#))                          ;;; type hint added
                  `(equiv [this# ~gs]
-                         (boolean
-                        (boolean 
                          (boolean
                           (or (identical? this# ~gs)
                               (when (identical? (class this#) (class ~gs))
@@ -304,16 +272,10 @@
           [(conj i 'clojure.lang.Counted)                                                                                         ;;; ADDED
            (conj m                                                                                                                ;;; ADDED
                  `(clojure.lang.Counted.count [this#] (+ ~(count base-fields) (count ~'__extmap))))])	                            ;;; ADDED		                   
-			      `(clojure.lang.Counted.count [this#] (+ ~(count base-fields) (count ~'__extmap))))])	                            ;;; ADDED		                   
-                 `(clojure.lang.Counted.count [this#] (+ ~(count base-fields) (count ~'__extmap))))])	                            ;;; ADDED		                   
         (ipc [[i m]]                                                                                                                  ;;; ADDED
           [(conj i 'clojure.lang.IPersistentCollection)                                                                            ;;; ADDED
            (conj m                                                                                                                 ;;; ADDED                   
-            (conj m                                                                                                                 ;;; ADDED                   
-           (conj m                                                                                                                 ;;; ADDED                   
                  `(clojure.lang.IPersistentCollection.cons [this# e#]                                                              ;;; ADDED
-                                                           ((var imap-cons) this# e#))                                                                                 ;;; ADDED                   
-                        ((var imap-cons) this# e#))                                                                                 ;;; ADDED                   
                                                            ((var imap-cons) this# e#))                                                                                 ;;; ADDED                   
                  `(clojure.lang.IPersistentCollection.count [this#] (+ ~(count base-fields) (count ~'__extmap))))])                ;;; ADDED
         (associative                                                                                                                  ;;; ADDED
