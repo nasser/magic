@@ -792,6 +792,8 @@
      (interleave 
       (map (fn [il binding]
              [(il/ldloc (binding-map (:name binding)))
+              (when-let [fn-type (-> binding :init :fn-type)]
+                (convert (non-void-ast-type binding) fn-type))
               (last il)])
            binding-il bindings)
       (repeat (il/pop)))
