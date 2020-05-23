@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
             [magic.analyzer.util :refer [var-interfaces var-type throw!]]
-            [magic.analyzer.types :as types :refer [tag ast-type non-void-ast-type]]
+            [magic.analyzer.types :as types :refer [tag ast-type ast-type-ignore-tag non-void-ast-type]]
             [magic.analyzer.binder :refer [select-method]]
             [magic.interop :as interop]
             [clojure.string :as string])
@@ -1967,10 +1967,20 @@
      compilers
      spells)))
 
+(def ^:dynamic *op-stack* [])
+
 (defn compile
   "Generate symbolic bytecode for AST node"
   ([ast]
    (compile ast (get-compilers)))
   ([ast compilers]
    (if-let [compiler (ast->compiler ast compilers)]
-     (compiler ast compilers))))
+     (binding [*op-stack* (conj *op-stack* (:op ast))]
+       (try 
+         [(compiler ast compilers)
+          (when (and (ast-type-ignore-tag ast)
+                     (ast-type ast)
+                     (not= (ast-type-ignore-tag ast) (ast-type ast)))
+            (convert (ast-type-ignore-tag ast) (ast-type ast)))]
+         (catch Exception e
+           (throw (Exception. (str "Failed to compile " (:form ast) " " *op-stack*) e))))))))

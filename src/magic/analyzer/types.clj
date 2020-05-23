@@ -109,12 +109,12 @@
   (if-let [t (-> x meta :tag)]
     (resolve t)))
 
-(defmulti ast-type
+(defmulti ast-type-impl
   "The CLR type of an AST node"
   :op)
 
 (defn ast-type-or-object [ast]
-  (or (ast-type ast)
+  (or (ast-type-impl ast)
       Object))
 
 (defn disregard-type? [ast]
@@ -123,20 +123,7 @@
              (disregard-type? (:else ast)))
     :let (disregard-type? (:body ast))
     :do (disregard-type? (:ret ast))
-    (= ::disregard (ast-type ast))))
-
-(def non-void-ast-type
-  (memoize
-   (fn non-void-ast-type
-     ([ast]
-      (non-void-ast-type ast Object))
-     ([ast non-void-type]
-      (if (disregard-type? ast)
-        non-void-type
-        (let [t (ast-type ast)]
-          (if (= t System.Void)
-            non-void-type
-            t)))))))
+    (= ::disregard (ast-type-impl ast))))
 
 ;;;;; intrinsics
 
@@ -166,63 +153,89 @@
 
 ;;;;; ast types
 
-(defmethod ast-type :default [ast]
-  (throw! "ast-type not implemented for :op " (:op ast) " while analyzing " (-> ast :raw-forms first pr-str)))
+(def ast-type-impl*
+ (memoize (fn ast-type-impl* [ast] (ast-type-impl ast))) )
 
-(defmethod ast-type :fn
+(defn ast-type [ast]
+  (if-let [tag (-> ast :form meta :tag)]
+    (resolve tag)
+    (ast-type-impl* ast)))
+
+(defn ast-type-ignore-tag [ast]
+  (ast-type-impl* ast))
+
+(def non-void-ast-type
+  (memoize
+   (fn non-void-ast-type*
+     ([ast]
+      (non-void-ast-type* ast Object))
+     ([ast non-void-type]
+      (if (disregard-type? ast)
+        non-void-type
+        (let [t (ast-type-impl ast)]
+          (if (= t System.Void)
+            non-void-type
+            t)))))))
+
+(defmethod ast-type-impl :default [ast]
+  nil
+  #_(throw! "ast-type-impl not implemented for :op " (:op ast) " while analyzing " (or (-> ast :raw-forms first pr-str)
+                                                                                     (:form ast))))
+
+(defmethod ast-type-impl :fn
   [{:keys [fn-type]}] clojure.lang.IFn #_fn-type)
 
-(defmethod ast-type :proxy
+(defmethod ast-type-impl :proxy
   [{:keys [proxy-type]}] proxy-type)
 
-(defmethod ast-type :reify
+(defmethod ast-type-impl :reify
   [{:keys [reify-type]}] reify-type)
 
-(defmethod ast-type :gen-interface [_] System.Type)
+(defmethod ast-type-impl :gen-interface [_] System.Type)
 
-(defmethod ast-type :deftype [_] System.Type)
+(defmethod ast-type-impl :deftype [_] System.Type)
 
-(defmethod ast-type :import [_] System.Type)
+(defmethod ast-type-impl :import [_] System.Type)
 
-(defmethod ast-type :dynamic-constructor [{:keys [type]}] type)
+(defmethod ast-type-impl :dynamic-constructor [{:keys [type]}] type)
 
-(defmethod ast-type :dynamic-zero-arity [_] Object)
+(defmethod ast-type-impl :dynamic-zero-arity [_] Object)
 
-(defmethod ast-type :dynamic-instance-method [_] Object)
+(defmethod ast-type-impl :dynamic-instance-method [_] Object)
 
-(defmethod ast-type :dynamic-static-method [_] Object)
+(defmethod ast-type-impl :dynamic-static-method [_] Object)
 
-(defmethod ast-type :intrinsic
+(defmethod ast-type-impl :intrinsic
   [{:keys [type]}] type)
 
-(defmethod ast-type :def
+(defmethod ast-type-impl :def
   [{:keys [type]}] clojure.lang.Var)
 
 ;; TODO remove
-(defmethod ast-type nil
+(defmethod ast-type-impl nil
   [ast]
   Object
   #_
-  (throw! "ast-type not implemented for nil"))
+  (throw! "ast-type-impl not implemented for nil"))
 
-(defmethod ast-type :do
+(defmethod ast-type-impl :do
   [{:keys [ret] :as ast}]
-  (ast-type ret))
+  (ast-type-impl ret))
 
-(defmethod ast-type :case
+(defmethod ast-type-impl :case
   [{:keys [expressions default] :as ast}]
-  (let [result-types (-> #{(ast-type default)}
-                         (into (map ast-type expressions))
+  (let [result-types (-> #{(ast-type-impl default)}
+                         (into (map ast-type-impl expressions))
                          (disj :magic.analyzer.types/disregard))]
     (if (= 1 (count result-types))
       (first result-types)
       Object)))
 
-(defmethod ast-type :set!
+(defmethod ast-type-impl :set!
   [{:keys [val] {:keys [context]} :env}]
   (if (= context :ctx/statement)
     System.Void
-    (ast-type val)))
+    (ast-type-impl val)))
 
 (def data-structure-types
   {:seq clojure.lang.IPersistentList
@@ -230,62 +243,62 @@
    :set clojure.lang.APersistentSet
    :map clojure.lang.APersistentMap})
 
-(defmethod ast-type :quote
+(defmethod ast-type-impl :quote
   [{:keys [expr] :as ast}]
   (or 
    (data-structure-types (:type expr))
-   (ast-type expr)))
+   (ast-type-impl expr)))
 
-(defmethod ast-type :maybe-class
+(defmethod ast-type-impl :maybe-class
   [{:keys [class] :as ast}]
   (resolve class ast))
 
-(defmethod ast-type :var [ast]
+(defmethod ast-type-impl :var [ast]
   Object)
 
-(defmethod ast-type :the-var [ast]
+(defmethod ast-type-impl :the-var [ast]
   Object)
 
-(defmethod ast-type :const [ast]
+(defmethod ast-type-impl :const [ast]
   (if (= :class (:type ast))
     System.Type ;; (:val ast) ; oh jesus
     (or (type (:val ast)) Object))) ;; nil -> Object
 
-(defmethod ast-type :vector [ast]
+(defmethod ast-type-impl :vector [ast]
   clojure.lang.APersistentVector)
 
-(defmethod ast-type :set [ast]
+(defmethod ast-type-impl :set [ast]
   clojure.lang.APersistentSet)
 
-(defmethod ast-type :map [ast]
+(defmethod ast-type-impl :map [ast]
   clojure.lang.APersistentMap)
 
-(defmethod ast-type :with-meta [{:keys [expr]}]
+(defmethod ast-type-impl :with-meta [{:keys [expr]}]
   clojure.lang.IObj) ;; ??
 
-(defmethod ast-type :static-method [ast]
+(defmethod ast-type-impl :static-method [ast]
   (-> ast :method .ReturnType))
 
-(defmethod ast-type :instance-method [ast]
+(defmethod ast-type-impl :instance-method [ast]
   (-> ast :method .ReturnType))
 
-(defmethod ast-type :static-property [ast]
+(defmethod ast-type-impl :static-property [ast]
   (-> ast :property .PropertyType))
 
-(defmethod ast-type :instance-property [ast]
+(defmethod ast-type-impl :instance-property [ast]
   (-> ast :property .PropertyType))
 
-(defmethod ast-type :static-field [ast]
+(defmethod ast-type-impl :static-field [ast]
   (-> ast :field .FieldType))
 
-(defmethod ast-type :instance-field [ast]
+(defmethod ast-type-impl :instance-field [ast]
   (-> ast :field .FieldType))
 
 ;; TODO dynamics always typed as object?
-(defmethod ast-type :dynamic-field [ast]
+(defmethod ast-type-impl :dynamic-field [ast]
   System.Object)
 
-(defmethod ast-type :invoke
+(defmethod ast-type-impl :invoke
   [{:keys [fn args] :as ast}]
   (resolve
    (or (->> ast
@@ -301,7 +314,7 @@
             first
             meta
             :tag)
-       (let [arg-types (map ast-type args)
+       (let [arg-types (map ast-type-impl args)
              target-interfaces (var-interfaces fn)
               ;; TODO this is hacky and gross
              vt (var-type fn)
@@ -315,32 +328,32 @@
            Object))
        Object)))
 
-(defmethod ast-type :new [ast]
+(defmethod ast-type-impl :new [ast]
   (:type ast))
 
-(defmethod ast-type :initobj [ast]
+(defmethod ast-type-impl :initobj [ast]
   (:type ast))
 
-(defmethod ast-type :maybe-host-form
+(defmethod ast-type-impl :maybe-host-form
   [ast]
   (throw! "Trying to find type of :maybe-host-form in " ast))
 
-(defmethod ast-type :host-interop
+(defmethod ast-type-impl :host-interop
   [ast]
   (throw! "Trying to find type of :host-interop in " ast))
 
 ;; TODO -> form locals :form meta :tag ??
-(defmethod ast-type :binding [ast]
+(defmethod ast-type-impl :binding [ast]
   (or
     (if-let [tag (-> ast :form meta :tag)]
       (if (symbol? tag)
         (resolve tag)
         tag))
     (if-let [init (:init ast)]
-      (ast-type init))
+      (ast-type-impl init))
     Object))
 
-(defmethod ast-type :local
+(defmethod ast-type-impl :local
   [{:keys [name form local by-ref?] {:keys [locals]} :env :as ast}]
   (let [tag (or (-> form meta :tag)
                 (-> form locals :form meta :tag))
@@ -360,27 +373,27 @@
       (.MakeByRefType type)
       type)))
 
-(defmethod ast-type :let [ast]
-  (-> ast :body ast-type))
+(defmethod ast-type-impl :let [ast]
+  (-> ast :body ast-type-impl))
 
-(defmethod ast-type :loop [ast]
-  (-> ast :body ast-type))
+(defmethod ast-type-impl :loop [ast]
+  (-> ast :body ast-type-impl))
 
-(defmethod ast-type :letfn [ast]
-  (-> ast :body ast-type))
+(defmethod ast-type-impl :letfn [ast]
+  (-> ast :body ast-type-impl))
 
 ;; ???
-(defmethod ast-type :recur [ast]
+(defmethod ast-type-impl :recur [ast]
   ::disregard)
 
-(defmethod ast-type :throw [ast]
+(defmethod ast-type-impl :throw [ast]
   ::disregard)
 
-(defmethod ast-type :try [{:keys [body catches] :as ast}]
-  (let [body-type (ast-type body)
+(defmethod ast-type-impl :try [{:keys [body catches] :as ast}]
+  (let [body-type (ast-type-impl body)
         catches-types (->> catches
                            (remove disregard-type?)
-                           (map ast-type)
+                           (map ast-type-impl)
                            (into #{}))]
     (if (or (empty? catches-types)
             (and (= 1 (count catches-types))
@@ -388,13 +401,13 @@
       body-type
       Object)))
 
-(defmethod ast-type :catch [{:keys [body] :as ast}]
-  (ast-type body))
+(defmethod ast-type-impl :catch [{:keys [body] :as ast}]
+  (ast-type-impl body))
 
-(defmethod ast-type :monitor-enter [ast]
+(defmethod ast-type-impl :monitor-enter [ast]
   System.Void)
 
-(defmethod ast-type :monitor-exit [ast]
+(defmethod ast-type-impl :monitor-exit [ast]
   System.Void)
 
 (defn always-then?
@@ -404,8 +417,8 @@
        (or (and (:literal? test)
                 (not= (:val test) false)
                 (not= (:val test) nil))
-           (and (.IsValueType (ast-type test))
-                (not= Boolean (ast-type test))))))
+           (and (.IsValueType (ast-type-impl test))
+                (not= Boolean (ast-type-impl test))))))
 
 (defn always-else?
   "Is an if AST node always false?"
@@ -415,12 +428,12 @@
        (or (= (:val test) false)
            (= (:val test) nil))))
 
-(defmethod ast-type :if
+(defmethod ast-type-impl :if
   [{:keys [form test then else] :as ast}]
   (if-let [t (tag form)]
     t
-    (let [then-type (ast-type then)
-          else-type (ast-type else)]
+    (let [then-type (ast-type-impl then)
+          else-type (ast-type-impl else)]
       (cond
         (= then-type else-type) then-type
         (always-then? ast) then-type
