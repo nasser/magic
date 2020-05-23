@@ -373,6 +373,7 @@
   (fn intrinsic-make-array-compiler
     [{[type-arg len-arg] :args} type compilers]
     [(magic/compile len-arg compilers)
+     (magic/convert (non-void-ast-type len-arg) Int32)
      (il/newarr (:val type-arg))]))
 
 (defintrinsic clojure.core/enum-or
