@@ -1801,9 +1801,11 @@
                                   :new (:new compilers)))))
           :instance-field
           (fn deftype-instance-field-compiler 
-            [{:keys [field] :as ast} _compilers]
+            [{:keys [field target] :as ast} local-compilers]
             (if (fieldinfos-set field)
-              [(il/ldarg-0)
+              [(if (= target :deftype-this) 
+                 (il/ldarg-0)
+                 (compile target local-compilers))
                (when (volatile? field)
                  (il/volatile))
                (il/ldfld field)]
@@ -1814,6 +1816,7 @@
             (if (and (= :field local)
                      (field-map (str name)))
               (compile {:op :instance-field
+                        :target :deftype-this
                         :field (field-map (str name))}
                        inner-compilers)
               (compile ast compilers)))
