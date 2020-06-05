@@ -91,5 +91,103 @@
 (clojure.core/defn bind-basic-spells! []
   (bind-spells! [dynamic-interop]))
 
+(clojure.core/defn find-file [roots namespace-or-path]
+  (let [namespace-path (-> namespace-or-path
+                           str
+                           munge
+                           (string/replace "." "/")
+                           (string/replace "_SLASH_" "/") ;; HACK
+                           (string/replace "//" "/") ;; HACK
+                           )]
+    (some #(let [path (str % "/" namespace-path ".clj")]
+             (when (System.IO.File/Exists path)
+               path))
+          roots)))
+
+(def public-static (enum-or MethodAttributes/Public MethodAttributes/Static))
+(def abstract-sealed (enum-or TypeAttributes/Public TypeAttributes/Abstract TypeAttributes/Sealed))
+
+(clojure.core/defn trim
+  [x l]
+  (let [s (str x)]
+    (if (< (count s) l)
+      s
+      (subs s 0 l))))
+
+(clojure.core/defn load-file
+  [path ctx]
+  (let [file (System.IO.File/OpenText path)]
+    (try
+      (let [empty-args (into-array [])
+            rdr (PushbackTextReader. file)
+            read-1 (fn [] (try (read rdr) (catch Exception _ nil)))]
+        (loop [expr (read-1) i 0]
+          (set! *warn-on-reflection* false)
+          (if expr
+            (do
+              (println (-> expr (trim 30)) (str *ns*) (ns-aliases *ns*))
+              (let [expr-name (u/gensym "expr")
+                    expr-type (.DefineType magic.emission/*module* expr-name abstract-sealed)
+                    expr-method (.DefineMethod expr-type "eval" public-static)
+                    expr-ilg (.GetILGenerator expr-method)
+                    ctx' (assoc ctx
+                                ::il/type-builder expr-type
+                                ::il/method-builder expr-method
+                                ::il/ilg expr-ilg)]
+                (il/emit! ctx'
+                          [(-> expr
+                               ana/analyze
+                               magic/compile)
+                           [(il/pop)
+                            (il/ret)]])
+                (il/emit! ctx (il/call expr-method))
+                (.CreateType expr-type)
+                (.Invoke (.GetMethod expr-type "eval") nil empty-args)
+                (recur (read-1) (inc i))))
+            (.Close rdr))))
+      (finally
+        (.Close file)))))
+
+(clojure.core/defn compile-file
+  [roots path module]
+  (println "[compile-file] start" path)
+  (let [module-name (str module ".clj")]
+    (binding [*unchecked-math* true
+              *print-meta* false
+              *ns* *ns*
+              magic.emission/*module* (magic.emission/fresh-module module-name)]
+      (let [type-name (str (gensym (clojure.string/replace path #"(\.|\/)" "_")))
+            ns-type (.DefineType magic.emission/*module* type-name abstract-sealed)
+            init-method (.DefineMethod ns-type "init" public-static)
+            init-ilg (.GetILGenerator init-method)
+            ctx {::il/module-builder magic.emission/*module*
+                 ::il/type-builder ns-type
+                 ::il/method-builder init-method
+                 ::il/ilg init-ilg}]
+        (with-redefs [load (fn magic-load-fn [& paths]
+                             (println "  [load]" (vec paths))
+                             (doseq [path paths]
+                               (if-let [path (find-file roots path)]
+                                 (load-file path ctx)
+                                 (throw (Exception. (str "Could not find " path ", roots " roots))))))]
+          (load-file path ctx))
+        (il/emit! ctx (il/ret))
+        (.CreateType ns-type))
+      (.. magic.emission/*module* Assembly (Save (str module-name ".dll")))
+      (println "[compile-file] end" path))))
+
+(def load-one' (deref (clojure.lang.RT/var "clojure.core" "load-one")))
+
+(clojure.core/defn compile-namespace
+  [roots namespace]
+  (println "[compile-namespace]" namespace)
+  (when-let [path (find-file roots namespace)]
+    (with-redefs [clojure.core/load-one (fn magic-load-one-fn [lib need-ns require]
+                                          (println "  [load-one]" lib need-ns require)
+                                          (binding [*ns* *ns*]
+                                            (load-one' lib need-ns require)
+                                            (compile-namespace roots lib)))]
+      (compile-file roots path (munge (str namespace))))))
+
 ;; yolo
 (bind-spells! [dynamic-interop])
