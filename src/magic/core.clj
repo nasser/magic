@@ -1885,12 +1885,19 @@
 ;; TODO this implementation tracks ClojureCLR's and will likely have to change
 (defn import-compiler
   [{:keys [class-name]} compilers]
-  [(il/call (interop/getter clojure.lang.Compiler "CurrentNamespace"))
-   (il/ldstr class-name)
-   (il/call (interop/method Magic.Runtime "FindType" String))
-   ;; TODO throw exception if type not found
-   (il/call (interop/method clojure.lang.Namespace "importClass" Type))
-   ])
+  (let [import-class-label (il/label)]
+    [(il/call (interop/getter clojure.lang.Compiler "CurrentNamespace"))
+     (il/ldstr class-name)
+     (il/call (interop/method Magic.Runtime "FindType" String))
+     (il/dup)
+     (il/ldnull)
+     (il/ceq)
+     (il/brfalse import-class-label)
+     (il/ldstr (str "Could not find type " class-name " during import"))
+     (il/newobj (interop/constructor InvalidOperationException String))
+     (il/throw)
+     import-class-label
+     (il/call (interop/method clojure.lang.Namespace "importClass" Type))]))
 
 (def base-compilers
   {:const               #'const-compiler
