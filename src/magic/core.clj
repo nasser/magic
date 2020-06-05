@@ -51,11 +51,6 @@
     (and (pos? k) (< k 128)) (il/ldc-i4-s (byte k))
     :else (il/ldc-i4 (int k))))
 
-(defn load-argument [{:keys [arg-id by-ref?]}]
-  (if by-ref?
-    (load-argument-address arg-id)
-    (load-argument-standard arg-id)))
-
 (defn reference-to-type [t]
   (when (.IsValueType t)
     (let [loc (il/local t)]
@@ -532,13 +527,8 @@
   [{:keys [target property]} compilers]
   (let [target-type (ast-type target)]
     (if (.IsValueType target-type)
-      (case (:op target)
-        (:local :initobj)
-        [(compile (assoc target :by-ref? true) compilers)
-         (il/call (.GetGetMethod property))]
-        [(compile target compilers)
-         (reference-to-type target-type)
-         (il/call (.GetGetMethod property))])
+      [(compile (assoc target :load-address? true) compilers)
+       (il/call (.GetGetMethod property))]
       [(compile target compilers)
        (il/callvirt (.GetGetMethod property))])))
 
@@ -610,21 +600,13 @@
   [{:keys [method non-virtual? target args generic-parameters] :as ast} compilers]
   (let [arg-types (map ast-type args)
         target-type (ast-type target)
+        target-type-ignore-tag (ast-type-ignore-tag target)
         virtual-method? (.IsVirtual method)
         value-type-target? (.IsValueType target-type)]
-    [(cond
-       (and value-type-target? virtual-method? (not non-virtual?)
-            (= :local (:op target)))
-       (compile (assoc target :by-ref? true) compilers)
-       (and value-type-target? virtual-method? (not non-virtual?))
-       (let [loc (il/local target-type)]
-         [(compile target compilers)
-          (il/stloc loc)
-          (il/ldloca loc)])
-       (and value-type-target? (not virtual-method?))
-       [(compile target compilers)
-        (il/box target-type)]
-       :else (compile target compilers))
+    [(if (and (= target-type-ignore-tag target-type)
+              value-type-target?)
+       (compile (assoc target :load-address? true) compilers)
+       (compile target compilers))
      (interleave
       (map #(compile % compilers) args)
       (map convert
@@ -646,13 +628,11 @@
 
 (defn initobj-compiler
   "Symbolic bytecode for zero arity value type constructor invocation"
-  [{:keys [type by-ref?]} compilers]
-  ;; by-ref? is a bit of a hack here. it exists to make this ast
-  ;; somewhat similar to :local ast nodes when compiling instance properties
+  [{:keys [type load-address?]} compilers]
   (let [loc (il/local type)]
     [(il/ldloca-s loc)
      (il/initobj type)
-     (if by-ref?
+     (if load-address?
       (il/ldloca-s loc)
        (il/ldloc loc))]))
 
@@ -701,10 +681,10 @@
         specialized-compilers
         (merge compilers
                {:local (fn loop-local-compiler
-                         [{:keys            [name init by-ref?]
+                         [{:keys            [name init load-address?]
                            :as              ast} cmplrs]
                          (if-let [loc (-> name binding-map)]
-                           (if by-ref?
+                           (if load-address?
                              (il/ldloca loc)
                              [(il/ldloc loc)
                               #_ (convert (ast-type init) (ast-type ast))
@@ -744,9 +724,9 @@
         (merge compilers
                {:local
                 (fn let-local-compiler
-                  [{:keys [name form by-ref?] {:keys [locals]} :env :as ast} cmplrs]
+                  [{:keys [name form load-address?] {:keys [locals]} :env :as ast} cmplrs]
                   (if-let [loc (-> name binding-map)]
-                    (if by-ref?
+                    (if load-address?
                       (il/ldloca loc)
                       [(il/ldloc loc)
                        (when (-> form locals :init)
@@ -774,9 +754,9 @@
         (merge compilers
                {:local
                 (fn let-local-compiler
-                  [{:keys [name form by-ref?] {:keys [locals]} :env :as ast} cmplrs]
+                  [{:keys [name form load-address?] {:keys [locals]} :env :as ast} cmplrs]
                   (if-let [loc (-> name binding-map)]
-                    (if by-ref?
+                    (if load-address?
                       (il/ldloca loc)
                       [(il/ldloc loc)
                        (when (-> form locals :init)
@@ -824,8 +804,23 @@
   (compile init compilers))
 
 (defn local-compiler
-  [{:keys [name local] :as ast} compilers]
+  [{:keys [name load-address? arg-id local] :as ast} compilers]
   (case local
+    :arg
+    (let [type (ast-type ast)
+          type-ignore-tag (ast-type-ignore-tag ast)]
+      (cond
+        (and load-address?
+             (.IsValueType type)
+             (not (.IsValueType type-ignore-tag)))
+        [(load-argument-standard arg-id)
+         (convert type-ignore-tag type)
+         (reference-to-type type)]
+        load-address?
+        (load-argument-address arg-id)
+        :else
+        [(load-argument-standard arg-id)
+         (convert (ast-type-ignore-tag ast) (ast-type ast))]))
     :fn
     [(load-argument-standard 0)
      (convert (ast-type local) (ast-type ast))]
@@ -1117,13 +1112,10 @@
                           (map store-argument (->> params count inc (range 1) reverse))
                           (il/br recur-target)])
                 :local (fn fn-method-local-compiler
-                         [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
+                         [{:keys [name local] :as ast} local-compilers]
                          (if (and (= local :arg) 
                                   (param-names name))
-                           (if by-ref?
-                             (load-argument-address (inc arg-id))
-                             [(load-argument-standard (inc arg-id))
-                              (convert (param-types arg-id) (ast-type ast))])
+                           (local-compiler (update ast :arg-id inc) local-compilers)
                            (compile ast compilers)))})
         compiled-body
         (compile body specialized-compilers)
@@ -1236,9 +1228,9 @@
         (merge compilers
                {:local
                 (fn catch-local-compiler
-                  [{:keys [name by-ref?] :as ast} cmplrs]
+                  [{:keys [name load-address?] :as ast} cmplrs]
                   (if (= name catch-local-name)
-                    (if by-ref?
+                    (if load-address?
                       (il/ldloca catch-local)
                       (il/ldloc catch-local))
                     (compile ast compilers)))})
@@ -1521,11 +1513,11 @@
                           (map store-argument (->> param-types count inc (range 1) reverse))
                           (il/br recur-target)])
                 :local (fn method-local-compiler
-                         [{:keys [arg-id name local by-ref?] :as ast} _cmplrs]
+                         [{:keys [arg-id name local load-address?] :as ast} _cmplrs]
                          (if (and (= local :arg)
                                   (param-names name))
                            (let [arg-offset (if proxy? (inc arg-id) arg-id)]
-                             (if by-ref?
+                             (if load-address?
                                (load-argument-address arg-offset)
                                [(load-argument-standard arg-offset)
                                 (convert (param-type-bindings arg-id) (ast-type ast))]))
@@ -1972,6 +1964,19 @@
 
 (def ^:dynamic *op-stack* [])
 
+(defn compile-inline-cast [{:keys [op local load-address?] :as ast}]
+  (let [type (ast-type ast)
+        type-ignore-tag (ast-type-ignore-tag ast)]
+    (when-not (and (= type-ignore-tag type)
+                   ;; TODO this is a *very* specific predicate and i am worried 
+                   ;; we are missing a larger principle here
+                   (= op :local)
+                   (= local :arg)
+                   load-address?
+                   (.IsValueType type)
+                   (not (.IsValueType type-ignore-tag)))
+      (convert type-ignore-tag type))))
+
 (defn compile
   "Generate symbolic bytecode for AST node"
   ([ast]
@@ -1981,9 +1986,6 @@
      (binding [*op-stack* (conj *op-stack* (:op ast))]
        (try 
          [(compiler ast compilers)
-          (when (and (ast-type-ignore-tag ast)
-                     (ast-type ast)
-                     (not= (ast-type-ignore-tag ast) (ast-type ast)))
-            (convert (ast-type-ignore-tag ast) (ast-type ast)))]
+          (compile-inline-cast ast)]
          (catch Exception e
            (throw (Exception. (str "Failed to compile " (:form ast) " " *op-stack*) e))))))))
