@@ -5172,10 +5172,11 @@ Note that read can execute code (controlled by *read-eval*),
   it were a macro. Cannot be used with variadic (&) args."
   {:added "1.0"}
   [name & decl]
-  (let [[pre-args [args expr]] (split-with (comp not vector?) decl)]
+  (let [[pre-args [args expr]] (split-with (comp not vector?) decl)
+        args-without-tags (mapv #(vary-meta % dissoc :tag) args)]
     `(do
        (defn ~name ~@pre-args ~args ~(apply (eval (list `fn args expr)) args))
-       (alter-meta! (var ~name) assoc :inline (fn ~name ~args ~expr))
+       (alter-meta! (var ~name) assoc :inline (fn ~(symbol (str name "_inliner")) ~args-without-tags ~expr))
        (var ~name))))
        
 (defn empty
