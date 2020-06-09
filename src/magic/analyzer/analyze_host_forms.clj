@@ -277,6 +277,7 @@
           (error ::errors/by-ref-not-local ast)
           :else
           (assoc
-            (first args)
-            :by-ref? true))
+           (first args)
+           :by-ref? true
+           :load-address? true))
     ast))
