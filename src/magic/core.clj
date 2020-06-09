@@ -730,7 +730,9 @@
                       (il/ldloca loc)
                       [(il/ldloc loc)
                        (when (-> form locals :init)
-                         (convert (ast-type (-> form locals :init)) (non-void-ast-type ast)))])
+                         ;; non-void-ast-type here because the conversion from 
+                         ;; void would have already happened in the bindings
+                         (convert (non-void-ast-type (-> form locals :init)) (non-void-ast-type ast)))])
                     (compile ast compilers)))})]
     ;; emit local initializations
     [(map (fn [binding]
