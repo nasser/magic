@@ -151,38 +151,47 @@
       (finally
         (.Close file)))))
 
+(clojure.core/defn clojure-clr-init-class-name
+  "Port of clojure.lang.Compiler/InitClassName"
+  [path]
+  (str "__Init__$" (-> path (string/replace "." "/") (string/replace "/" "$"))))
+
 (clojure.core/defn compile-file
   [roots path module]
   (println "[compile-file] start" path)
   (let [module-name (str module ".clj")]
-    (binding [*unchecked-math* true
-              *print-meta* false
-              *ns* *ns*
-              magic.emission/*module* (magic.emission/fresh-module module-name)]
-      (let [type-name (str (gensym (clojure.string/replace path #"(\.|\/)" "_")))
-            ns-type (.DefineType magic.emission/*module* type-name abstract-sealed)
-            init-method (.DefineMethod ns-type "init" public-static)
-            init-ilg (.GetILGenerator init-method)
-            ctx {::il/module-builder magic.emission/*module*
-                 ::il/type-builder ns-type
-                 ::il/method-builder init-method
-                 ::il/ilg init-ilg}]
-        (with-redefs [load (fn magic-load-fn [& paths]
-                             (println "  [load]" (vec paths))
-                             (doseq [path paths]
-                               (if-let [path (find-file roots path)]
-                                 (load-file path ctx)
-                                 (throw (Exception. (str "Could not find " path ", roots " roots))))))]
+    (if (System.IO.File/Exists (str module-name ".dll"))
+      (println "[compile-file] end" path "(skipped, module already exists)")
+      (binding [*unchecked-math* true
+                *print-meta* false
+                *ns* *ns*
+                magic.emission/*module* (magic.emission/fresh-module module-name)]
+        (let [type-name (clojure-clr-init-class-name module)
+              ns-type (.DefineType magic.emission/*module* type-name abstract-sealed)
+              init-method (.DefineMethod ns-type "Initialize" public-static)
+              init-ilg (.GetILGenerator init-method)
+              ctx {::il/module-builder magic.emission/*module*
+                   ::il/type-builder ns-type
+                   ::il/method-builder init-method
+                   ::il/ilg init-ilg}]
+          (with-redefs [load (fn magic-load-fn [& paths]
+                               (println "  [load]" (vec paths))
+                               (doseq [path paths]
+                                 (if-let [path (find-file roots path)]
+                                   (load-file path ctx)
+                                   (throw (Exception. (str "Could not find " path ", roots " roots))))))]
           ;; TODO this is becoming a mess -- normalize paths in one place
-          (if (System.IO.File/Exists path)
-            (load-file path ctx)
-            (if-let [path (find-file roots path)] 
+            (if (System.IO.File/Exists path)
               (load-file path ctx)
-              (throw (Exception. (str "Could not find " path ", roots " roots))))))
-        (il/emit! ctx (il/ret))
-        (.CreateType ns-type))
-      (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*)))
-      (println "[compile-file] end" path))))
+              (if-let [path (find-file roots path)] 
+            (if-let [path (find-file roots path)] 
+              (if-let [path (find-file roots path)] 
+                (load-file path ctx)
+                (throw (Exception. (str "Could not find " path ", roots " roots))))))
+          (il/emit! ctx (il/ret))
+          (.CreateType ns-type))
+        (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*)))
+        (println "[compile-file] end" path)))))
 
 (def load-one' (deref (clojure.lang.RT/var "clojure.core" "load-one")))
 
