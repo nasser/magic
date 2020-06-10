@@ -1,4 +1,4 @@
-﻿;   Copyright (c) Rich Hickey. All rights reserved.
+;   Copyright (c) Rich Hickey. All rights reserved.
 ;   The use and distribution terms for this software are covered by the
 ;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;   which can be found in the file epl-v10.html at the root of this distribution.
@@ -131,16 +131,17 @@
   clojure.lang.IChunkedSeq
   (internal-reduce
    [s f val]
-   (if-let [s (seq s)]
-    (if (chunked-seq? s)
-       (let [ret (.reduce (chunk-first s) f val)]
-         (if (reduced? ret)
-           @ret
-           (recur (chunk-next s)
-                  f
-                  ret)))
-       (interface-or-naive-reduce s f val))
-	 val))
+    (loop [s s f f val val]
+      (if-let [s (seq s)]
+        (if (chunked-seq? s)
+          (let [ret (.reduce (chunk-first s) f val)]
+            (if (reduced? ret)
+              @ret
+              (recur (chunk-next s)
+                     f
+                     ret)))
+          (interface-or-naive-reduce s f val))
+        val)))
 
   clojure.lang.StringSeq
   (internal-reduce
