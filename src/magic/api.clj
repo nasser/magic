@@ -183,10 +183,11 @@
   (println "[compile-namespace]" namespace)
   (when-let [path (find-file roots namespace)]
     (with-redefs [clojure.core/load-one (fn magic-load-one-fn [lib need-ns require]
-                                          (println "  [load-one]" lib need-ns require)
+                                          (println "  [load-one]" lib need-ns require clojure.core/*loaded-libs*)
                                           (binding [*ns* *ns*]
-                                            (load-one' lib need-ns require)
-                                            (compile-namespace roots lib)))]
+                                            (compile-namespace roots lib)
+                                            (dosync
+                                             (commute clojure.core/*loaded-libs* conj lib))))]
       (compile-file roots path (munge (str namespace))))))
 
 ;; yolo
