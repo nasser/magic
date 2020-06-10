@@ -71,6 +71,15 @@ namespace Magic
         {
             if(match.Length == 0)
                 return null;
+
+            for (int i = 0; i < match.Length; i++)
+                if(match[i] == null)
+                    return null;
+
+            for (int i = 0; i < argumentTypes.Length; i++)
+                if(argumentTypes[i] == null)
+                    return null;
+            
 #if CSHARP8
             MethodBase? result = null;
 #else
