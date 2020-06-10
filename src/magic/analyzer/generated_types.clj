@@ -1,4 +1,5 @@
 (ns magic.analyzer.generated-types
+  (:require [magic.util :as u])
   (:import [System.Reflection TypeAttributes]))
 
 (def ^:dynamic
@@ -49,8 +50,8 @@
   (fresh-type module-builder name clojure.lang.RestFn interfaces public))
 
 (defn proxy-type [module-builder super interfaces]
-  (fresh-type module-builder (str (gensym "proxy")) super interfaces public))
+  (fresh-type module-builder (str (u/gensym "proxy")) super interfaces public))
 
 (defn reify-type [module-builder interfaces]
   (fresh-type
-   module-builder (str (gensym "reify")) Object interfaces public-sealed))
+   module-builder (str (u/gensym "reify")) Object interfaces public-sealed))
