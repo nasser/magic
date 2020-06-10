@@ -282,7 +282,7 @@
   [[_ name & sigs :as form] env]
   (let [methods (map parse-definterface-signature sigs)]
     {:op :gen-interface
-     :name name
+     :name (str (namespace-munge *ns*) "." name)
      :methods methods
      :form form
      :env env}))
