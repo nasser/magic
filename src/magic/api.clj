@@ -1,15 +1,18 @@
 (ns magic.api
-  (:refer-clojure :exclude [compile load defn eval])
+  (:refer-clojure :exclude [compile load-file defn eval])
   (:require [magic.analyzer :as ana]
             [magic.analyzer.types :refer [tag ast-type]]
             [magic.core :as magic]
+            [magic.util :as u]
             [mage.core :as il]
             magic.intrinsics
             [magic.spells
              [lift-vars :refer [lift-vars]]
              [dynamic-interop :refer [dynamic-interop]]]
-            [magic.emission :refer [*module* fresh-module]])
-  (:import [clojure.lang RT]))
+            [magic.emission :refer [*module* fresh-module]]
+            [clojure.string :as string])
+  (:import [clojure.lang RT]
+           [System.Reflection MethodAttributes TypeAttributes]))
 
 (clojure.core/defn compile-asm
   ([exprs]
