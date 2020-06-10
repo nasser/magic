@@ -1976,14 +1976,14 @@
 (defn compile-inline-cast [{:keys [op local load-address?] :as ast}]
   (let [type (ast-type ast)
         type-ignore-tag (ast-type-ignore-tag ast)]
-    (when-not (and (= type-ignore-tag type)
+    (when-not (or (= type-ignore-tag type)
                    ;; TODO this is a *very* specific predicate and i am worried 
                    ;; we are missing a larger principle here
-                   (= op :local)
-                   (= local :arg)
-                   load-address?
-                   (.IsValueType type)
-                   (not (.IsValueType type-ignore-tag)))
+                  (and (= op :local)
+                       (= local :arg)
+                       load-address?
+                       (.IsValueType type)
+                       (not (.IsValueType type-ignore-tag))))
       (convert type-ignore-tag type))))
 
 (defn compile
