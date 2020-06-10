@@ -821,8 +821,7 @@
         load-address?
         (load-argument-address arg-id)
         :else
-        [(load-argument-standard arg-id)
-         (convert (ast-type-ignore-tag ast) (ast-type ast))]))
+        [(load-argument-standard arg-id)]))
     :fn
     [(load-argument-standard 0)
      (convert (ast-type local) (ast-type ast))]
