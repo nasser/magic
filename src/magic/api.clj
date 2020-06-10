@@ -173,7 +173,7 @@
           (load-file path ctx))
         (il/emit! ctx (il/ret))
         (.CreateType ns-type))
-      (.. magic.emission/*module* Assembly (Save (str module-name ".dll")))
+      (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*)))
       (println "[compile-file] end" path))))
 
 (def load-one' (deref (clojure.lang.RT/var "clojure.core" "load-one")))
