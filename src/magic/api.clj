@@ -170,7 +170,12 @@
                                (if-let [path (find-file roots path)]
                                  (load-file path ctx)
                                  (throw (Exception. (str "Could not find " path ", roots " roots))))))]
-          (load-file path ctx))
+          ;; TODO this is becoming a mess -- normalize paths in one place
+          (if (System.IO.File/Exists path)
+            (load-file path ctx)
+            (if-let [path (find-file roots path)] 
+              (load-file path ctx)
+              (throw (Exception. (str "Could not find " path ", roots " roots))))))
         (il/emit! ctx (il/ret))
         (.CreateType ns-type))
       (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*)))
