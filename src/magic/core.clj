@@ -1035,6 +1035,7 @@
                           (remove (fn [sig] (every? #(= Object %) sig))) ;; remove signatures that are all Object
                           (remove (fn [sig] (some ifn-type? sig)))) ;; remove signatures with function types
           interfaces (->> (map #(interop/generic-type "Magic.Function" %) signatures)
+                          (remove nil?)
                           (into #{}))
           fixed-arities (->> methods
                              (remove :variadic?)

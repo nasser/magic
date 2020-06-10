@@ -43,5 +43,5 @@
   (method type (str "set_" name)))
 
 (defn generic-type [name params]
-  (let [base-type (clojure.lang.RT/classForName (str name "`" (count params)))]
+  (when-let [base-type (clojure.lang.RT/classForName (str name "`" (count params)))]
     (.MakeGenericType base-type (into-array Type params))))
