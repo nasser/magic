@@ -1,4 +1,4 @@
-﻿;   Copyright (c) Rich Hickey. All rights reserved.
+;   Copyright (c) Rich Hickey. All rights reserved.
 ;   The use and distribution terms for this software are covered by the
 ;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;   which can be found in the file epl-v10.html at the root of this distribution.
@@ -33,7 +33,7 @@
           (monitor-exit lockee#)))))           ;;; (.unlock lockee#)
  
 (defmacro ^:private thread
-  [^String name daemon & body]
+  [name daemon & body]
   `(doto (System.Threading.Thread.  ^System.Threading.ThreadStart (gen-delegate System.Threading.ThreadStart [] ~@body))          ;;; (doto (Thread. (fn [] ~@body) ~name)
     (.set_Name ~name) (.set_IsBackground ~daemon)                                                   ;;; (.setDaemon ~daemon)
     (.Start)))                                                                                      ;;; .start
