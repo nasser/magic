@@ -397,7 +397,9 @@
           :arg
           (if-let [init (*typed-pass-locals* name)]
             (if-not (:tag (meta form))
-              (update ast :form vary-meta assoc :tag (-> init :form meta :tag))
+              (-> ast
+                  (update :form vary-meta assoc :tag (-> init :form meta :tag))
+                  (assoc :inferred-type (-> init :form meta :tag))) ;; to avoid any unwanted cache effects
               ast)
             ast)
           (:let :loop)
