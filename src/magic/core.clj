@@ -21,8 +21,9 @@
             PropertyInfo]
            System.AppDomain))
 
-(def compile)
-(def base-compilers)
+(declare compile)
+(declare compile*)
+(declare base-compilers)
 
 (defn load-argument-address [arg-id]
   (cond
@@ -82,7 +83,7 @@
    UInt32 (il/conv-u4)
    UInt64 (il/conv-u8)})
 
-(defn convert [from to]
+(defn convert-type [from to]
   (cond
     (= from :magic.analyzer.types/disregard)
     nil ; (throw (Exception. "cannot convert from disregarded type"))
@@ -103,10 +104,10 @@
     (il/box from)
 
     (.IsEnum from)
-    (convert (Enum/GetUnderlyingType from) to)
+    (convert-type (Enum/GetUnderlyingType from) to)
 
     (.IsEnum to)
-    (convert from (Enum/GetUnderlyingType to))
+    (convert-type from (Enum/GetUnderlyingType to))
 
     ;; cannot convert nil to value type
     (and (nil? from) (.IsValueType to))
@@ -244,6 +245,11 @@
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
 
+(defn convert [ast to]
+  (when-not (:op ast)
+    (throw (Exception. (str "refactor, first arg to convert needs to be an ast map, got " ast))))
+  (convert-type (ast-type ast) to))
+
 (defmulti load-constant type)
 
 (defn load-var [v]
@@ -269,7 +275,7 @@
     (map
       (fn [c]
         [(compile c compilers)
-         (convert (ast-type c) Object)])
+         (convert c Object)])
        items)))
 
 (defmethod load-constant :default [k]
@@ -376,11 +382,11 @@
 (defn persistent-list-il [v]
   (let [method (interop/method clojure.lang.PersistentList "create" System.Collections.IList)]
     [(new-array (map (fn [c] [(load-constant c)
-                              (convert (type c) Object)])
+                              (convert-type (type c) Object)])
                      v))
      (il/castclass System.Collections.IList)
      (il/call method)
-     (convert (.ReturnType method) (types/data-structure-types :seq))]))
+     (convert-type (.ReturnType method) (types/data-structure-types :seq))]))
 
 (defmethod load-constant
   clojure.lang.ISeq [v]
@@ -390,19 +396,19 @@
   clojure.lang.APersistentVector [v]
   (let [method (interop/method clojure.lang.RT "vector" System.Object|[]|)]
     [(new-array (map (fn [c] [(load-constant c)
-                              (convert (type c) Object)])
+                              (convert-type (type c) Object)])
                      v))
      (il/call method)
-     (convert (.ReturnType method) (types/data-structure-types :vector))]))
+     (convert-type (.ReturnType method) (types/data-structure-types :vector))]))
 
 (defmethod load-constant
   clojure.lang.APersistentSet [v]
   (let [method (interop/method clojure.lang.RT "set" System.Object|[]|)]
     [(new-array (map (fn [c] [(load-constant c)
-                              (convert (type c) Object)])
+                              (convert-type (type c) Object)])
                      v))
      (il/call method)
-     (convert (.ReturnType method) (types/data-structure-types :set))]))
+     (convert-type (.ReturnType method) (types/data-structure-types :set))]))
 
 (defmethod load-constant
   clojure.lang.APersistentMap [v]
@@ -410,10 +416,10 @@
     [(->> (interleave (keys v) (vals v))
           (map (fn [k]
                  [(load-constant k)
-                  (convert (type k) Object) ]))
+                  (convert-type (type k) Object) ]))
           new-array)
      (il/call method)
-     (convert (.ReturnType method) (types/data-structure-types :map))]))
+     (convert-type (.ReturnType method) (types/data-structure-types :map))]))
 
 ;; TODO remaining element types
 (defn load-element [type]
@@ -497,21 +503,21 @@
   (let [method (interop/method clojure.lang.RT "vector" |System.Object[]|)]
     [(prepare-array items compilers)
      (il/call method)
-     (convert (.ReturnType method) (ast-type ast))]))
+     (convert-type (.ReturnType method) (ast-type ast))]))
 
 (defn set-compiler
   [{:keys [items] :as ast} compilers]
   (let [method (interop/method clojure.lang.RT "set" |System.Object[]|)]
     [(prepare-array items compilers)
      (il/call method)
-     (convert (.ReturnType method) (ast-type ast))]))
+     (convert-type (.ReturnType method) (ast-type ast))]))
 
 (defn map-compiler
   [{:keys [keys vals] :as ast} compilers]
   (let [method (interop/method clojure.lang.RT "mapUniqueKeys" |System.Object[]|)]
     [(prepare-array (interleave keys vals) compilers)
      (il/call method)
-     (convert (.ReturnType method) (ast-type ast))]))
+     (convert-type (.ReturnType method) (ast-type ast))]))
 
 (defn quote-compiler
   [{:keys [expr]} compilers]
@@ -582,7 +588,7 @@
   [(load-constant type)
    (prepare-array args compilers)
    (il/call (interop/method Magic.Dispatch "InvokeConstructor" Type |System.Object[]|))
-   (convert Object type)])
+   (convert-type Object type)])
 
 (defn static-method-compiler
   "Symbolic bytecode for static methods"
@@ -590,16 +596,15 @@
   (let [arg-types (map ast-type args)]
     [(interleave
        (map #(compile % compilers) args)
-       (map convert
-            arg-types
+       (mapv convert
+            args
             (interop/parameter-types method)))
      (il/call method)]))
 
 (defn instance-method-compiler
   "Symbolic bytecode for instance methods"
   [{:keys [method non-virtual? target args generic-parameters] :as ast} compilers]
-  (let [arg-types (map ast-type args)
-        target-type (ast-type target)
+  (let [target-type (ast-type target)
         target-type-ignore-tag (ast-type-ignore-tag target)
         virtual-method? (.IsVirtual method)
         value-type-target? (.IsValueType target-type)]
@@ -608,10 +613,8 @@
        (compile (assoc target :load-address? true) compilers)
        (compile target compilers))
      (interleave
-      (map #(compile % compilers) args)
-      (map convert
-           arg-types
-           (interop/parameter-types method)))
+      (mapv #(compile % compilers) args)
+      (mapv convert args (interop/parameter-types method)))
      (cond
        (and (not value-type-target?) virtual-method? (not non-virtual?))
        (il/callvirt method)
@@ -648,21 +651,19 @@
     [(interleave
       (map #(compile % compilers) args)
       (map convert
-           arg-types
+           args
            (interop/parameter-types constructor)))
      (il/newobj constructor)]))
 
 (defn with-meta-compiler
   "Symbolic bytecode for expressions wrapped in with-meta"
   [{:keys [expr meta] :as ast} compilers]
-  (let [expr-type (ast-type expr)
-        meta-type (ast-type meta)]
-    [(compile expr compilers)
-     (convert expr-type clojure.lang.IObj)
-     (il/castclass clojure.lang.IObj)
-     (compile meta compilers)
-     (convert meta-type clojure.lang.IPersistentMap)
-     (il/callvirt (interop/method clojure.lang.IObj "withMeta" clojure.lang.IPersistentMap))]))
+  [(compile expr compilers)
+   (convert expr clojure.lang.IObj)
+   (il/castclass clojure.lang.IObj)
+   (compile meta compilers)
+   (convert meta clojure.lang.IPersistentMap)
+   (il/callvirt (interop/method clojure.lang.IObj "withMeta" clojure.lang.IPersistentMap))])
 
 (defn loop-compiler
   [{:keys [bindings body] :as ast} compilers]
@@ -689,19 +690,19 @@
                              [(il/ldloc loc)
                               #_ (convert (ast-type init) (ast-type ast))
                               ])
-                           (compile ast compilers)))}
+                           (compile* ast compilers)))}
                {:recur (fn loop-recur-compiler
                          [{:keys [exprs]
                            :as   ast} cmplrs]
                          [(interleave 
                            (map #(compile % cmplrs) exprs)
-                           (map #(convert (ast-type %1) (non-void-ast-type %2)) exprs bindings))
+                           (map #(convert %1 (non-void-ast-type %2)) exprs bindings))
                           (map il/stloc (reverse binding-vector))
                           (il/br recur-target)])})]
     ;; emit local initializations
     [(map (fn [binding]
             [(compile binding specialized-compilers)
-             (convert (ast-type (-> binding :init)) (non-void-ast-type binding))
+             (convert (:init binding) (non-void-ast-type binding))
              (il/stloc (binding-map (:name binding)))])
           bindings)
      ;; mark recur target
@@ -732,12 +733,12 @@
                        (when (-> form locals :init)
                          ;; non-void-ast-type here because the conversion from 
                          ;; void would have already happened in the bindings
-                         (convert (non-void-ast-type (-> form locals :init)) (non-void-ast-type ast)))])
-                    (compile ast compilers)))})]
+                         (convert-type (non-void-ast-type (-> form locals :init)) (non-void-ast-type ast)))])
+                    (compile* ast compilers)))})]
     ;; emit local initializations
     [(map (fn [binding]
             [(compile binding specialized-compilers)
-             (convert (ast-type (-> binding :init)) (non-void-ast-type binding))
+             (convert (:init binding) (non-void-ast-type binding))
              (il/stloc (binding-map (:name binding)))])
           bindings)
      ;; emit body with specialized compilers
@@ -762,20 +763,20 @@
                       (il/ldloca loc)
                       [(il/ldloc loc)
                        (when (-> form locals :init)
-                         (convert (ast-type (-> form locals :init)) (non-void-ast-type ast)))])
-                    (compile ast compilers)))})
+                         (convert (-> form locals :init) (non-void-ast-type ast)))])
+                    (compile* ast compilers)))})
         binding-il (map #(compile % specialized-compilers) bindings)]
     ;; emit local initializations
     [(map (fn [il binding]
             [(drop-last il)
-             (convert (ast-type (-> binding :init)) (non-void-ast-type binding))
+             (convert (:init binding) (non-void-ast-type binding))
              (il/stloc (binding-map (:name binding)))])
           binding-il bindings)
      (interleave 
       (map (fn [il binding]
              [(il/ldloc (binding-map (:name binding)))
               (when-let [fn-type (-> binding :init :fn-type)]
-                (convert (non-void-ast-type binding) fn-type))
+                (convert-type (non-void-ast-type binding) fn-type))
               (last il)])
            binding-il bindings)
       (repeat (il/pop)))
@@ -789,16 +790,16 @@
     (cond (types/always-then? ast) (compile then compilers)
           (types/always-else? ast) (compile else compilers)
           :else [(compile test compilers)
-                 (convert (ast-type test) Boolean)
+                 (convert test Boolean)
                  (il/brtrue then-label)
                  (compile else compilers)
                  (when-not (types/disregard-type? else)
-                   (convert (ast-type else) if-expr-type))
+                   (convert else if-expr-type))
                  (il/br end-label)
                  then-label
                  (compile then compilers)
                  (when-not (types/disregard-type? then)
-                   (convert (ast-type then) if-expr-type))
+                   (convert then if-expr-type))
                  end-label])))
 
 (defn binding-compiler
@@ -816,7 +817,7 @@
              (.IsValueType type)
              (not (.IsValueType type-ignore-tag)))
         [(load-argument-standard arg-id)
-         (convert type-ignore-tag type)
+         (convert-type type-ignore-tag type)
          (reference-to-type type)]
         load-address?
         (load-argument-address arg-id)
@@ -824,7 +825,7 @@
         [(load-argument-standard arg-id)]))
     :fn
     [(load-argument-standard 0)
-     (convert (ast-type local) (ast-type ast))]
+     (convert-type Object (ast-type ast))]
     :proxy-this
     (load-argument-standard 0)
     (throw! "Local " name " not bound, could not compile! " local)))
@@ -848,7 +849,7 @@
     [(il/castclass IFn)
      (interleave
       (map #(compile % compilers) positional-args)
-      (map #(convert (ast-type %) Object) positional-args))
+      (map #(convert % Object) positional-args))
      (when-not (empty? rest-args)
        [(load-constant (count rest-args))
         (il/newarr Object)
@@ -857,11 +858,11 @@
            [(il/dup)
             (load-constant (int i))
             (compile arg compilers)
-            (convert (ast-type arg) Object)
+            (convert arg Object)
             (il/stelem-ref)])
          rest-args)])
      (il/callvirt invoke-method)
-     (convert Object (ast-type ast))]))
+     (convert-type Object (ast-type ast))]))
 
 (defn invoke-compiler
   [{:keys [fn args] :as ast} compilers]
@@ -917,7 +918,7 @@
            (when value-used?
              [(il/stloc v)
               (il/ldloc v)])
-           (convert (ast-type val) (.FieldType field))
+           (convert val (.FieldType field))
            (when (field-volatile? field)
              (il/volatile))
            (il/stfld field)
@@ -930,7 +931,7 @@
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
-         (convert (ast-type val) (.PropertyType property))
+         (convert val (.PropertyType property))
          (il/callvirt (.GetSetMethod property))
          (if value-used?
            (il/ldloc v))])
@@ -940,7 +941,7 @@
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
-         (convert (ast-type val) (.FieldType field))
+         (convert val (.FieldType field))
          (il/stsfld field)
          (if value-used?
            (il/ldloc v))])
@@ -950,7 +951,7 @@
          (if value-used?
            [(il/stloc v)
             (il/ldloc v)])
-         (convert (ast-type val) (.PropertyType property))
+         (convert val (.PropertyType property))
          (il/call (.GetSetMethod property))
          (if value-used?
            (il/ldloc v))])
@@ -958,16 +959,16 @@
       [(compile-reference-to target' compilers)
        (load-constant (str (-> target :m-or-f)))
        (compile val compilers)
-       (convert (ast-type val) Object)
+       (convert val Object)
        (il/call (magic.interop/method Magic.Dispatch "SetMember" Object String Object))
-       (convert Object (ast-type val))
+       (convert-type Object (ast-type val))
        (when-not value-used?
          (il/pop))]
       (= target-op :var)
       (if (:assignable? target)
         [(load-var (:var target))
          (compile val compilers)
-         (convert (ast-type val) Object)
+         (convert val Object)
          (il/call (interop/method clojure.lang.Var "set" Object))]
         (throw! "Cannot assign to non-assignable var " (:var target))))))
 
@@ -1110,7 +1111,7 @@
                            :as   ast} cmplrs]
                          [(interleave 
                            (map #(compile % cmplrs) exprs)
-                           (map #(convert (ast-type %1) %2) exprs param-types))
+                           (map #(convert %1 %2) exprs param-types))
                           (map store-argument (->> params count inc (range 1) reverse))
                           (il/br recur-target)])
                 :local (fn fn-method-local-compiler
@@ -1118,7 +1119,7 @@
                          (if (and (= local :arg) 
                                   (param-names name))
                            (local-compiler (update ast :arg-id inc) local-compilers)
-                           (compile ast compilers)))})
+                           (compile* ast compilers)))})
         compiled-body
         (compile body specialized-compilers)
         unhinted-method
@@ -1128,7 +1129,7 @@
          Object param-il-unhinted
          [recur-target
           compiled-body
-          (convert return-type Object)
+          (convert-type return-type Object)
           (il/ret)])
         hinted-method
         (il/method
@@ -1137,7 +1138,7 @@
          non-void-return-type param-il
          [recur-target
           compiled-body
-          (convert body-type non-void-return-type)
+          (convert-type body-type non-void-return-type)
           (il/ret)])
         unhinted-shim
         (il/method
@@ -1147,9 +1148,9 @@
          [(il/ldarg-0)
           (interleave
            (map (comp load-argument-standard inc) (range))
-           (map #(convert Object %) param-types))
+           (map #(convert-type Object %) param-types))
           (il/callvirt hinted-method)
-          (convert non-void-return-type Object)
+          (convert-type non-void-return-type Object)
           (il/ret)])]
     [(if (and (= param-types obj-params)
               (= return-type Object))
@@ -1174,7 +1175,7 @@
                            [{:keys [name] :as ast} _compilers]
                            (if-let [arg-id (closed-overs-map name)]
                              (load-argument-standard (if outside-type? arg-id (inc arg-id)))
-                             (compile ast compilers)))})          
+                             (compile* ast compilers)))})          
           bodyfn
           (fn [compilers]
             (let [try-local (il/local expr-type)]
@@ -1183,11 +1184,11 @@
                    [(compile body compilers)
                     (map #(compile % compilers) catches)]
                    [(compile body compilers)
-                    (convert (ast-type body) expr-type)
+                    (convert body expr-type)
                     (il/stloc try-local)
                     (interleave
                      (map #(compile % compilers) catches)
-                     (map #(when-not (types/disregard-type? %) (convert (ast-type %) expr-type)) catches)
+                     (map #(when-not (types/disregard-type? %) (convert % expr-type)) catches)
                      (repeat (il/stloc try-local)))])
                  [(when finally
                     (il/finally
@@ -1219,7 +1220,7 @@
   (when-not exception
     (throw (Exception. "throw must take an argument outside of a catch")))
   [(compile exception compilers)
-   (convert (ast-type exception) Exception)
+   (convert exception Exception)
    (il/throw)])
 
 (defn catch-compiler
@@ -1235,7 +1236,7 @@
                     (if load-address?
                       (il/ldloca catch-local)
                       (il/ldloc catch-local))
-                    (compile ast compilers)))})
+                    (compile* ast compilers)))})
         specialized-compilers
         (merge compilers+local
                {:throw
@@ -1252,13 +1253,13 @@
 (defn monitor-enter-compiler
   [{:keys [target]} compilers]
   [(compile target compilers)
-   (convert (ast-type target) Object)
+   (convert target Object)
    (il/call (interop/method System.Threading.Monitor "Enter" Object))])
 
 (defn monitor-exit-compiler
   [{:keys [target]} compilers]
   [(compile target compilers)
-   (convert (ast-type target) Object)
+   (convert target Object)
    (il/call (interop/method System.Threading.Monitor "Exit" Object))])
 
 (defn intrinsic-compiler
@@ -1292,20 +1293,20 @@
           [(cond
              (types/integer-type? local-type)
              [(compile local compilers)
-              (convert local-type Int32)]
+              (convert local Int32)]
              (= Char local-type)
              (il/br default-label2)
              :else
              [(compile local compilers)
-              (convert local-type Object)
+              (convert local Object)
               (il/call (interop/method clojure.lang.Util "IsNonCharNumeric" Object))
               (il/brfalse default-label2)
               (compile local compilers)
-              (convert local-type Object)
+              (convert local Object)
               (il/call (interop/method clojure.lang.Util "ConvertToInt" Object))])]
           (:hash-equiv :hash-identity)
           [(compile local compilers)
-           (convert local-type Object)
+           (convert local Object)
            (il/call (interop/method clojure.lang.Util "hash" Object))])
         switch-body-il
         (case mode
@@ -1318,13 +1319,13 @@
                                        (interop/method clojure.lang.Util "equiv" Object Object))
                       parameter-types (->> equiv-method .GetParameters (map #(.ParameterType %)))]
                   [(compile local compilers)
-                   (convert local-type (first parameter-types))
+                   (convert local (first parameter-types))
                    (load-constant test)
-                   (convert (type test) (last parameter-types))
+                   (convert-type (type test) (last parameter-types))
                    (il/call equiv-method)
                    (il/brfalse next-label)]))
               (compile expression compilers)
-              (convert (ast-type expression) expr-type)
+              (convert expression expr-type)
               (il/br return-label)])
            labels
            tests
@@ -1340,7 +1341,7 @@
                  (il/ceq)
                  (il/brfalse next-label)])
               (compile expression compilers)
-              (convert (ast-type expression) expr-type)
+              (convert expression expr-type)
               (il/br return-label)])
            labels
            tests
@@ -1356,13 +1357,13 @@
                [label
                 (when-not (skip-check switch-value)
                   [(compile local compilers)
-                   (convert local-type (first parameter-types))
+                   (convert local (first parameter-types))
                    (load-constant test)
-                   (convert (type test) (last parameter-types))
+                   (convert-type (type test) (last parameter-types))
                    (il/call equiv-method)
                    (il/brfalse next-label)])
                 (compile expression compilers)
-                (convert (ast-type expression) expr-type)
+                (convert expression expr-type)
                 (il/br return-label)]))
            labels
            tests
@@ -1386,7 +1387,7 @@
      default-label ;; this looks like a MAGE bug
      default-label2
      (compile default compilers)
-     (convert (ast-type default) expr-type)
+     (convert default expr-type)
      return-label]))
 
 (defn default-override-method [method attributes]
@@ -1440,11 +1441,10 @@
               (if-let [fld (closed-over-field-map name)]
                 [(il/ldarg-0)
                  (il/ldfld fld)]
-                (compile ast compilers)))})
+                (compile* ast compilers)))})
           provided-methods
           (into {} (map (fn [f] [(:source-method f) (compile f specialized-compilers)]) fns))
           methods (merge iface-methods abstract-methods provided-methods)
-          arg-types (map ast-type args)
           ctor-params (concat
                        (map ast-type args)
                        (map ast-type (vals closed-overs)))
@@ -1455,7 +1455,7 @@
                 [(il/ldarg-0)
                  (interleave
                   (map #(load-argument-standard (inc %2)) args (range))
-                  (map convert arg-types (interop/parameter-types super-ctor)))
+                  (map convert args (interop/parameter-types super-ctor)))
                  (il/call super-ctor)
                  (->> closed-over-field-map
                       vals
@@ -1511,7 +1511,7 @@
                          [{:keys [exprs]} cmplrs]
                          [(interleave
                            (map #(compile % cmplrs) exprs)
-                           (map #(convert (ast-type %1) %2) exprs param-types))
+                           (map #(convert %1 %2) exprs param-types))
                           (map store-argument (->> param-types count inc (range 1) reverse))
                           (il/br recur-target)])
                 :local (fn method-local-compiler
@@ -1522,8 +1522,8 @@
                              (if load-address?
                                (load-argument-address arg-offset)
                                [(load-argument-standard arg-offset)
-                                (convert (param-type-bindings arg-id) (ast-type ast))]))
-                           (compile ast compilers)))})]
+                                (convert-type (param-type-bindings arg-id) (ast-type ast))]))
+                           (compile* ast compilers)))})]
     (il/method
      name
      attributes
@@ -1531,7 +1531,7 @@
      (when explicit-override? source-method)
      [recur-target
       (compile body specialized-compilers)
-      (convert body-type return-type)
+      (convert body return-type)
       (il/ret)])))
 
 (defn iobj-implementation [meta-il meta-field meta-ctor closed-over-field-map]
@@ -1783,13 +1783,10 @@
           (fn deftype-new-compiler
             [{:keys [type args] :as ast} local-compilers]
             (if (= type deftype-type)
-              (let [arg-types (map ast-type args)
-                    arg-count (count args)]
+              (let [arg-count (count args)]
                 [(interleave
                   (map #(compile % local-compilers) args)
-                  (map convert
-                       arg-types
-                       ctor-params))
+                  (map convert args ctor-params))
                  (il/newobj (ctors arg-count))])
               (compile ast (assoc local-compilers 
                                   :new (:new compilers)))))
@@ -1813,7 +1810,7 @@
                         :target :deftype-this
                         :field (field-map (str name))}
                        inner-compilers)
-              (compile ast compilers)))
+              (compile* ast compilers)))
           :set!
           (fn deftype-set!-compiler 
             [{:keys [target val] :as ast} cmplrs]
@@ -1874,12 +1871,12 @@
      (when-not (nil? init)  
        [(il/dup)
         (compile init compilers)
-        (convert (ast-type init) Object)
+        (convert init Object)
         (il/call (interop/method clojure.lang.Var "bindRoot" Object))])
      (when-not (nil? meta)
        [(il/dup)
         (compile meta compilers)
-        (convert (ast-type meta) clojure.lang.IPersistentMap)
+        (convert meta clojure.lang.IPersistentMap)
         (il/call (interop/method clojure.lang.Var "setMeta" clojure.lang.IPersistentMap))])
      (when (-> meta :form :dynamic)
        (il/call (interop/method clojure.lang.Var "setDynamic")))]))
@@ -1984,17 +1981,23 @@
                        load-address?
                        (.IsValueType type)
                        (not (.IsValueType type-ignore-tag))))
-      (convert type-ignore-tag type))))
+      (convert-type type-ignore-tag type))))
+
+(defn compile*
+  ([ast]
+   (compile* ast (get-compilers)))
+  ([ast compilers]
+   (when-let [compiler (ast->compiler ast compilers)]
+     (binding [*op-stack* (conj *op-stack* (:op ast))]
+       (try
+         (compiler ast compilers)
+         (catch Exception e
+           (throw (Exception. (str "Failed to compile " (:form ast) " " *op-stack*) e))))))))
 
 (defn compile
   "Generate symbolic bytecode for AST node"
   ([ast]
    (compile ast (get-compilers)))
   ([ast compilers]
-   (if-let [compiler (ast->compiler ast compilers)]
-     (binding [*op-stack* (conj *op-stack* (:op ast))]
-       (try 
-         [(compiler ast compilers)
-          (compile-inline-cast ast)]
-         (catch Exception e
-           (throw (Exception. (str "Failed to compile " (:form ast) " " *op-stack*) e))))))))
+   [(compile* ast compilers)
+    (compile-inline-cast ast)]))
