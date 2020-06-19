@@ -1,6 +1,7 @@
 (ns magic.analyzer.typed-passes
   (:require
    [clojure.string :as string]
+   [clojure.set :as set]
    [clojure.tools.analyzer.ast :refer [update-children]]
    [magic.analyzer
     [binder :refer [select-method]]
@@ -252,6 +253,9 @@
 
 (def ^:dynamic *typed-pass-locals* {})
 
+(def ^:dynamic *recur-expr-types* (atom []))
+
+;; this whole thing should be rethought
 (defn typed-passes [ast]
   (letfn [(update-closed-overs
             [closed-overs]
@@ -331,14 +335,52 @@
       :deftype
       (let [ast* (analyze-deftype ast)]
         (update-children ast* typed-passes))
-      (:let :loop)
+      :let
       (let [{:keys [bindings body]} ast
             {locals* :locals bindings* :bindings} (update-bindings bindings)]
         (binding [*typed-pass-locals* locals*]
-          (loop-bindings/infer-binding-types
+          (typed-pass*
            (assoc ast
                   :bindings bindings*
                   :body (typed-passes body)))))
+      :loop
+      (binding [*recur-expr-types* (atom [])]
+        (let [{:keys [bindings body]} ast
+              {locals* :locals bindings* :bindings} (update-bindings bindings)
+              binding-type-hints (mapv #(-> % :form meta :tag types/resolve) bindings)
+              binding-types (mapv ast-type bindings*)
+              external-incomplete-types (loop-bindings/collect-incomplete-types)
+              ast* (binding [*typed-pass-locals* locals*]
+                     (typed-pass*
+                      (assoc ast
+                             :bindings bindings*
+                             :body (typed-passes body))))
+              candidate-types  (->> binding-types
+                                    (conj  @*recur-expr-types*)
+                                    (apply map hash-set)
+                                    (map #(reduce loop-bindings/best-type %))
+                                    vec)
+              best-types (mapv (fn [c h] (or h c)) candidate-types binding-type-hints)]
+          (if (= binding-types best-types)
+            ast*
+            (let [bindings** (mapv (fn [binding type]
+                                     (-> binding
+                                         (update :form vary-meta assoc :tag type)
+                                         (assoc :inferred-type type))) ;; to avoid any unwanted cache effects
+                                   bindings* best-types)
+                  body-sexp (:form body)
+                  body-env (:env body)
+                  analyzefn (find-var 'magic.analyzer/analyze)
+                  {locals* :locals} (update-bindings bindings**)]
+              (binding [*typed-pass-locals* locals*
+                        gt/*reusable-types* (atom (set/difference (loop-bindings/collect-incomplete-types) external-incomplete-types))]
+                (assoc ast
+                       :bindings bindings**
+                       :body (analyzefn body-sexp body-env)))))))
+      :recur
+      (let [ast* (update-children ast typed-passes)]
+        (swap! *recur-expr-types* conj (mapv ast-type (:exprs ast*)))
+        ast*)
       :local
       (let [{:keys [name form local]} ast]
         (case local
