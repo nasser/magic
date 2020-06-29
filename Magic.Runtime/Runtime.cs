@@ -6,6 +6,47 @@ namespace Magic
 {
     public static class Runtime
     {
+        public static void InvokeInitType(Assembly assy, Type initType)
+        {
+            try
+            {
+                initType.InvokeMember("Initialize", BindingFlags.InvokeMethod | BindingFlags.Static | BindingFlags.Public, Type.DefaultBinder, null, new object[0]);
+            }
+            catch (Exception e)
+            {
+                throw new TypeLoadException(String.Format("Error initializing {0}: {1}", assy.FullName, e.Message), e);
+            }
+        }
+
+        public static string ClojureCLRInitClassName(string sourcePath)
+        {
+            return "__Init__$" + sourcePath.Replace(".", "/").Replace("/", "$");
+        }
+
+        public static bool TryLoadInitType(string relativePath)
+        {
+            var initClassName = ClojureCLRInitClassName(relativePath);
+            Type initType = null;
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.IsDynamic)
+                    continue;
+                initType = asm.GetType(initClassName);
+                if (initType != null)
+                    break;
+            }
+            if (initType == null)
+                return false;
+
+            InvokeInitType(initType.Assembly, initType);
+            return true;
+        }
+
+        // exists to conform with IL2CPP assumptions about a clean stack after a throw
+        public static void ThrowHelper(Exception e)
+        {
+            throw e;
+        }
 
 #if CSHARP8
         public static Type? FindType(string p)
