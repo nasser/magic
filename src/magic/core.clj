@@ -1216,12 +1216,14 @@
          (il/call method-il)]))))
 
 (defn throw-compiler
-  [{:keys [exception]} compilers]
+  [{:keys [exception] {:keys [context]} :env} compilers]
   (when-not exception
     (throw (Exception. "throw must take an argument outside of a catch")))
   [(compile exception compilers)
    (convert exception Exception)
-   (il/throw)])
+   (il/throw)
+   (when (= context :ctx/expr)
+     (il/ldnull))])
 
 (defn catch-compiler
   [{:keys [class local body]} compilers]
