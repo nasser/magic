@@ -87,18 +87,70 @@
     (assoc ast :constant? (every? :constant? items))
     #_else ast))
 
+(defn throwing-do [exprs]
+  (let [[exprs* throwing-exprs] (split-with (comp not :throws?) exprs)]
+    (when-let [ret* (first throwing-exprs)]
+      {:op :do
+       :statements (vec exprs*)
+       :ret ret*
+       :throws? true
+       :children [:statements :ret]})))
+
+(defn treat-throw-as-return
+  {:pass-info {:walk :post :before #{#'compute-empty-stack-context #'uniquify-locals}}}
+  [{:keys [op] :as ast}]
+  (case op
+    :throw
+    (assoc ast :throws? true)
+    :if
+    (let [{:keys [test else then]} ast]
+      (if (:throws? test)
+        test
+        (assoc ast :throws?
+               (and (:throws? else)
+                    (:throws? then)))))
+    :do
+    (let [{:keys [statements ret]} ast
+          [statements* throwing-statements] (split-with (comp not :throws?) statements)]
+      (if-let [ret* (first throwing-statements)]
+        (assoc ast
+               :ret ret*
+               :statements (vec statements*)
+               :throws? true)
+        (assoc ast :throws? (:throws? ret))))
+    (:let :loop)
+    (let [{:keys [bindings body]} ast
+          [bindings* throwing-bindings] (split-with (comp not :throws? :init) bindings)]
+      (if-let [body* (first throwing-bindings)]
+        (assoc ast
+               :body (:init body*)
+               :bindings (vec bindings*)
+               :throws? true)
+        (assoc ast :throws? (:throws? body))))
+    (:def
+     :fn :fn-method
+     :proxy :proxy-method
+     :reify :reify-method
+     :deftype :deftype-method
+     :try :catch)
+    ast
+    #_else
+    (merge ast
+           (throwing-do (children ast)))))
+
 (def untyped-pass-set
-#{#'collect-vars
-  #'track-constant-literals
-  #'propagate-defn-name
-  #'compute-outside-type
-  #'extract-form-meta
-  #'remove-local-children
-  #'collect-closed-overs
-  #'trim
-  #'uniquify-locals
-  #'compute-empty-stack-context
-  #'remove-empty-throw-children})
+  #{#'collect-vars
+    #'track-constant-literals
+    #'propagate-defn-name
+    #'compute-outside-type
+    #'extract-form-meta
+    #'remove-local-children
+    #'collect-closed-overs
+    #'trim
+    #'uniquify-locals
+    #'compute-empty-stack-context
+    #'remove-empty-throw-children
+    #'treat-throw-as-return})
 
 (def scheduled-passes
   (schedule untyped-pass-set))
