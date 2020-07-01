@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using Mono.Cecil;
@@ -54,7 +54,7 @@ namespace Magic.IL2CPP
                    || i.OpCode == OpCodes.Brtrue)
                     branchTargets.Add((Instruction)i.Operand);
 
-                if (i.OpCode == OpCodes.Br && lastInstruction.OpCode == OpCodes.Br)
+                if (i.OpCode == OpCodes.Br && (lastInstruction.OpCode == OpCodes.Br || lastInstruction.OpCode == OpCodes.Throw))
                     potentiallyUnreachableBranches.Add(i);
                 lastInstruction = i;
             }
