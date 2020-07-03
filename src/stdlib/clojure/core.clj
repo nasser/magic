@@ -220,6 +220,47 @@
 (def ^{:private true :dynamic true}
   assert-valid-fdecl (fn [fdecl]))
 
+(def ^{:private true}
+  shorthand-type-names
+  {"float"    Single
+   "double"   Double
+   "short"    Int16
+   "ushort"   UInt16
+   "int"      Int32
+   "uint"     UInt32
+   "long"     Int64
+   "ulong"    UInt64
+   "bool"     Boolean
+   "object"   Object
+   "intptr"   IntPtr
+   "uintptr"  UIntPtr
+   "char"     Char
+   "byte"     Byte
+   "sbyte"    SByte
+   "decimal"  Decimal
+   "string"   String
+   "floats"   System.Single|[]|
+   "doubles"  System.Double|[]|
+   "shorts"   System.Int16|[]|
+   "ushorts"  System.UInt16|[]|
+   "ints"     System.Int32|[]|
+   "uints"    System.UInt32|[]|
+   "longs"    System.Int64|[]|
+   "ulongs"   System.UInt64|[]|
+   "bools"    System.Boolean|[]|
+   "objects"  System.Object|[]|
+   "intptrs"  System.IntPtr|[]|
+   "uintptrs" System.UIntPtr|[]|
+   "chars"    System.Char|[]|
+   "bytes"    System.Byte|[]|
+   "sbytes"   System.SByte|[]|
+   "decimals" System.Decimal|[]|
+   "strings"  System.String|[]|})
+
+;; ported from clojure.lang.CljCompiler.Ast.HostExpr --nasser
+(defn- maybe-special-tag [tag]
+  (shorthand-type-names (.Name tag)))
+
 (def
  ^{:private true}
  sigs
@@ -240,11 +281,12 @@
                arglist)))
          resolve-tag (fn [argvec]
                         (let [m (meta argvec)
-                              ^clojure.lang.Symbol tag (:tag m)]
+                              ^clojure.lang.Symbol tag (:tag m)
+                              tag-name (str tag)]
                           (if (instance? clojure.lang.Symbol tag)
                             (if (clojure.lang.Util/equiv (.IndexOf (.Name tag) ".") -1)                                              ;;; .indexOf  .getName
-                              (if (clojure.lang.Util/equals nil (clojure.lang.CljCompiler.Ast.HostExpr/maybeSpecialTag tag))         ;;; clojure.lang.Compiler$HostExpr
-                                (let [c (clojure.lang.CljCompiler.Ast.HostExpr/MaybeType tag false)]                                 ;;; clojure.lang.Compiler$HostExpr  maybeClass
+                              (if (clojure.lang.Util/equals nil (maybe-special-tag tag))         ;;; clojure.lang.Compiler$HostExpr
+                                (let [c (clojure.lang.RT/classForName tag-name)]                                 ;;; clojure.lang.Compiler$HostExpr  maybeClass
                                   (if c
                                     (with-meta argvec (assoc m :tag (clojure.lang.Symbol/intern (.Name c))))                         ;;; .getName
                                     argvec))
