@@ -73,21 +73,6 @@
     `(def ~name
        ~(compile-fn form))))
 
-#_
-(defmacro faster
-  "Compile body of expression using MAGIC and emit a well-typed call site
-   instead. Useable from namespaces compiled by ClojureCLR, supports closures."
-  [& body]
-  (let [ks (keys &env)
-        vs (vals &env)
-        types (map #(or (tag %1)
-                        (and (.HasClrType %2) (.ClrType %2))
-                        Object)
-                   ks vs)
-        ftype (symbol (faster-type ks types (list* 'do body)))]
-    (.importClass *ns* (RT/classForName (str ftype)))
-    `(. ~ftype ~'invoke ~@ks)))
-
 (clojure.core/defn bind-spells! [spells]
   (alter-var-root #'magic/*spells* (constantly spells)))
 
@@ -117,19 +102,58 @@
       s
       (subs s 0 l))))
 
+(declare compile-file)
+
+;; copied from core.clj
+(defn- root-resource
+  "Returns the root directory path for a lib"
+  {:tag String}
+  [lib]
+  (str \/
+       (.. (name lib)
+           (Replace \- \_)       ;;; replace
+           (Replace \. \/))))    ;;; replace
+
+;; copied from core.clj
+(defn- root-directory
+  "Returns the root resource path for a lib"
+  [lib]
+  (let [d (root-resource lib)]
+    (subs d 0 (.LastIndexOf d "/"))))    ;;; lastIndexOf
+
+;; copied from core.clj
+;; copied from core.clj
+(defonce ^:dynamic
+  ^{:private true
+    :doc "A stacj of paths currently being loaded by this thread"}
+  *pending-paths* ())
+
+(defn- check-cyclic-dependency
+  "Detects and rejects non-trivial cyclic load dependencies. The
+  exception message shows the dependency chain with the cycle
+  highlighted. Ignores the trivial case of a file attempting to load
+  itself because that can occur when a gen-class'd class loads its
+  implementation."
+  [path]
+  (when (some #{path} (rest *pending-paths*))
+    (let [pending (map #(if (= % path) (str "[ " % " ]") %)
+                       (cons path *pending-paths*))
+          chain (apply str (interpose "->" pending))]
+      (throw (Exception. (format "Cyclic load dependency: %s" chain))))))
+
+
 (clojure.core/defn load-file
-  [path ctx]
+  [roots path ctx]
   (let [file (System.IO.File/OpenText path)]
     (try
       (let [empty-args (into-array [])
             rdr (PushbackTextReader. file)
             read-1 (fn [] (try (read rdr) (catch Exception _ nil)))]
         (loop [expr (read-1) i 0]
-          (set! *warn-on-reflection* false)
           (if expr
             (do
               (println (-> expr (trim 30)) (str *ns*) (ns-aliases *ns*))
-              (let [expr-name (u/gensym "expr")
+              (let [expr-name (u/gensym "<magic>expr")
                     expr-type (.DefineType magic.emission/*module* expr-name abstract-sealed)
                     expr-method (.DefineMethod expr-type "eval" public-static)
                     expr-ilg (.GetILGenerator expr-method)
@@ -145,23 +169,58 @@
                             (il/ret)]])
                 (il/emit! ctx (il/call expr-method))
                 (.CreateType expr-type)
-                (.Invoke (.GetMethod expr-type "eval") nil empty-args)
+                (with-redefs [load (fn magic-load-fn [& paths]
+                                     ;; copied from core.clj
+                                     (doseq [^String path paths]
+                                       (let [^String path (if (.StartsWith path "/")
+                                                            path
+                                                            (str (root-directory (ns-name *ns*)) \/ path))]
+                                         (check-cyclic-dependency path)
+                                         (when-not (= path (first *pending-paths*))
+                                           (binding [*pending-paths* (conj *pending-paths* path)]
+                                             (let [path (.Substring path 1)]
+                                               ;; cant with-redefs because clojure.core/load bottoms out in
+                                               ;; clojure.lang.RT/load
+                                               (if-let [path' (find-file roots path)]
+                                                 (compile-file roots path' path)
+                                                 (throw (Exception. (str "Could not find " path ", roots " roots))))))))))]
+                  (.Invoke (.GetMethod expr-type "eval") nil empty-args))
                 (recur (read-1) (inc i))))
             (.Close rdr))))
       (finally
         (.Close file)))))
+
+(clojure.core/defn load-assembly
+  [path]
+  (println "[load-assembly] start" path)
+  (let [init-type
+        (->> path
+             assembly-load
+             .GetTypes
+             (filter #(.StartsWith (.Name %) "__Init__"))
+             first)]
+    (.Invoke (.GetMethod init-type "Initialize") nil nil))
+  (println "[load-assembly] end" path))
 
 (clojure.core/defn clojure-clr-init-class-name
   "Port of clojure.lang.Compiler/InitClassName"
   [path]
   (str "__Init__$" (-> path (string/replace "." "/") (string/replace "/" "$"))))
 
+(def ^:dynamic *recompile-namespaces* false)
+
 (clojure.core/defn compile-file
   [roots path module]
   (println "[compile-file] start" path)
-  (let [module-name (str module ".clj")]
-    (if (System.IO.File/Exists (str module-name ".dll"))
-      (println "[compile-file] end" path "(skipped, module already exists)")
+  (let [module-name (-> module 
+                        str
+                        (string/replace "/" ".")
+                        (str ".clj"))]
+    (if (and (not *recompile-namespaces*)
+             (System.IO.File/Exists (str module-name ".dll")))
+      (do 
+        (clojure.lang.RT/load (str module))
+        (println "[compile-file] end" path "(skipped, module already exists, loaded instead)" ))
       (binding [*unchecked-math* true
                 *print-meta* false
                 *ns* *ns*
@@ -174,38 +233,33 @@
                    ::il/type-builder ns-type
                    ::il/method-builder init-method
                    ::il/ilg init-ilg}]
-          (with-redefs [load (fn magic-load-fn [& paths]
-                               (println "  [load]" (vec paths))
-                               (doseq [path paths]
-                                 (if-let [path (find-file roots path)]
-                                   (load-file path ctx)
-                                   (throw (Exception. (str "Could not find " path ", roots " roots))))))]
           ;; TODO this is becoming a mess -- normalize paths in one place
-            (if (System.IO.File/Exists path)
-              (load-file path ctx)
-              (if-let [path (find-file roots path)] 
-            (if-let [path (find-file roots path)] 
-              (if-let [path (find-file roots path)] 
-                (load-file path ctx)
-                (throw (Exception. (str "Could not find " path ", roots " roots))))))
+          (if (System.IO.File/Exists path)
+            (load-file roots path ctx)
+            (if-let [path (find-file roots path)]
+              (load-file roots path ctx)
+              (throw (Exception. (str "Could not find " path ", roots " roots)))))
           (il/emit! ctx (il/ret))
           (.CreateType ns-type))
         (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*)))
-        (println "[compile-file] end" path)))))
+        (println "[compile-file] end" path "->" (.Name magic.emission/*module*))))))
 
 (def load-one' (deref (clojure.lang.RT/var "clojure.core" "load-one")))
+(def -loaded-libs (deref (clojure.lang.RT/var "clojure.core" "*loaded-libs*")))
 
 (clojure.core/defn compile-namespace
   [roots namespace]
   (println "[compile-namespace]" namespace)
   (when-let [path (find-file roots namespace)]
     (with-redefs [clojure.core/load-one (fn magic-load-one-fn [lib need-ns require]
-                                          (println "  [load-one]" lib need-ns require clojure.core/*loaded-libs*)
+                                          (println "  [load-one]" lib need-ns require (type -loaded-libs) (deref -loaded-libs))
                                           (binding [*ns* *ns*]
                                             (compile-namespace roots lib)
                                             (dosync
-                                             (commute clojure.core/*loaded-libs* conj lib))))]
+                                             (commute -loaded-libs conj lib))))]
       (compile-file roots path (munge (str namespace))))))
+
+(def version "0.0-alpha")
 
 ;; yolo
 (bind-spells! [dynamic-interop])
