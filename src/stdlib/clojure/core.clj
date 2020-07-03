@@ -7758,17 +7758,19 @@ clojure.lang.IKVReduce
   default), an exception will be thrown for the unknown tag."
   nil)
 
+#_ ;; no file system on ios
 (defn- data-reader-urls []                                         ;;; Actually, we will return a sequence of FileInfo instances
   (let []                                                          ;;; cl (.. Thread currentThread getContextClassLoader)
     (concat
       (enumeration-seq (.GetEnumerator ^System.Collections.IEnumerable (clojure.lang.RT/FindFiles "data_readers.clj")))         ;;; (.getResources cl "data_readers.clj")
       (enumeration-seq (.GetEnumerator ^System.Collections.IEnumerable (clojure.lang.RT/FindFiles "data_readers.clj"))))))      ;;; (.getResources cl "data_readers.cljc")
 
-
+#_ ;; no file system on ios
 (defn- data-reader-var [sym]
   (intern (create-ns (symbol (namespace sym)))
           (symbol (name sym))))
 
+#_ ;; no file system on ios
 (defn- load-data-reader-file [mappings  ^System.IO.FileInfo url]                                        ;;; ^java.net.URL
   (with-open [rdr (clojure.lang.LineNumberingTextReader.                                                ;;; LineNumberingPushbackReader
                     (.OpenText url)  )]                                                                 ;;; (java.io.InputStreamReader.
@@ -7798,12 +7800,14 @@ clojure.lang.IKVReduce
          mappings
          new-mappings)))))
 
+#_ ;; no file system on ios
 (defn- load-data-readers []
   (alter-var-root #'*data-readers*
                   (fn [mappings]
                     (reduce load-data-reader-file
                             mappings (data-reader-urls)))))
 
+#_ ;; no file system on ios
 (try
  (load-data-readers)
  (catch Exception t                                                                 ;;; Throwable
