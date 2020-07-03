@@ -148,7 +148,7 @@
   (cond
     (= Single/PositiveInfinity o) (.Write w "##Inf")                             ;;; Float/POSITIVE_INFINITY
     (= Single/NegativeInfinity o) (.Write w "##-Inf")                            ;;; Float/NEGATIVE_INFINITY
-    (Single/IsNaN ^Float o) (.Write w "##NaN")                                   ;;; (.IsNaN ^Float o)
+    (Single/IsNaN ^Single o) (.Write w "##NaN")                                   ;;; (.IsNaN ^Float o)
     :else (.Write w (fp-str o))))       
 
 ;;;We need to cover all the numerics, or we are hosed on print-dup.
