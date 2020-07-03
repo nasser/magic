@@ -458,7 +458,7 @@
 
 (defmethod print-method System.Text.RegularExpressions.Regex [p ^System.IO.TextWriter w]         ;;; java.util.regex.Pattern =>
   (.Write w "#\"")
-  (loop [[^Char c & r :as s] (seq (.ToString ^System.Text.RegularExpressions.Regex p))   ;;; .pattern => .ToString
+  (loop [[c & r :as s] (seq (.ToString ^System.Text.RegularExpressions.Regex p))   ;;; .pattern => .ToString
          qmode false]
     (when s
       (cond
