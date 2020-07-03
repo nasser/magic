@@ -16,8 +16,6 @@
  
  (defmacro gen-delegate
    [type argVec & body]
-    [type argVec & body] 
-   [type argVec & body]
    (with-meta `(clojure.lang.GenDelegate/Create ~type (fn ~argVec ~@body))
      (assoc (meta &form)
             :tag type)))
