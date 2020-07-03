@@ -170,7 +170,7 @@
 
 (defn- generate-generic-delegate 
   [typename typesyms body]
-  (let [types (map (fn [tsym] (clojure.lang.CljCompiler.Ast.HostExpr/MaybeType tsym false)) typesyms)
+  (let [types (map (fn [tsym] (clojure.lang.RT/classForName (str tsym))) typesyms)
   		ftype (symbol (str typename "`" (count types) "[" (str-join types) "]"))]
 	  `(gen-delegate ~ftype ~@body)))
 
