@@ -3925,7 +3925,7 @@ Note that read can execute code (controlled by *read-eval*),
    :inline-arities #{2}
    :added "1.0"}
   ([array idx]
-   (clojure.lang.Reflector/prepRet (.GetElementType (class array)) (. array (GetValue idx))))  ;;; was .getComponentType (. Array (get array idx)))  
+   (. array (GetValue idx)))  ;;; was .getComponentType (. Array (get array idx)))  
   ([array idx & idxs]
    (apply aget (aget array idx) idxs)))
 
