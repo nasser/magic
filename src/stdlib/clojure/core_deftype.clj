@@ -129,6 +129,7 @@
 (defn munge [s]
   ((if (symbol? s) symbol str) (clojure.lang.Compiler/munge (str s))))
 
+;; TODO restore type hints when hinting compilation is fixed
 (defn- imap-cons
   [^clojure.lang.IPersistentMap this o]
   (cond
@@ -136,10 +137,10 @@
      (let [^clojure.lang.IMapEntry pair o]                                                                 ;;; java.util.Map$Entry
        (.assoc this (.key pair) (.val pair)))                                                              ;;; .getKey .getValue
    (instance? System.Collections.DictionaryEntry o)                                                        ;;; DM: Added
-   (let [^System.Collections.DictionaryEntry pair o]                                                       ;;; DM: Added
+   (let [pair o]                                                       ;;; DM: Added
        (.assoc this (.Key pair) (.Value pair)))                                                            ;;; DM: Added
    (instance? |System.Collections.Generic.KeyValuePair`2[System.Object,System.Object]|  o)                 ;;; DM: Added
-   (let [^|System.Collections.Generic.KeyValuePair`2[System.Object,System.Object]| pair o]                      ;;; DM: Added
+   (let [pair o]                      ;;; DM: Added
        (.assoc this (.Key pair) (.Value pair)))                                                            ;;; DM: Added
    (instance? clojure.lang.IPersistentVector o)
      (let [^clojure.lang.IPersistentVector vec o]
