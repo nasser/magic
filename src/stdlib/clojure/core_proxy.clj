@@ -16,13 +16,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;; proxy ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(import
- ;;;'(clojure.asm ClassWriter ClassVisitor Opcodes Type) 
- ;;;'(java.lang.reflect Modifier Constructor)
- ;;; '(java.io Serializable NotSerializableException)
- ;;;'(clojure.asm.commons Method GeneratorAdapter)
- ;;;'(clojure.lang IProxy Reflector DynamicClassLoader IPersistentMap PersistentHashMap RT)) 
- '(clojure.lang IProxy RT Reflector))   ;;;DM;;;
+;; (import
+;;  ;;;'(clojure.asm ClassWriter ClassVisitor Opcodes Type) 
+;;  ;;;'(java.lang.reflect Modifier Constructor)
+;;  ;;; '(java.io Serializable NotSerializableException)
+;;  ;;;'(clojure.asm.commons Method GeneratorAdapter)
+;;  ;;;'(clojure.lang IProxy Reflector DynamicClassLoader IPersistentMap PersistentHashMap RT)) 
+;;  '(clojure.lang IProxy RT Reflector))   ;;;DM;;;
  
  
 
