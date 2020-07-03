@@ -6745,6 +6745,8 @@ Note that read can execute code (controlled by *read-eval*),
 (defprotocol Inst
   (inst-ms* [inst]))
 
+;; TODO fixing this requires an overhaul of our type hint solution
+#_
 (extend-protocol Inst
   DateTime                                                                                                     ;;; java.util.Date
   (inst-ms* [inst] (long (.TotalMilliseconds (.Subtract ^DateTime inst (DateTime. 1970 1 1))))))               ;;; (.getTime ^java.util.Date inst)
