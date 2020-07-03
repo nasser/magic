@@ -5216,7 +5216,8 @@ Note that read can execute code (controlled by *read-eval*),
   {:added "1.0"}
   [name & decl]
   (let [[pre-args [args expr]] (split-with (comp not vector?) decl)
-        args-without-tags (mapv #(vary-meta % dissoc :tag) args)]
+        args-without-tags (vary-meta (mapv #(vary-meta % dissoc :tag) args)
+                                     dissoc :tag)]
     `(do
        (defn ~name ~@pre-args ~args ~(apply (eval (list `fn args expr)) args))
        (alter-meta! (var ~name) assoc :inline (fn ~(symbol (str name "_inliner")) ~args-without-tags ~expr))
