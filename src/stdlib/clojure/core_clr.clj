@@ -172,7 +172,7 @@
   [typename typesyms body]
   (let [types (map (fn [tsym] (clojure.lang.RT/classForName (str tsym))) typesyms)
   		ftype (symbol (str typename "`" (count types) "[" (str-join types) "]"))]
-	  `(gen-delegate ~ftype ~@body)))
+	  (with-meta `(gen-delegate ~ftype ~@body) {:tag ftype})))
 
 (defmacro sys-func
   "Translates to a gen-delegate for a System.Func<,...> call"
