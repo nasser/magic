@@ -141,6 +141,9 @@
           chain (apply str (interpose "->" pending))]
       (throw (Exception. (format "Cyclic load dependency: %s" chain))))))
 
+(def read-options
+    {:read-cond :allow
+     :features #{:cljr}})
 
 (clojure.core/defn load-file
   [roots path ctx]
@@ -148,7 +151,7 @@
     (try
       (let [empty-args (into-array [])
             rdr (PushbackTextReader. file)
-            read-1 (fn [] (try (read rdr) (catch Exception _ nil)))]
+            read-1 (fn [] (try (read read-options rdr) (catch Exception _ nil)))]
         (loop [expr (read-1) i 0]
           (if expr
             (do
