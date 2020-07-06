@@ -276,7 +276,7 @@
      (magic/convert-type Object type)]))
 
 ;; TODO multidim arrays
-#_
+
 (defintrinsic clojure.core/aget
   array-element-type
   (fn intrinsic-aget-compiler
@@ -286,29 +286,31 @@
       [(magic/compile array-arg compilers)
        (magic/compile index-arg compilers)
        ;; TODO make sure this is conv.ovf
-       (magic/convert (ast-type index-arg) Int32)
+       (magic/convert-type (ast-type index-arg) Int32)
        (magic/load-element type)])))
 
 ;; TODO multidim arrays
-#_
+
 (defintrinsic clojure.core/aset
   (fn [ast] 
-    (if (magic/statement? ast)
-      System.Void
-      (array-element-type ast)))
+    (when-let [array-type (array-element-type ast)]
+      (if (magic/statement? ast)
+        System.Void
+        array-type)))
   (fn intrinsic-aset-compiler
     [{:keys [args] :as ast} type compilers]
     (let [[array-arg index-arg value-arg] args
           index-arg (reinterpret index-arg Int32)
           type (array-element-type ast)
+          _ (println "[aset]" type (:form ast) (-> ast :args first :form) (-> ast :args first ast-type))
           val-return (il/local type)
           statement? (magic/statement? ast)]
       [(magic/compile array-arg compilers)
        (magic/compile index-arg compilers)
        ;; TODO make sure this is conv.ovf
-       (magic/convert (ast-type index-arg) Int32)
+       (magic/convert-type (ast-type index-arg) Int32)
        (magic/compile value-arg compilers)
-       (magic/convert (ast-type value-arg) type)
+       (magic/convert-type (ast-type value-arg) type)
        (when-not statement?
          [(il/dup)
           (il/stloc val-return)])
