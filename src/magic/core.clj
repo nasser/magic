@@ -123,28 +123,20 @@
      (= from Object)
      (= to Boolean))
     (let [isbool (il/label)
-          fls (il/label)
           end (il/label)]
       [(il/dup)
        (il/isinst Boolean)
        (il/brtrue isbool)
        (il/ldnull)
-       (il/ceq)
-       (il/brtrue fls)
-       (il/ldc-i4-1)
-       (il/br-s end)
-       fls
-       (il/ldc-i4-0)
-       (il/br-s end)
+       (il/cgt-un)
+       (il/br end)
        isbool
        (il/unbox-any Boolean)
        end])
 
     (= to Boolean)
     [(il/ldnull)
-     (il/ceq)
-     (il/ldc-i4-0)
-     (il/ceq)]
+     (il/cgt-un)]
 
     (and (= from Boolean)
          (= to Object))
