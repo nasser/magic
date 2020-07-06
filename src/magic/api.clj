@@ -87,9 +87,12 @@
                            (string/replace "_SLASH_" "/") ;; HACK
                            (string/replace "//" "/") ;; HACK
                            )]
-    (some #(let [path (str % "/" namespace-path ".clj")]
-             (when (System.IO.File/Exists path)
-               path))
+    (some #(let [clj-path (str % "/" namespace-path ".clj")
+                 cljc-path (str % "/" namespace-path ".cljc")]
+             (cond
+               (System.IO.File/Exists clj-path) clj-path
+               (System.IO.File/Exists cljc-path) cljc-path
+               :else nil))
           roots)))
 
 (def public-static (enum-or MethodAttributes/Public MethodAttributes/Static))
