@@ -467,7 +467,8 @@
   Required to keep the stack balanced."
   [{:keys [op] :as ast}]
   (when (and (statement? ast)
-             (not= System.Void (ast-type ast)))
+             (not= System.Void (ast-type ast))
+             (not (types/disregard-type? ast)))
     (il/pop)))
 
 ;;; compilers
