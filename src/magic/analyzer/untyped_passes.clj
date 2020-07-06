@@ -1,7 +1,7 @@
 (ns magic.analyzer.untyped-passes
   (:require 
    [clojure.tools.analyzer.passes :refer [schedule]]
-   [clojure.tools.analyzer.ast :refer [nodes update-children]]
+   [clojure.tools.analyzer.ast :refer [nodes children update-children]]
    [clojure.tools.analyzer.passes
     [trim :refer [trim]]
     [collect-closed-overs :refer [collect-closed-overs]]
