@@ -314,18 +314,19 @@
             first
             meta
             :tag)
-       (let [arg-types (map ast-type-impl args)
-             target-interfaces (var-interfaces fn)
+       ;; TODO revisit high performance generic function interfaces
+       #_(let [arg-types (map ast-type-impl args)
+               target-interfaces (var-interfaces fn)
               ;; TODO this is hacky and gross
-             vt (var-type fn)
-             invokes (when vt
-                       (filter #(= (.Name %) "invokeTyped")
-                               (.GetMethods vt)))
-             exact-match (when invokes
-                           (select-method invokes arg-types))]
-         (if exact-match
-           (.ReturnType exact-match)
-           Object))
+               vt (var-type fn)
+               invokes (when vt
+                         (filter #(= (.Name %) "invokeTyped")
+                                 (.GetMethods vt)))
+               exact-match (when invokes
+                             (select-method invokes arg-types))]
+           (if exact-match
+             (.ReturnType exact-match)
+             Object))
        Object)))
 
 (defmethod ast-type-impl :new [ast]
