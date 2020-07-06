@@ -1881,15 +1881,19 @@
   [{:keys [class-name]} compilers]
   (let [import-class-label (il/label)]
     [(il/call (interop/getter clojure.lang.Compiler "CurrentNamespace"))
-     (il/ldstr class-name)
-     (il/call (interop/method Magic.Runtime "FindType" String))
-     (il/dup)
-     (il/ldnull)
-     (il/ceq)
-     (il/brfalse import-class-label)
-     (il/ldstr (str "Could not find type " class-name " during import"))
-     (il/newobj (interop/constructor InvalidOperationException String))
-     (il/throw)
+     (if-let [t (Magic.Runtime/FindType class-name)]
+       [(il/ldtoken t)
+        (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))]
+       ;; TODO should this be an error? just throw the exception here?
+       [(il/ldstr class-name)
+        (il/call (interop/method Magic.Runtime "FindType" String))
+        (il/dup)
+        (il/ldnull)
+        (il/ceq)
+        (il/brfalse import-class-label)
+        (il/ldstr (str "Could not find type " class-name " during import"))
+        (il/newobj (interop/constructor InvalidOperationException String))
+        (il/throw)])
      import-class-label
      (il/call (interop/method clojure.lang.Namespace "importClass" Type))]))
 
