@@ -240,7 +240,15 @@
 (defn convert [ast to]
   (when-not (:op ast)
     (throw (Exception. (str "refactor, first arg to convert needs to be an ast map, got " ast))))
-  (convert-type (ast-type ast) to))
+  (cond
+    (and (= :const (:op ast))
+         (= (ast-type ast) Boolean)
+         (= Object to))
+    [(il/pop)
+     (if (-> ast :val)
+       (il/ldsfld (interop/field Magic.Constants "True"))
+       (il/ldsfld (interop/field Magic.Constants "False")))]
+    :else (convert-type (ast-type ast) to)))
 
 (defmulti load-constant type)
 
