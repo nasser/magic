@@ -16,6 +16,14 @@
     (assoc ast :vars (->> ast nodes (filter #(= :var (:op %)))))
     ast))
 
+(defn collect-keywords
+  "Collect all keywords within :fn nodes into :keywords key"
+  [ast]
+  (if (= :fn (:op ast))
+    (assoc ast :keywords (->> ast nodes (filter #(and (= :const (:op %))
+                                                      (keyword? (:val %))))))
+    ast))
+
 (def ^:dynamic *stack-empty?* true)
 
 (defn compute-empty-stack-context
@@ -140,6 +148,7 @@
 
 (def untyped-pass-set
   #{#'collect-vars
+    #'collect-keywords
     #'track-constant-literals
     #'propagate-defn-name
     #'compute-outside-type

@@ -1017,7 +1017,7 @@
 (defn ifn-type? [t]
   (.IsAssignableFrom clojure.lang.IFn t))
 
-(defn compile-fn-type [{:keys [methods variadic? closed-overs fn-type] :as ast} compilers]
+(defn compile-fn-type [{:keys [methods variadic? closed-overs fn-type fn-type-cctor] :as ast} compilers]
   (when-not (.IsCreated fn-type)
     (let [fixed-arity-methods (remove :variadic? methods)
           signatures (->> fixed-arity-methods
@@ -1070,6 +1070,8 @@
       (reduce (fn [ctx x] (il/emit! ctx x))
               {::il/type-builder fn-type}
               [closed-over-fields ctor methods* (has-arity-method fixed-arities variadic-arity) (get-required-arity-method variadic-arity)])
+      (when fn-type-cctor
+        (il/emit! {::il/ilg (.GetILGenerator fn-type-cctor)} (il/ret)))
       (doseq [i interfaces]
         (.AddInterfaceImplementation fn-type i)))
     (.CreateType fn-type)))

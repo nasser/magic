@@ -53,6 +53,6 @@
                                 (magic/compile ast compilers)))})]
            (reduce (fn [ctx x] (il/emit! ctx x))
                    {::il/ilg ilg}
-                   [cctor-il (il/ret)])
+                   [cctor-il])
            (old-fn-compiler ast specialized-compilers))
          (old-fn-compiler ast compilers))))))

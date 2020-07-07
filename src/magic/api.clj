@@ -8,6 +8,7 @@
             magic.intrinsics
             [magic.spells
              [lift-vars :refer [lift-vars]]
+             [lift-keywords :refer [lift-keywords]]
              [dynamic-interop :refer [dynamic-interop]]]
             [magic.emission :refer [*module* fresh-module]]
             [clojure.string :as string])
@@ -268,4 +269,4 @@
 (def version "0.0-alpha")
 
 ;; yolo
-(bind-spells! [#'lift-vars])
+(bind-spells! [#'lift-vars #'lift-keywords])
