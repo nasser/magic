@@ -139,9 +139,9 @@
      :mode mode
      :skip-check skip-check
      :switch-values switch-values
-     :tests tests
+     :tests (mapv (fn [t] {:op :const :val t}) tests)
      :expressions expressions
-     :children [:local :default :expressions]}))
+     :children [:local :default :expressions :tests]}))
 
 (defn expand-proxy-method [[name & body :as form]]
   (if (vector? (first body))

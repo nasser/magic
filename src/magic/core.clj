@@ -1317,7 +1317,7 @@
                       parameter-types (->> equiv-method .GetParameters (map #(.ParameterType %)))]
                   [(compile local compilers)
                    (convert local (first parameter-types))
-                   (load-constant test)
+                   (compile test compilers)
                    (convert-type (type test) (last parameter-types))
                    (il/call equiv-method)
                    (il/brfalse next-label)]))
@@ -1334,7 +1334,7 @@
              [label
               (when-not (skip-check switch-value)
                 [(compile local compilers)
-                 (load-constant test)
+                 (compile test compilers)
                  (il/ceq)
                  (il/brfalse next-label)])
               (compile expression compilers)
@@ -1355,7 +1355,7 @@
                 (when-not (skip-check switch-value)
                   [(compile local compilers)
                    (convert local (first parameter-types))
-                   (load-constant test)
+                   (compile test compilers)
                    (convert-type (type test) (last parameter-types))
                    (il/call equiv-method)
                    (il/brfalse next-label)])
