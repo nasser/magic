@@ -159,7 +159,7 @@
    "$"))
 
 (defn analyze-fn
-  [{:keys [op name local methods variadic?] :as ast}]
+  [{:keys [op name local vars variadic?] :as ast}]
   (case op
     :fn
     (let [name (or name (:form local))
@@ -168,7 +168,21 @@
           fn-type (if variadic? 
                     (gt/variadic-fn-type *module* fn-name interfaces)
                     (gt/fn-type *module* fn-name interfaces))]
-      (assoc ast :fn-type fn-type))
+      (assoc ast
+             :fn-type fn-type
+             ;; due to a quirk of System.Reflection.Emit, we cannot query a TypeBuilder
+             ;; for a static constructor. Ideally, optimization passes that need a cctor
+             ;; would create one themselves or reuse one if another pass had created one
+             ;; already, but the SRE quirk makes that difficult. instead we create one here
+             ;; and expose it in the AST. this means that the core compiler is doing
+             ;; work for the optimizatio passes, which is less than ideal, but what
+             ;; are you going to do.
+             :fn-type-cctor (when-not (zero? (count vars))
+                              (.DefineConstructor
+                               fn-type
+                               (enum-or MethodAttributes/Public MethodAttributes/Static)
+                               CallingConventions/Standard
+                               Type/EmptyTypes))))
     ast))
 
 (defn analyze-proxy

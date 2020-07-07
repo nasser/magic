@@ -268,4 +268,4 @@
 (def version "0.0-alpha")
 
 ;; yolo
-(bind-spells! [dynamic-interop])
+(bind-spells! [#'lift-vars])

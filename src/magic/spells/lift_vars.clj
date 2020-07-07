@@ -1,62 +1,58 @@
 (ns magic.spells.lift-vars
   (:require [magic.core :as magic]
-            [magic.interop :as interop]
             [mage.core :as il])
-  (:import [System.Reflection CallingConventions FieldAttributes BindingFlags MethodAttributes]))
+  (:import [System.Reflection CallingConventions FieldAttributes MethodAttributes]))
 
 (defn var-name [v]
-  (.Replace
-    (str (.Namespace v) "/" (.Symbol v))
-    "."
-    "$"))
+  (-> (str (.Namespace v) "$" (.Symbol v))
+      munge
+      (.Replace "." "_")))
 
 (def field-attrs
-  (enum-or FieldAttributes/InitOnly
-           FieldAttributes/Private
+  (enum-or FieldAttributes/Assembly
            FieldAttributes/Static))
 
-(defn var-field-map [vars]
+(def cctor-attrs
+  (enum-or MethodAttributes/Public
+           MethodAttributes/Public))
+
+(defn var-field-map [type vars]
   (apply hash-map
          (interleave
-           (->> vars (map :var))
-           (->> vars (map :var)
-                (map #(il/unique
-                       (il/field (if (-> % meta :static)
-                                   Object ; (-> % deref type)
-                                   clojure.lang.Var)
-                                 (var-name %)
-                                 field-attrs)))))))
+          vars
+          (->> vars
+               (map #(.DefineField type
+                                   (var-name %)
+                                   clojure.lang.Var
+                                   field-attrs))))))
 
 (defn lift-vars [compilers]
-  (update compilers
-          :fn
-          (fn 
-            [old-fn-compiler]
-            (fn lifted-var-fn-compiler
-              [{:keys [vars] :as ast} compilers]
-              (let [vars (set vars)
-                    var-map (var-field-map vars)
-                    specialized-compilers
-                    (assoc
-                      compilers
-                      :var
-                      (fn lifted-var-compiler
-                        [{:keys [var] :as ast} compilers]
-                        (let [{:keys [static]} (meta var)]
-                          [(il/ldsfld (var-map var))
-                           (when-not static
-                             (magic/get-var var))
-                           (magic/cleanup-stack ast)])))]
-                (-> ast
-                    (old-fn-compiler specialized-compilers)
-                    (update-in [0 ::il/body] concat ;; this assumes the shape of the data returned by the base fn-compiler!
-                            [(il/constructor
-                               (enum-or MethodAttributes/Public MethodAttributes/Static)
-                               CallingConventions/Standard
-                               []
-                               [(interleave
-                                  (->> vars (map :var) (map magic/load-var))
-                                  (->> vars (map :var) (map #(if (-> % meta :static)
-                                                               (magic/get-var %))))
-                                  (->> vars (map :var) (map #(il/stsfld (var-map %)))))
-                                (il/ret)])])))))))
+  (update
+   compilers
+   :fn
+   (fn
+     [old-fn-compiler]
+     (fn lifted-var-fn-compiler
+       [{:keys [vars fn-type fn-type-cctor] :as ast} compilers]
+       (if-not (zero? (count vars))
+         (let [vars (->> vars (map :var) (into #{}))
+               var-fields (var-field-map fn-type vars)
+               cctor-il
+               (->> vars
+                    (map #(vector
+                           (magic/load-var %)
+                           (il/stsfld (var-fields %)))))
+               ilg (.GetILGenerator fn-type-cctor)
+               specialized-compilers
+               (merge compilers
+                      {:var (fn lifted-var-var-compiler
+                              [{:keys [var] :as ast} local-compilers]
+                              (if-let [field (var-fields var)]
+                                [(il/ldsfld field)
+                                 (magic/get-var var)]
+                                (magic/compile ast compilers)))})]
+           (reduce (fn [ctx x] (il/emit! ctx x))
+                   {::il/ilg ilg}
+                   [cctor-il (il/ret)])
+           (old-fn-compiler ast specialized-compilers))
+         (old-fn-compiler ast compilers))))))
