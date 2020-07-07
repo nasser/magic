@@ -77,7 +77,7 @@
   (alter-var-root #'magic/*spells* (constantly spells)))
 
 (clojure.core/defn bind-basic-spells! []
-  (bind-spells! [dynamic-interop]))
+  (bind-spells! [lift-vars lift-keywords]))
 
 (clojure.core/defn find-file [roots namespace-or-path]
   (let [namespace-path (-> namespace-or-path
