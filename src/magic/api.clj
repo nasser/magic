@@ -8,8 +8,7 @@
             magic.intrinsics
             [magic.spells
              [lift-vars :refer [lift-vars]]
-             [lift-keywords :refer [lift-keywords]]
-             [dynamic-interop :refer [dynamic-interop]]]
+             [lift-keywords :refer [lift-keywords]]]
             [magic.emission :refer [*module* fresh-module]]
             [clojure.string :as string])
   (:import [clojure.lang RT]
