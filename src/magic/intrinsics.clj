@@ -393,6 +393,16 @@
       (map #(magic/compile % compilers) (drop 1 args))
       (repeat (il/or)))]))
 
+(defintrinsic clojure.core/not
+  (constantly Boolean)
+  (fn intrinsic-not-compiler
+    [{:keys [args] :as ast} type compilers]
+    (let [arg (first args)]
+      [(magic/compile arg compilers)
+       (magic/convert arg Boolean)
+       (il/ldc-i4-0)
+       (il/ceq)])))
+
 ;;;; array functions
 ;; aclone
 ;; aget
