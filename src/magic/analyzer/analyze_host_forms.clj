@@ -97,7 +97,7 @@
   produces :new or :initobj"
   {:pass-info {:walk :post :after #{#'uniquify-locals}}}
   [{:keys [args children class op] :as ast}]
-  (if (= :new op)
+  (if (and (= :new op) (nil? (:type ast)))
       ;; target must be a class literal, use :val directly
       ;; (ast-type class) will always be Type here 
     (let [target-type (:val class)
