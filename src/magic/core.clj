@@ -1166,6 +1166,9 @@
            (nil? finally))
     (compile body compilers)
     (let [expr-type (ast-type ast)
+          expr-has-value?
+          (not (or (types/disregard-type? ast)
+                   (= expr-type System.Void)))
           method-attributes
           (if outside-type?
            (enum-or MethodAttributes/Assembly MethodAttributes/Static)
@@ -1181,23 +1184,25 @@
                              (compile* ast compilers)))})          
           bodyfn
           (fn [compilers]
-            (let [try-local (il/local expr-type)]
+            (let [try-local (when expr-has-value?
+                              (il/local expr-type))]
               [(il/exception
-                [(if (= expr-type System.Void)
-                   [(compile body compilers)
-                    (map #(compile % compilers) catches)]
+                [(if-not expr-has-value?
+                  [(compile body compilers)
+                   (map #(compile % compilers) catches)]
                    [(compile body compilers)
                     (convert body expr-type)
-                    (il/stloc try-local)
+                    (when expr-has-value?
+                      (il/stloc try-local))
                     (interleave
                      (map #(compile % compilers) catches)
-                     (map #(when-not (types/disregard-type? %) (convert % expr-type)) catches)
-                     (repeat (il/stloc try-local)))])
+                     (map #(when-not (types/disregard-type? %) [(convert % expr-type) (il/stloc try-local)]) catches))])
                  [(when finally
                     (il/finally
                       (compile finally compilers)))]])
-               (when-not (= expr-type System.Void)
-                 (il/ldloc try-local))]))
+               (when expr-has-value?
+                 (il/ldloc try-local)
+                 (il/ldnull))]))
           method-il
           (il/method 
            (str (gensym "try"))
