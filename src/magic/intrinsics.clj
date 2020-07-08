@@ -404,12 +404,8 @@
        (il/ceq)])))
 
 ;;;; array functions
-;; aclone
-;; aget
-;; alength
 ;; amap
 ;; areduce
-;; aset
 ;; aset-*
 ;; *-array
 ;; into-array
