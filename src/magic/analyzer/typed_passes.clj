@@ -13,6 +13,7 @@
     [errors :refer [error] :as errors]
     [types :refer [ast-type non-void-ast-type] :as types]]
    [magic.core :as magic]
+   [magic.util :as u]
    [magic.interop :as interop]
    [magic.emission :refer [*module*]])
   (:import [System Type SByte Int16 UInt16 Int32 UInt32 Char Single IntPtr UIntPtr]
