@@ -1031,11 +1031,13 @@
           signatures (->> fixed-arity-methods
                           (map (fn [method]
                                  (let [return-type (or (-> method :form first meta :tag types/resolve)
-                                                       (-> method :body non-void-ast-type))
+                                                       (-> method :body ast-type))
                                        param-types (map non-void-ast-type (:params method))]
                                    (list* return-type param-types))))
+                          (remove (fn [sig] (some #(not (instance? Type %)) sig))) ;; remove signatures with non-type elemnts (eg disregarded type keyword)
                           (remove (fn [sig] (every? #(= Object %) sig))) ;; remove signatures that are all Object
-                          (remove (fn [sig] (some ifn-type? sig)))) ;; remove signatures with function types
+                          (remove (fn [sig] (some ifn-type? sig))) ;; remove signatures with function types
+                          (remove (fn [sig] (some #(= System.Void %) sig)))) ;; remove signatures with void returns 
           interfaces (->> (map #(interop/generic-type "Magic.Function" %) signatures)
                           (remove nil?)
                           (into #{}))
