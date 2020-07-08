@@ -160,6 +160,24 @@
        :children [:expr]}
       ast)))
 
+(def ^:dynamic *recur-allowed* false)
+
+(defn prevent-recur-out-of-try
+  {:pass-info {:walk :none}}
+  [{:keys [op] :as ast}]
+  (case op
+    :recur
+    (if-not *recur-allowed*
+      (throw (ex-info "Cannot recur out of try" {}))
+      (update-children ast prevent-recur-out-of-try))
+    (:fn :loop)
+    (binding [*recur-allowed* true]
+      (update-children ast prevent-recur-out-of-try))
+    :try
+    (binding [*recur-allowed* false]
+      (update-children ast prevent-recur-out-of-try))
+    (update-children ast prevent-recur-out-of-try)))
+
 (def untyped-pass-set
   #{#'collect-vars
     #'collect-keywords
@@ -174,7 +192,8 @@
     #'wrap-tagged-expressions
     #'compute-empty-stack-context
     #'remove-empty-throw-children
-    #'treat-throw-as-return})
+    #'treat-throw-as-return
+    #'prevent-recur-out-of-try})
 
 (def scheduled-passes
   (schedule untyped-pass-set))
