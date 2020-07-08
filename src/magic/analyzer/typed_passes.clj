@@ -154,9 +154,9 @@
 
 (defn gen-fn-name [n]
   (string/replace
-   (str "<magic>" (gensym (str *ns* "$" (or n "fn") "$")))
+   (str "<magic>" (u/gensym (str *ns* "$" (or n "<fn>") "_")))
    "."
-   "$"))
+   "_"))
 
 (defn analyze-fn
   [{:keys [op name local vars variadic?] :as ast}]
