@@ -1101,9 +1101,10 @@
         obj-params (mapv (constantly Object) params)
         param-il (map #(il/parameter (ast-type %) (-> % :form str)) params)
         param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
-        body-type (ast-type body)
+        body-type (if (types/disregard-type? body)
+                    System.Void
+                    (ast-type body))
         return-type (or param-hint body-type)
-        non-void-return-type (or param-hint (non-void-ast-type body))
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         recur-target (il/label)
         invoke-method-name (if variadic? "doInvoke" "invoke")
@@ -1138,10 +1139,10 @@
         (il/method
          "invokeTyped"
          public-virtual
-         non-void-return-type param-il
+        return-type param-il
          [recur-target
           compiled-body
-          (convert-type body-type non-void-return-type)
+          (convert-type body-type return-type)
           (il/ret)])
         unhinted-shim
         (il/method
@@ -1153,7 +1154,7 @@
            (map (comp load-argument-standard inc) (range))
            (map #(convert-type Object %) param-types))
           (il/callvirt hinted-method)
-          (convert-type non-void-return-type Object)
+          (convert-type return-type Object)
           (il/ret)])]
     [(if (and (= param-types obj-params)
               (= return-type Object))
