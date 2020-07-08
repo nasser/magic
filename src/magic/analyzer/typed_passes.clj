@@ -17,7 +17,7 @@
    [magic.interop :as interop]
    [magic.emission :refer [*module*]])
   (:import [System Type SByte Int16 UInt16 Int32 UInt32 Char Single IntPtr UIntPtr]
-           [System.Reflection MethodAttributes FieldAttributes]
+           [System.Reflection CallingConventions MethodAttributes FieldAttributes]
            System.Runtime.CompilerServices.IsVolatile))
 
 (defn analyze-gen-interface
