@@ -133,24 +133,24 @@
 (defn- imap-cons
   [^clojure.lang.IPersistentMap this o]
   (cond
-     (map-entry? o)                                                                                        ;;; java.util.Map$Entry
-     (let [^clojure.lang.IMapEntry pair o]                                                                 ;;; java.util.Map$Entry
-       (.assoc this (.key pair) (.val pair)))                                                              ;;; .getKey .getValue
-   (instance? System.Collections.DictionaryEntry o)                                                        ;;; DM: Added
-   (let [pair o]                                                       ;;; DM: Added
-       (.assoc this (.Key pair) (.Value pair)))                                                            ;;; DM: Added
-   (instance? |System.Collections.Generic.KeyValuePair`2[System.Object,System.Object]|  o)                 ;;; DM: Added
-   (let [pair o]                      ;;; DM: Added
-       (.assoc this (.Key pair) (.Value pair)))                                                            ;;; DM: Added
-   (instance? clojure.lang.IPersistentVector o)
-     (let [^clojure.lang.IPersistentVector vec o]
-       (.assoc this (.nth vec 0) (.nth vec 1)))
-   :else (loop [this this
-                o o]
-      (if (seq o)
-        (let [^clojure.lang.IMapEntry pair (first o)]                ;;; java.util.Map$Entry
-          (recur (.assoc this (.key pair) (.val pair)) (rest o)))    ;;; .getKey .getValue
-        this))))
+    (map-entry? o)                                                                                        ;;; java.util.Map$Entry
+    (let [^clojure.lang.IMapEntry pair o]                                                                 ;;; java.util.Map$Entry
+      (.assoc this (.key pair) (.val pair)))                                                              ;;; .getKey .getValue
+    (instance? System.Collections.DictionaryEntry o)                                                        ;;; DM: Added
+    (let [^System.Collections.DictionaryEntry pair o]                                                       ;;; DM: Added
+      (.assoc this (.Key pair) (.Value pair)))                                                            ;;; DM: Added
+    (instance? |System.Collections.Generic.KeyValuePair`2[System.Object,System.Object]|  o)                 ;;; DM: Added
+    (let [^|System.Collections.Generic.KeyValuePair`2[System.Object,System.Object]| pair o]                      ;;; DM: Added
+      (.assoc this (.Key pair) (.Value pair)))                                                            ;;; DM: Added
+    (instance? clojure.lang.IPersistentVector o)
+    (let [^clojure.lang.IPersistentVector vec o]
+      (.assoc this (.nth vec 0) (.nth vec 1)))
+    :else (loop [this this
+                 o o]
+            (if (seq o)
+              (let [^clojure.lang.IMapEntry pair (first o)]                ;;; java.util.Map$Entry
+                (recur (.assoc this (.key pair) (.val pair)) (rest o)))    ;;; .getKey .getValue
+              this))))
 
 (defn- emit-defrecord
   "Do not use this directly - use defrecord"

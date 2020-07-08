@@ -146,6 +146,20 @@
     (merge ast
            (throwing-do (children ast)))))
 
+(defn wrap-tagged-expressions 
+  {:pass-info {:walk :any :after #{#'uniquify-locals}}}
+  [{:keys [op form] :as ast}]
+  (case op
+    :binding
+    ast
+    (if-let [tag (-> form meta :tag)]
+      {:op :tagged
+       :form (vary-meta form dissoc :tag)
+       :tag tag
+       :expr (update ast :form vary-meta dissoc :tag)
+       :children [:expr]}
+      ast)))
+
 (def untyped-pass-set
   #{#'collect-vars
     #'collect-keywords
@@ -157,6 +171,7 @@
     #'collect-closed-overs
     #'trim
     #'uniquify-locals
+    #'wrap-tagged-expressions
     #'compute-empty-stack-context
     #'remove-empty-throw-children
     #'treat-throw-as-return})

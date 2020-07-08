@@ -481,12 +481,6 @@
 
 ;;; compilers
 
-(defn compile-reference-to [{:keys [local] :as ast} compilers]
-  (if (= local :arg)
-    (reference-to ast)
-    [(compile ast compilers)
-     (reference-to ast)]))
-
 (defn do-compiler
   [{:keys [statements ret] :as ast} compilers]
   [(interleave
@@ -604,14 +598,13 @@
 
 (defn instance-method-compiler
   "Symbolic bytecode for instance methods"
-  [{:keys [method non-virtual? target args generic-parameters] :as ast} compilers]
+  [{:keys [method non-virtual? target args generic-parameters] :as ast} compilers]  
   (let [target-type (ast-type target)
-        target-type-ignore-tag (ast-type-ignore-tag target)
         virtual-method? (.IsVirtual method)
         value-type-target? (.IsValueType target-type)]
-    [(if (and (= target-type-ignore-tag target-type)
-              value-type-target?)
-       (compile (assoc target :load-address? true) compilers)
+    [(if value-type-target?
+       [(compile (assoc target :load-address? true) compilers)
+        (convert target target-type)]
        (compile target compilers))
      (interleave
       (mapv #(compile % compilers) args)
@@ -1920,6 +1913,11 @@
      import-class-label
      (il/call (interop/method clojure.lang.Namespace "importClass" Type))]))
 
+(defn tagged-compiler
+  [{:keys [expr tag]} compilers]
+  [(compile expr compilers)
+   (convert expr (types/resolve tag))])
+
 (def base-compilers
   {:const               #'const-compiler
    :do                  #'do-compiler
@@ -1969,7 +1967,8 @@
    :proxy-method        #'method-compiler
    :gen-interface       #'gen-interface-compiler
    :def                 #'def-compiler
-   :import              #'import-compiler})
+   :import              #'import-compiler
+   :tagged              #'tagged-compiler})
 
 (def ^:dynamic *spells* [])
 
@@ -1990,20 +1989,6 @@
      compilers
      spells)))
 
-(def ^:dynamic *op-stack* [])
-
-(defn compile-inline-cast [{:keys [op local load-address?] :as ast}]
-  (let [type (ast-type ast)
-        type-ignore-tag (ast-type-ignore-tag ast)]
-    (when-not (or (= type-ignore-tag type)
-                   ;; TODO this is a *very* specific predicate and i am worried 
-                   ;; we are missing a larger principle here
-                  (and (= op :local)
-                       (= local :arg)
-                       load-address?
-                       (.IsValueType type)
-                       (not (.IsValueType type-ignore-tag))))
-      (convert-type type-ignore-tag type))))
 
 (defn compile*
   ([ast]
@@ -2016,10 +2001,16 @@
          (catch Exception e
            (throw (Exception. (str "Failed to compile " (:form ast) " " *op-stack*) e))))))))
 
+(defn maybe-compile-reference-to [{:keys [op load-address?] :as ast}]
+  ;; locals will have compiled to ldloca already, so we skip them here
+  (when (and (not= :local op)
+             load-address?)
+    (reference-to-type (ast-type ast))))
+
 (defn compile
   "Generate symbolic bytecode for AST node"
   ([ast]
    (compile ast (get-compilers)))
   ([ast compilers]
    [(compile* ast compilers)
-    (compile-inline-cast ast)]))
+    (maybe-compile-reference-to ast)]))

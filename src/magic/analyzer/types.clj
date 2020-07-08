@@ -179,6 +179,8 @@
 (defmethod ast-type-impl :reify
   [{:keys [reify-type]}] reify-type)
 
+(defmethod ast-type-impl :tagged [{:keys [tag]}] (resolve tag))
+
 (defmethod ast-type-impl :gen-interface [_] System.Type)
 
 (defmethod ast-type-impl :deftype [_] System.Type)
