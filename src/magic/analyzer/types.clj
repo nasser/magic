@@ -12,18 +12,6 @@
             IntPtr UIntPtr Char
             SByte Decimal]))
 
-(defn read-generic-name [name]
-  (let [reader (-> name str
-                 System.IO.StringReader.
-                 clojure.lang.PushbackTextReader.)]
-    [(read reader) (read reader)]))
-
-#_
-(defn class-for-name [s]
-  (if s
-    (or (.GetMapping *ns* (symbol (str s)))
-        (Runtime/FindType (str s)))))
-
 (defn superchain [t]
   (if-let [b (.BaseType t)]
     (cons b (superchain b))))

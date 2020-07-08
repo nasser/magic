@@ -7,7 +7,7 @@
    [magic.analyzer
     [errors :refer [error] :as errors]
     [binder :refer [select-method]]
-    [types :refer [read-generic-name ast-type] :as types]]
+    [types :refer [ast-type] :as types]]
    [magic.emission :refer [*module*]])
   (:import [System.Reflection BindingFlags]
            [System.Reflection.Emit TypeBuilder]))
@@ -126,28 +126,6 @@
                        (error ::errors/missing-constructor ast))))))
     ast))
 
-(defn analyze-generic-host-interop
-  [{:keys [m-or-f args target op] :as ast}]
-  (let [target-type (ast-type target)
-        static? (= :class (:type target))
-        binding-flags (if static? public-static public-instance)
-        [method-name type-args] (read-generic-name m-or-f)
-        generic-methods (->> (.GetMethods target-type)
-                          (filter #(and
-                                    (.IsGenericMethod %)
-                                    (= (.Name %) (str method-name))
-                                    (= (count (.GetParameters %))
-                                       (count args)))))
-        generic-method (select-method generic-methods (map ast-type args))]
-    (if generic-method
-        (assoc
-         (dissoc ast :m-or-f)
-         :op (if static? :static-method :instance-method)
-         :method
-         (.MakeGenericMethod
-          generic-method
-          (into-array Type (map resolve type-args))))
-      (error ::errors/missing-instance-method-arity ast))))
 
 (defn analyze-host-interop
   "Analyze (.foo a) (. a foo) into instance method invocation, field access, or property getter"
@@ -155,7 +133,7 @@
   [{:keys [m-or-f args target op] :as ast}]
   (if (= :host-interop op)
     (if (re-find #"\[" (str m-or-f))
-      (analyze-generic-host-interop ast)
+      (throw (ex-info "Generic support disabled" {}))
       (let [identity-hack? (and (= :invoke (-> target :op))
                                 (= :var (-> target :fn :op))
                                 (= #'identity (-> target :fn :var))
@@ -201,25 +179,6 @@
               :else                         (assoc ast* :op :dynamic-method))))
     ast))
 
-(defn analyze-generic-host-call
-  [{:keys [method target args op] :as ast}]
-  (let [target-type (ast-type target)
-        [method-name generic-args-symbols] (read-generic-name method)
-        generic-args (map resolve generic-args-symbols)
-        generic-methods (->> (.GetMethods target-type)
-                          (filter #(and
-                                    (.IsGenericMethod %)
-                                    (= (.Name %) (str method-name))
-                                    (= (count (.GetParameters %))
-                                       (count args)))))
-        generic-method (select-method generic-methods (map ast-type args))]
-    (if generic-method
-        {:generic-parameters generic-args
-         :method
-         (.MakeGenericMethod
-          generic-method
-          (into-array Type generic-args))}
-      (error ::errors/missing-instance-method-arity ast))))
 
 ;; TODO analyze away the identity invoke hack
 (defn analyze-host-call
@@ -240,7 +199,7 @@
         ast))
     (= :host-call op)
     (if (re-find #"\[" (str method))
-      (analyze-generic-host-call ast)
+      (throw (ex-info "Generic support disabled" {}))
       (let [static? (= :class (:type target))
             target-type (if static?
                           (:val target)
