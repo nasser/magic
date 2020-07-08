@@ -263,7 +263,6 @@
       host/analyze-host-call
       host/analyze-enums
       novel/csharp-operators
-      novel/generic-type-syntax
       intrinsics/analyze))
 
 (def ^:dynamic *typed-pass-locals* {})
