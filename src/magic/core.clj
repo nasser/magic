@@ -967,10 +967,17 @@
          (il/pop))]
       (= target-op :var)
       (if (:assignable? target)
-        [(load-var (:var target))
-         (compile val compilers)
-         (convert val Object)
-         (il/call (interop/method clojure.lang.Var "set" Object))]
+        (let [v (il/local (ast-type val))]
+          [(load-var (:var target))
+           (compile val compilers)
+           (when value-used?
+            [(il/stloc v)
+             (il/ldloc v)])
+           (convert val Object)
+           (il/call (interop/method clojure.lang.Var "set" Object))
+           (il/pop)
+           (when value-used?
+             (il/ldloc v))])
         (throw! "Cannot assign to non-assignable var " (:var target))))))
 
 (defn has-arity-method
