@@ -914,7 +914,7 @@
         (throw (ex-info "Cannot set! immutable field" 
                         {:field (.Name field) :type (.DeclaringType field) :form (:form ast)}))
         (let [v (il/local (ast-type val))]
-          [(compile-reference-to target' compilers)
+          [(compile target' compilers)
            (compile val compilers)
            (when value-used?
              [(il/stloc v)
@@ -927,7 +927,7 @@
              (il/ldloc v))]))
       (= target-op :instance-property)
       (let [v (il/local (ast-type val))]
-        [(compile-reference-to target' compilers)
+        [(compile target' compilers)
          (compile val compilers)
          (if value-used?
            [(il/stloc v)
@@ -954,10 +954,10 @@
             (il/ldloc v)])
          (convert val (.PropertyType property))
          (il/call (.GetSetMethod property))
-         (if value-used?
+         (when value-used?
            (il/ldloc v))])
       (= target-op :dynamic-zero-arity)
-      [(compile-reference-to target' compilers)
+      [(compile target' compilers)
        (load-constant (str (-> target :m-or-f)))
        (compile val compilers)
        (convert val Object)
