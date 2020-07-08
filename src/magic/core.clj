@@ -1224,9 +1224,7 @@
     (throw (Exception. "throw must take an argument outside of a catch")))
   [(compile exception compilers)
    (convert exception Exception)
-   (il/throw)
-   (when (= context :ctx/expr)
-     (il/ldnull))])
+   (il/throw)])
 
 (defn catch-compiler
   [{:keys [class local body]} compilers]
