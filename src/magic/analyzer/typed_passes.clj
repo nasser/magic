@@ -159,7 +159,7 @@
    "_"))
 
 (defn analyze-fn
-  [{:keys [op name local vars variadic?] :as ast}]
+  [{:keys [op name local vars keywords variadic?] :as ast}]
   (case op
     :fn
     (let [name (or name (:form local))
@@ -177,12 +177,13 @@
              ;; and expose it in the AST. this means that the core compiler is doing
              ;; work for the optimizatio passes, which is less than ideal, but what
              ;; are you going to do.
-             :fn-type-cctor (when-not (zero? (count vars))
-                              (.DefineConstructor
-                               fn-type
-                               (enum-or MethodAttributes/Public MethodAttributes/Static)
-                               CallingConventions/Standard
-                               Type/EmptyTypes))))
+             :fn-type-cctor (when (or (pos? (count vars))
+                                      (pos? (count keywords)))
+                             (.DefineConstructor
+                              fn-type
+                              (enum-or MethodAttributes/Public MethodAttributes/Static)
+                              CallingConventions/Standard
+                              Type/EmptyTypes))))
     ast))
 
 (defn analyze-proxy
