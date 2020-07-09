@@ -178,6 +178,14 @@
       (update-children ast prevent-recur-out-of-try))
     (update-children ast prevent-recur-out-of-try)))
 
+(defn explicit-const-type
+  {:pass-info {:walk :any}}
+  [{:keys [op val] :as ast}]
+  (case op
+   :const
+    (assoc ast :const-type (type val))
+    ast))
+
 (def untyped-pass-set
   #{#'collect-vars
     #'collect-keywords
@@ -193,7 +201,8 @@
     #'compute-empty-stack-context
     #'remove-empty-throw-children
     #'treat-throw-as-return
-    #'prevent-recur-out-of-try})
+    #'prevent-recur-out-of-try
+    #'explicit-const-type})
 
 (def scheduled-passes
   (schedule untyped-pass-set))
