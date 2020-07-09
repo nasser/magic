@@ -34,7 +34,8 @@
      [old-fn-compiler]
      (fn lifted-var-fn-compiler
        [{:keys [vars fn-type fn-type-cctor] :as ast} compilers]
-       (if-not (zero? (count vars))
+       (if-not (or (.IsCreated fn-type)
+                   (zero? (count vars)))
          (let [vars (->> vars (map :var) (into #{}))
                var-fields (var-field-map fn-type vars)
                cctor-il
