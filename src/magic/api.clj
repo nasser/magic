@@ -11,7 +11,7 @@
              [lift-keywords :refer [lift-keywords]]]
             [magic.emission :refer [*module* fresh-module]]
             [clojure.string :as string])
-  (:import [clojure.lang RT]
+  (:import [clojure.lang RT LineNumberingTextReader]
            [System.Reflection MethodAttributes TypeAttributes]))
 
 (clojure.core/defn compile-asm
@@ -152,8 +152,7 @@
   [roots path ctx]
   (let [file (System.IO.File/OpenText path)]
     (try
-      (let [empty-args (into-array [])
-            rdr (PushbackTextReader. file)
+      (let [rdr (LineNumberingTextReader. file)
             read-1 (fn [] (try (read read-options rdr) (catch Exception _ nil)))]
         (loop [expr (read-1) i 0]
           (if expr
