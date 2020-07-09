@@ -160,7 +160,7 @@
        :children [:expr]}
       ast)))
 
-(def ^:dynamic *recur-allowed* false)
+(def ^:dynamic *recur-allowed* true)
 
 (defn prevent-recur-out-of-try
   {:pass-info {:walk :none}}
