@@ -302,7 +302,6 @@
     (let [[array-arg index-arg value-arg] args
           index-arg (reinterpret index-arg Int32)
           type (array-element-type ast)
-          _ (println "[aset]" type (:form ast) (-> ast :args first :form) (-> ast :args first ast-type))
           val-return (il/local type)
           statement? (magic/statement? ast)]
       [(magic/compile array-arg compilers)
