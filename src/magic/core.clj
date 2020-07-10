@@ -1203,16 +1203,18 @@
                  [(when finally
                     (il/finally
                       (compile finally compilers)))]])
-               (if expr-has-value?
-                 (il/ldloc try-local)
-                 (il/ldnull))]))
-          method-il
-          (il/method 
-           (str (gensym "try"))
-           method-attributes
-           expr-type (->> closed-overs vals (mapv non-void-ast-type))
-           [(bodyfn closure-compilers)
-            (il/ret)])]
+               (cond 
+                 expr-has-value? (il/ldloc try-local)
+                 (not (= System.Void expr-type)) (il/ldnull))]))
+          method-return-type (if (types/disregard-type? ast)
+                               System.Void
+                               expr-type)
+          method-il (il/method
+                     (str (gensym "try"))
+                     method-attributes
+                     method-return-type (->> closed-overs vals (mapv non-void-ast-type))
+                     [(bodyfn closure-compilers)
+                      (il/ret)])]
       (if (or top-level empty-stack?)
         ;; at the top level or when the stack is known to be empty we can
         ;; emit a normal try statement inline
@@ -1224,7 +1226,9 @@
            ;; and we emit `this` to invoke it
            (load-argument-standard 0))
          (->> closed-overs vals (map #(compile % compilers)))
-         (il/call method-il)]))))
+         (il/call method-il)
+         (when (types/disregard-type? ast)
+           (il/ldnull))]))))
 
 (defn throw-compiler
   [{:keys [exception] {:keys [context]} :env} compilers]
