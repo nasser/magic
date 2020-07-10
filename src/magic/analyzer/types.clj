@@ -42,7 +42,7 @@
    "uint"     UInt32
    "long"     Int64
    "ulong"    UInt64
-   "bool"     Boolean
+   "boolean"  Boolean
    "object"   Object
    "intptr"   IntPtr
    "uintptr"  UIntPtr
@@ -59,7 +59,7 @@
    "uints"    System.UInt32|[]|
    "longs"    System.Int64|[]|
    "ulongs"   System.UInt64|[]|
-   "bools"    System.Boolean|[]|
+   "booleans" System.Boolean|[]|
    "objects"  System.Object|[]|
    "intptrs"  System.IntPtr|[]|
    "uintptrs" System.UIntPtr|[]|
