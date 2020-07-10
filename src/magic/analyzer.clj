@@ -222,6 +222,7 @@
         methods (drop (* 2 (count options)) opts-specs)]
     {:op :deftype
      :name classname
+     :classname classname
      :fields fields
      :options options-map
      :implements (mapv #(ana/analyze-symbol % env) (:implements options-map))
@@ -248,6 +249,7 @@
                env fields)
               (assoc :fn-method-type :deftype))]
     {:op :deftype
+     :name name
      :classname classname
      :fields fields
      :options options
@@ -258,10 +260,11 @@
                     (assoc :name (first %)
                            :op :deftype-method))
                methods)
+     :positional-factory (ana/analyze (#'clojure.core/build-positional-factory name classname fields) env)
      :form form
      :env env*
-     :children [:methods]}))
      :children [:methods :positional-factory]}))
+
 (defn parse-gen-interface
   [[_ & options :as form] env]
   (merge
