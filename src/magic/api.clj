@@ -1,5 +1,5 @@
 (ns magic.api
-  (:refer-clojure :exclude [compile load-file defn eval])
+  (:refer-clojure :exclude [compile load-file eval])
   (:require [magic.analyzer :as ana]
             [magic.analyzer.types :refer [tag ast-type]]
             [magic.core :as magic]
@@ -12,40 +12,11 @@
             [magic.emission :refer [*module* fresh-module]]
             [clojure.string :as string])
   (:import [clojure.lang RT LineNumberingTextReader]
-           [System.Reflection MethodAttributes TypeAttributes]))
+           [System.Reflection MethodAttributes TypeAttributes]
+           [System.Reflection.Emit AssemblyBuilder ModuleBuilder]))
 
-(clojure.core/defn compile-asm
-  ([exprs]
-   (compile-asm "magic.compile" exprs))
-  ([asm-name exprs]
-   (compile-asm asm-name (magic/get-compilers) exprs))
-  ([asm-name compilers exprs]
-   (->> (map #(-> % ana/analyze (magic/compile compilers))
-             exprs)
-        (il/assembly+module asm-name)
-        il/emit!
-        ::il/assembly-builder)))
 
-(clojure.core/defn compile-fn
-  "Compile fn form using MAGIC, emit binary to current ClojureCLR compilation context
-   and return the IFn instance."
-  ([expr] (compile-fn expr (magic/get-compilers)))
-  ([expr compilers]
-   (-> expr
-       ana/analyze
-       (magic/compile compilers)
-       il/emit!
-       ::il/type-builder
-       Activator/CreateInstance)))
-
-(clojure.core/defn compile-fn-ctor [expr]
-  (->> (compile-fn expr)
-       .GetType
-       .Name
-       symbol
-       (list 'new)))
-
-(clojure.core/defn eval [expr]
+(defn eval [expr]
   (binding [*module* (fresh-module "eval")]
     (let [ast (ana/analyze expr)
           bc (magic/compile ast)]
@@ -64,22 +35,13 @@
            Activator/CreateInstance
            .eval))))
 
-
-(defmacro defn
-  "Compile a function using MAGIC. Useable from namespaces
-   compiled by ClojureCLR."
-  [name args & body]
-  (let [form (list* 'fn name args body)]
-    `(def ~name
-       ~(compile-fn form))))
-
-(clojure.core/defn bind-spells! [spells]
+(defn bind-spells! [spells]
   (alter-var-root #'magic/*spells* (constantly spells)))
 
-(clojure.core/defn bind-basic-spells! []
+(defn bind-basic-spells! []
   (bind-spells! [lift-vars lift-keywords]))
 
-(clojure.core/defn find-file [roots namespace-or-path]
+(defn find-file [roots namespace-or-path]
   (let [namespace-path (-> namespace-or-path
                            str
                            munge
@@ -95,10 +57,7 @@
                :else nil))
           roots)))
 
-(def public-static (enum-or MethodAttributes/Public MethodAttributes/Static))
-(def abstract-sealed (enum-or TypeAttributes/Public TypeAttributes/Abstract TypeAttributes/Sealed))
-
-(clojure.core/defn trim
+(defn trim
   [x l]
   (let [s (str x)]
     (if (< (count s) l)
@@ -145,10 +104,14 @@
       (throw (Exception. (format "Cyclic load dependency: %s" chain))))))
 
 (def read-options
-    {:read-cond :allow
-     :features #{:cljr}})
+  {:read-cond :allow
+   :features #{:cljr}})
 
-(clojure.core/defn load-file
+(def empty-args (into-array []))
+(def public-static (enum-or MethodAttributes/Public MethodAttributes/Static))
+(def abstract-sealed (enum-or TypeAttributes/Public TypeAttributes/Abstract TypeAttributes/Sealed))
+
+(defn load-file
   [roots path ctx]
   (let [file (System.IO.File/OpenText path)]
     (try
@@ -195,7 +158,7 @@
       (finally
         (.Close file)))))
 
-(clojure.core/defn load-assembly
+(defn load-assembly
   [path]
   (println "[load-assembly] start" path)
   (let [init-type
@@ -207,25 +170,25 @@
     (.Invoke (.GetMethod init-type "Initialize") nil nil))
   (println "[load-assembly] end" path))
 
-(clojure.core/defn clojure-clr-init-class-name
+(defn clojure-clr-init-class-name
   "Port of clojure.lang.Compiler/InitClassName"
   [path]
   (str "__Init__$" (-> path (string/replace "." "/") (string/replace "/" "$"))))
 
 (def ^:dynamic *recompile-namespaces* false)
 
-(clojure.core/defn compile-file
+(defn compile-file
   [roots path module]
   (println "[compile-file] start" path)
-  (let [module-name (-> module 
+  (let [module-name (-> module
                         str
                         (string/replace "/" ".")
                         (str ".clj"))]
     (if (and (not *recompile-namespaces*)
              (System.IO.File/Exists (str module-name ".dll")))
-      (do 
+      (do
         (clojure.lang.RT/load (str module))
-        (println "[compile-file] end" path "(skipped, module already exists, loaded instead)" ))
+        (println "[compile-file] end" path "(skipped, module already exists, loaded instead)"))
       (binding [*unchecked-math* true
                 *print-meta* false
                 *ns* *ns*
@@ -252,7 +215,7 @@
 (def load-one' (deref (clojure.lang.RT/var "clojure.core" "load-one")))
 (def -loaded-libs (deref (clojure.lang.RT/var "clojure.core" "*loaded-libs*")))
 
-(clojure.core/defn compile-namespace
+(defn compile-namespace
   [roots namespace]
   (println "[compile-namespace]" namespace)
   (when-let [path (find-file roots namespace)]
