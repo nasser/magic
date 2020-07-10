@@ -117,10 +117,10 @@
       (throw (ex-info "no match" {:name name :params (map ast-type params)})))))
 
 (defn analyze-deftype
-  [{:keys [op name fields implements methods] :as ast}]
+  [{:keys [op classname fields implements methods] :as ast}]
   (case op
     :deftype
-    (let [name (str name)
+    (let [classname (str classname)
           interfaces (->> implements
                           (map host/analyze-type)
                           (mapv :val))
@@ -142,7 +142,7 @@
               nil
               (if (field-mutable? f) mutable-attribute immutable-attribute))
              t)
-           (gt/deftype-type *module* name interfaces)
+           (gt/deftype-type *module* classname interfaces)
            fields)
           _ (.importClass *ns* deftype-type)
           methods* (mapv #(analyze-method % candidate-methods :deftype-type deftype-type true) methods)]

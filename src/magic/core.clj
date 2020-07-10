@@ -1860,10 +1860,13 @@
                      [(vals ctors) (vals methods*)])]
     (compile-deftype-getbasis ctx' deftype-type fields)
     (when defrecord?
-      (compile-defrecord-create ctx' deftype-type (drop-last 4 fields) ctor)))
-  (.CreateType deftype-type)
-  [(il/ldtoken deftype-type)
-   (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))])
+      (compile-defrecord-create ctx' deftype-type (drop-last 4 fields) ctor))
+    (.CreateType deftype-type)
+    [(when-not defrecord? 
+       [(compile positional-factory compilers)
+        (il/pop)])
+     (il/ldtoken deftype-type)
+     (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))]))
 
 (defn gen-interface-compiler
   [{:keys [gen-interface-type]} compilers]

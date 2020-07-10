@@ -100,7 +100,7 @@
   (if (and (= :new op) (nil? (:type ast)))
       ;; target must be a class literal, use :val directly
       ;; (ast-type class) will always be Type here 
-    (let [target-type (:val class)
+    (let [target-type (types/resolve (:val class))
           arg-types (map ast-type args)]
         ;; TODO OK to drop :class like this?
       (merge (dissoc ast :class)

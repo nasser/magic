@@ -239,6 +239,7 @@
   [[_ name fields & opts-specs :as form] env]
   (let [[interfaces methods options] (#'clojure.core/parse-opts+specs opts-specs)
         implements (conj interfaces 'clojure.lang.IType)
+        classname (str (namespace-munge *ns*) "." name)
         env* (-> 
               (reduce 
                (fn [e f]
@@ -247,7 +248,7 @@
                env fields)
               (assoc :fn-method-type :deftype))]
     {:op :deftype
-     :name (str (namespace-munge *ns*) "." name)
+     :classname classname
      :fields fields
      :options options
      :implements (mapv #(ana/analyze-symbol % env) implements)
@@ -260,7 +261,7 @@
      :form form
      :env env*
      :children [:methods]}))
-
+     :children [:methods :positional-factory]}))
 (defn parse-gen-interface
   [[_ & options :as form] env]
   (merge
