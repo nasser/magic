@@ -1203,7 +1203,7 @@
                  [(when finally
                     (il/finally
                       (compile finally compilers)))]])
-               (when expr-has-value?
+               (if expr-has-value?
                  (il/ldloc try-local)
                  (il/ldnull))]))
           method-il
