@@ -11,28 +11,28 @@
 (ns clojure.test-clojure.transducers
   (:require [clojure.string :as s]
             [clojure.test :refer :all]
-			[clojure.test.check :as chk]
-            [clojure.test.check.generators :as gen]
-            [clojure.test.check.properties :as prop]
-            [clojure.test.check.clojure-test :as ctest]))
+			#_ [clojure.test.check :as chk]
+      #_       [clojure.test.check.generators :as gen]
+      #_       [clojure.test.check.properties :as prop]
+      #_       [clojure.test.check.clojure-test :as ctest]))
 
-(defmacro fbind [source-gen f]
-  `(gen/fmap
-     (fn [s#]
-       {:desc (list '~f (:name s#))
-        :seq  (partial ~f (:val s#))
-        :xf   (~f (:val s#))})
-     ~source-gen))
+;; (defmacro fbind [source-gen f]
+;;   `(gen/fmap
+;;      (fn [s#]
+;;        {:desc (list '~f (:name s#))
+;;         :seq  (partial ~f (:val s#))
+;;         :xf   (~f (:val s#))})
+;;      ~source-gen))
 
-(defmacro pickfn [& fns]
-  `(gen/elements
-     [~@(for [f fns] `{:val ~f :name '~f})]))
+;; (defmacro pickfn [& fns]
+;;   `(gen/elements
+;;      [~@(for [f fns] `{:val ~f :name '~f})]))
 
-(defn literal
-  [g]
-  (gen/fmap
-    (fn [s] {:val s :name s})
-    g))
+;; (defn literal
+;;   [g]
+;;   (gen/fmap
+;;     (fn [s] {:val s :name s})
+;;     g))
 
 ;; These $ versions are "safe" when used with possibly mixed numbers, sequences, etc
 
@@ -51,53 +51,53 @@
 (defn- empty?$ [s]
   (if (instance? clojure.lang.Seqable s) (empty? s) false))
 
-(def gen-mapfn
-  (pickfn [inc$ dec$]))
+;; (def gen-mapfn
+;;   (pickfn [inc$ dec$]))
 
-(def gen-mapcatfn
-  (pickfn vector
-          #(if (instance? clojure.lang.Seqable %) (partition-all 3 %) (vector %))))
+;; (def gen-mapcatfn
+;;   (pickfn vector
+;;           #(if (instance? clojure.lang.Seqable %) (partition-all 3 %) (vector %))))
 
-(def gen-predfn
-  (pickfn odd?$ pos?$ empty?$ sequential?))
+;; (def gen-predfn
+;;   (pickfn odd?$ pos?$ empty?$ sequential?))
 
-(def gen-indexedfn
-  (pickfn (fn [index item] index)
-          (fn [index item] item)
-          (fn [index item] (if (number? item) (+ index item) index))))
+;; (def gen-indexedfn
+;;   (pickfn (fn [index item] index)
+;;           (fn [index item] item)
+;;           (fn [index item] (if (number? item) (+ index item) index))))
 
-(def gen-take (fbind (literal gen/s-pos-int) take))
-(def gen-drop (fbind (literal gen/pos-int) drop))
-(def gen-drop-while (fbind gen-predfn drop-while))
-(def gen-map (fbind gen-mapfn map))
-(def gen-mapcat (fbind gen-mapcatfn mapcat))
-(def gen-filter (fbind gen-predfn filter))
-(def gen-remove (fbind gen-predfn remove))
-(def gen-keep (fbind gen-predfn keep))
-(def gen-partition-all (fbind (literal gen/s-pos-int) partition-all))
-(def gen-partition-by (fbind gen-predfn partition-by))
-(def gen-take-while (fbind gen-predfn take-while))
-(def gen-take-nth (fbind (literal gen/s-pos-int) take-nth))
-(def gen-keep-indexed (fbind gen-indexedfn keep-indexed))
-(def gen-map-indexed (fbind gen-indexedfn map-indexed))
-(def gen-replace (fbind (literal (gen/return (hash-map (range 100) (range 1 100)))) replace))
-(def gen-distinct (gen/return {:desc 'distinct :seq (partial distinct) :xf (distinct)}))
-(def gen-dedupe (gen/return {:desc 'dedupe :seq (partial dedupe) :xf (dedupe)}))
-(def gen-interpose (fbind (literal gen/s-pos-int) interpose))
+;; (def gen-take (fbind (literal gen/s-pos-int) take))
+;; (def gen-drop (fbind (literal gen/pos-int) drop))
+;; (def gen-drop-while (fbind gen-predfn drop-while))
+;; (def gen-map (fbind gen-mapfn map))
+;; (def gen-mapcat (fbind gen-mapcatfn mapcat))
+;; (def gen-filter (fbind gen-predfn filter))
+;; (def gen-remove (fbind gen-predfn remove))
+;; (def gen-keep (fbind gen-predfn keep))
+;; (def gen-partition-all (fbind (literal gen/s-pos-int) partition-all))
+;; (def gen-partition-by (fbind gen-predfn partition-by))
+;; (def gen-take-while (fbind gen-predfn take-while))
+;; (def gen-take-nth (fbind (literal gen/s-pos-int) take-nth))
+;; (def gen-keep-indexed (fbind gen-indexedfn keep-indexed))
+;; (def gen-map-indexed (fbind gen-indexedfn map-indexed))
+;; (def gen-replace (fbind (literal (gen/return (hash-map (range 100) (range 1 100)))) replace))
+;; (def gen-distinct (gen/return {:desc 'distinct :seq (partial distinct) :xf (distinct)}))
+;; (def gen-dedupe (gen/return {:desc 'dedupe :seq (partial dedupe) :xf (dedupe)}))
+;; (def gen-interpose (fbind (literal gen/s-pos-int) interpose))
 
-(def gen-action
-  (gen/one-of [gen-take gen-drop gen-map gen-mapcat
-               gen-filter gen-remove gen-keep
-               gen-partition-all gen-partition-by gen-take-while
-               gen-take-nth gen-drop-while
-               gen-keep-indexed gen-map-indexed
-               gen-distinct gen-dedupe gen-interpose]))
+;; (def gen-action
+;;   (gen/one-of [gen-take gen-drop gen-map gen-mapcat
+;;                gen-filter gen-remove gen-keep
+;;                gen-partition-all gen-partition-by gen-take-while
+;;                gen-take-nth gen-drop-while
+;;                gen-keep-indexed gen-map-indexed
+;;                gen-distinct gen-dedupe gen-interpose]))
 
-(def gen-actions
-  (gen/vector gen-action 1 5))
+;; (def gen-actions
+;;   (gen/vector gen-action 1 5))
 
-(def gen-coll
-  (gen/vector gen/int))
+;; (def gen-coll
+;;   (gen/vector gen/int))
 
 (defn apply-as-seq [coll actions]
   (doall
@@ -141,6 +141,7 @@
 	 :xe      xe
      :xt      xt}))
 
+#_
 (def result-gen
   (gen/fmap
     (fn [[c a]] (build-results c a))

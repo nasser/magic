@@ -11,7 +11,7 @@
 
 (ns clojure.test-clojure.data-structures
   (:use clojure.test
-        [clojure.test.generative :exclude (is)])
+        #_ [clojure.test.generative :exclude (is)])
   (:require #_ [clojure.test-clojure.generators :as cgen]
             #_ [clojure.data.generators :as gen]
 			[clojure.string :as string]))

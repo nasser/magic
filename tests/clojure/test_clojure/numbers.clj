@@ -13,9 +13,9 @@
 
 (ns clojure.test-clojure.numbers
   (:use clojure.test
-        [clojure.test.generative :exclude (is)]
+        #_ [clojure.test.generative :exclude (is)]
         clojure.template)
-  (:require [clojure.data.generators :as gen]
+  (:require #_ [clojure.data.generators :as gen]
             [clojure.test-helper :as helper]))
 
 
@@ -659,6 +659,7 @@ Math/pow overflows to Infinity."
            min
          max))))
 
+#_
 (defn integer
   "Distribution of integers biased towards the small, but
    including all longs."

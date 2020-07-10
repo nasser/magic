@@ -287,6 +287,7 @@
         (is (= r2    (RecordToTestStatics2/create {:a 1 :b 2})))
         (is (= r3    (RecordToTestStatics3/create {:a 1 :b 2 :c 3})))
         (is (= rn    (RecordToTestStatics3/create {:a 1}))))
+      #_ ;; blocked on nasser/magic#147
       (testing "that a literal record equals one by the static factory method"
         (is (= #clojure.test_clojure.protocols.RecordToTestStatics1{:a 1} (RecordToTestStatics1/create {:a 1})))
         (is (= #clojure.test_clojure.protocols.RecordToTestStatics2{:a 1 :b 2} (RecordToTestStatics2/create {:a 1 :b 2})))
@@ -369,10 +370,12 @@
         ;; just test non-nil to avoid overspecifiying what's in the docstring
         (is (false? (-> ->RecordToTestFactories var meta :doc nil?)))
         (is (false? (->  map->RecordToTestFactories var meta :doc nil?))))
+      #_ ;; blocked on nasser/magic#147
       (testing "that a literal record equals one by the positional factory fn"
         (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b 2 :c 3} (->RecordToTestFactories 1 2 3)))
         (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b nil :c nil} (->RecordToTestFactories 1 nil nil)))
         (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a [] :b {} :c ()} (->RecordToTestFactories [] {} ()))))      
+      #_ ;; blocked on nasser/magic#147
       (testing "that a literal record equals one by the map-> factory fn"
         (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b 2 :c 3} (map->RecordToTestFactories {:a 1 :b 2 :c 3})))
         (is (= #clojure.test_clojure.protocols.RecordToTestFactories{:a 1 :b nil :c nil} (map->RecordToTestFactories {:a 1})))
@@ -426,11 +429,14 @@
     ;;;(is (= "Hi" #System.String["Hi"]))                                                       ;;; #java.lang.String
     ;;;(is (= 42 #java.lang.Long[42]))
     ;;;(is (= 42 #java.lang.Long["42"]))
+    #_ ;; blocked on nasser/magic#147
     (is (= [:a 42] #clojure.lang.MapEntry[:a 42])))
   ;;;(testing "that constructor literals are embeddable"
   ;;;  (is (= 42 #java.lang.Long[#java.lang.String["42"]])))
   (testing "that constructor literals work for deftypes too"
+    #_ ;; blocked on nasser/magic#147
     (is (= (.a (TypeToTestFactory. 42)) (.a #clojure.test_clojure.protocols.TypeToTestFactory[42])))
+    #_ ;; blocked on nasser/magic#147
     (is (compare-huge-types
          (TypeToTestHugeFactories.  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26)
          #clojure.test_clojure.protocols.TypeToTestHugeFactories[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26]))))
@@ -439,6 +445,7 @@
 (defrecord TestNode [v l r])
 (deftype TypeToTestLiterals [a])
 (def lang-str "en")
+#_ ;; blocked on nasser/magic#147
 (deftest exercise-literals
   (testing "that ctor literals can be used in common 'places'"
     (is (= (RecordToTestLiterals. ()) #clojure.test_clojure.protocols.RecordToTestLiterals[()]))
@@ -539,12 +546,15 @@
 
 (deftest hinting-test
   (testing "that primitive hinting requiring no coercion works as expected"
+    #_ ;; blocked on nasser/magic#147
     (is (= (RecordToTestLongHint. 42) #clojure.test_clojure.protocols.RecordToTestLongHint{:a 42}))
+    #_ ;; blocked on nasser/magic#147
     (is (= (RecordToTestLongHint. 42) #clojure.test_clojure.protocols.RecordToTestLongHint[42]))
     (is (= (RecordToTestLongHint. 42) (clojure.test_clojure.protocols.RecordToTestLongHint/create {:a 42})))
     (is (= (RecordToTestLongHint. 42) (map->RecordToTestLongHint {:a 42})))
     (is (= (RecordToTestLongHint. 42) (->RecordToTestLongHint 42)))
     (is (= (.a (TypeToTestLongHint. 42)) (.a (->TypeToTestLongHint (long 42)))))
+    #_ ;; blocked on nasser/magic#147
     (testing "that invalid primitive types on hinted defrecord fields fails"
       (is (thrown?
             System.Reflection.TargetInvocationException                                         ;;; ClassCastException
@@ -570,7 +580,9 @@
     (is (= (RecordToTestByteHint. 42) (->RecordToTestByteHint (byte 42))))
     (is (= (.a (TypeToTestByteHint. 42)) (.a (->TypeToTestByteHint (byte 42))))))
   (testing "that primitive hinting for non-numerics works as expected"
+    #_ ;; blocked on nasser/magic#147
     (is (= (RecordToTestBoolHint. true) #clojure.test_clojure.protocols.RecordToTestBoolHint{:a true}))
+    #_ ;; blocked on nasser/magic#147
     (is (= (RecordToTestBoolHint. true) #clojure.test_clojure.protocols.RecordToTestBoolHint[true]))
     (is (= (RecordToTestBoolHint. true) (clojure.test_clojure.protocols.RecordToTestBoolHint/create {:a true})))
     (is (= (RecordToTestBoolHint. true) (map->RecordToTestBoolHint {:a true})))

@@ -8,7 +8,7 @@
 
 (ns clojure.test-clojure.api
   (:require [clojure.test.generative :refer (defspec)]
-            [clojure.test-clojure.generators :as cgen])
+            #_ [clojure.test-clojure.generators :as cgen])
   (:import clojure.lang.IFn
            clojure.clr.api.Clojure                          ;;; clojure.java.api.Clojure
            clojure.lang.Var))
