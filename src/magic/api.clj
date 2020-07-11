@@ -15,25 +15,29 @@
            [System.Reflection MethodAttributes TypeAttributes]
            [System.Reflection.Emit AssemblyBuilder ModuleBuilder]))
 
+(def empty-args (into-array []))
+(def public-static (enum-or MethodAttributes/Public MethodAttributes/Static))
+(def abstract-sealed (enum-or TypeAttributes/Public TypeAttributes/Abstract TypeAttributes/Sealed))
 
 (defn eval [expr]
   (binding [*module* (fresh-module "eval")]
     (let [ast (ana/analyze expr)
-          bc (magic/compile ast)]
+          bc (magic/compile ast)
+          type-name (str (u/gensym "<magic-eval>"))]
       (->> (il/type
-            (str (gensym "magic$eval$"))
+            type-name
             (il/method
              "eval"
+             public-static
              Object []
              [bc
-              (magic/convert (ast-type ast) Object)
+              (magic/convert ast Object)
               (il/ret)]))
-           (il/emit! {::il/module-builder *module*})
-           ::il/type-builders ;;  TODO MAGE bug type-builder should be available here
-           vals
-           first
-           Activator/CreateInstance
-           .eval))))
+           (il/emit! {::il/module-builder *module*}))
+      (-> *module*
+          (.GetType type-name)
+          (.GetMethod "eval")
+          (.Invoke nil empty-args)))))
 
 (defn bind-spells! [spells]
   (alter-var-root #'magic/*spells* (constantly spells)))
@@ -106,10 +110,6 @@
 (def read-options
   {:read-cond :allow
    :features #{:cljr}})
-
-(def empty-args (into-array []))
-(def public-static (enum-or MethodAttributes/Public MethodAttributes/Static))
-(def abstract-sealed (enum-or TypeAttributes/Public TypeAttributes/Abstract TypeAttributes/Sealed))
 
 (defn load-file
   [roots path ctx]
