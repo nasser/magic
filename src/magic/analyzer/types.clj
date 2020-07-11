@@ -93,6 +93,7 @@
               (get (cached-ns-imports ns) (symbol t))))
      :else
      nil)))
+
 (defn tag [x]
   (if-let [t (-> x meta :tag)]
     (resolve t)))
