@@ -71,7 +71,7 @@
   (Type/GetType "System.Threading.Tasks.Task`1")
   (do 
     (defn- fjtask [^clojure.lang.IFn f]
-      (|System.Threading.Tasks.Task`1[System.Object]|. (sys-func [Object] [] (f))))
+      (|System.Threading.Tasks.Task`1[System.Object]|. (sys-func [System.Object] [] (f))))
 
     (defn- fjinvoke [f]
       (let [^|System.Threading.Tasks.Task`1[System.Object]| task (fjtask f)]
