@@ -129,7 +129,10 @@ namespace Magic
             => parameterType == argumentType
                || (parameterType.IsPrimitive && argumentType.IsPrimitive && parameterType != typeof(Boolean) && argumentType != typeof(Boolean))
                || parameterType.IsAssignableFrom(argumentType);
-        
+
+        static bool MatchesByInterfaceConversion(Type argumentType, Type parameterType) 
+            => parameterType.IsInterface && argumentType.IsInterface;
+
 #if CSHARP8
         static bool MatchByMagicBindingRules(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[]? modifiers)
 #else
@@ -144,7 +147,8 @@ namespace Magic
                 var argumentType = argumentTypes[i];
                 if(MatchesByNarrowingConversion(argumentType, parameterType)
                    || MatchesByEnumConversionConversion(argumentType, parameterType)
-                   || MatchesByObjectConversion(argumentType, parameterType))
+                   || MatchesByObjectConversion(argumentType, parameterType)
+                   || MatchesByInterfaceConversion(argumentType, parameterType))
                 {
                     continue;
                 }
@@ -155,7 +159,6 @@ namespace Magic
             }
             return true;
         }
-
         public override PropertyInfo SelectProperty(BindingFlags bindingAttr, PropertyInfo[] match, Type returnType, Type[] indexes, ParameterModifier[] modifiers)
         {
             return _binder.SelectProperty(bindingAttr, match, returnType, indexes, modifiers);
