@@ -807,12 +807,12 @@
     (let [type (ast-type ast)
           type-ignore-tag (ast-type-ignore-tag ast)]
       (cond
+        ;; we dont generate reference bytecode here, that happens elsewhere
+        ;; the result is somewhat messy but could be cleaned up in a peephole pass
         (and load-address?
-             (.IsValueType type)
-             (not (.IsValueType type-ignore-tag)))
+             (.IsValueType type))
         [(load-argument-standard arg-id)
-         (convert-type type-ignore-tag type)
-         (reference-to-type type)]
+         (convert-type type-ignore-tag type)]
         load-address?
         (load-argument-address arg-id)
         :else
