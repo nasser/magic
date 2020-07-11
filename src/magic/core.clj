@@ -833,13 +833,19 @@
             bm))
        first))
 
+(def ifn-invoke-methods
+  (mapv #(apply interop/method IFn "invoke" (repeat % Object)) (range 20)))
+
+(def variadic-ifn-invoke-method
+  (apply interop/method IFn "invoke" (concat (repeat 20 Object) [System.Object|[]|])))
+
 (defn ifn-invoke-compiler [{:keys [args] :as ast} compilers]
   (let [positional-args (take 20 args)
         rest-args (drop 20 args)
         invoke-method 
         (if (empty? rest-args)
-          (apply interop/method IFn "invoke" (repeat (count args) Object))
-          (apply interop/method IFn "invoke" (concat (repeat 20 Object) [System.Object|[]|])) )]
+          (ifn-invoke-methods (count args))
+          variadic-ifn-invoke-method)]
     [(il/castclass IFn)
      (interleave
       (map #(compile % compilers) positional-args)
