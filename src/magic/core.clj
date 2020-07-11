@@ -252,11 +252,11 @@
 
 (defmulti load-constant type)
 
-(defn load-var [v]
+(defn load-var [^clojure.lang.Var v]
   (let [nsname  (.. v Namespace Name ToString)
         symname (.. v Symbol ToString)]
-    [(load-constant nsname)
-     (load-constant symname)
+    [(il/ldstr nsname)
+     (il/ldstr symname)
      (il/call (interop/method RT "var" String String))]))
 
 (defn new-array [items]
