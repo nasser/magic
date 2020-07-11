@@ -21,6 +21,8 @@
             PropertyInfo]
            System.AppDomain))
 
+(def ^:dynamic *op-stack* [])
+
 (declare compile)
 (declare compile*)
 (declare base-compilers)
