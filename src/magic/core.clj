@@ -459,7 +459,7 @@
       (il/stelem type)
       (il/stelem-ref))))
 
-(defn get-var [v]
+(defn get-var [^clojure.lang.Var v]
   (if (.isDynamic v)
     (il/call (interop/method Var "get"))
     (il/call (interop/method Var "getRawRoot"))))
