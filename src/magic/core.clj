@@ -1726,7 +1726,7 @@
         (il/newobj ctor)
         (il/ret)]))))
 
-(defn deftype-compiler [{:keys [fields methods options implements deftype-type]} compilers]
+(defn deftype-compiler [{:keys [fields methods positional-factory implements name classname deftype-type]} compilers]
   (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
         ifaces* (into #{} (concat implements (mapcat #(.GetInterfaces %) implements)))
