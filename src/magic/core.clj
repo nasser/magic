@@ -1338,13 +1338,13 @@
            (fn [label test expression next-label]
              [label
               (when-not (= local-type Int32)
-                (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (or (type test) Object))
+                (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (or (ast-type test) Object))
                                        (interop/method clojure.lang.Util "equiv" Object Object))
                       parameter-types (->> equiv-method .GetParameters (map #(.ParameterType %)))]
                   [(compile local compilers)
                    (convert local (first parameter-types))
                    (compile test compilers)
-                   (convert-type (type test) (last parameter-types))
+                   (convert test (last parameter-types))
                    (il/call equiv-method)
                    (il/brfalse next-label)]))
               (compile expression compilers)
@@ -1374,7 +1374,7 @@
           :hash-equiv
           (map
            (fn [label test expression switch-value next-label]
-             (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (or (type test) Object))
+             (let [equiv-method (or (interop/method clojure.lang.Util "equiv" local-type (or (ast-type test) Object))
                                     (interop/method clojure.lang.Util "equiv" Object Object))
                    parameter-types (->> equiv-method .GetParameters (map #(.ParameterType %)))]
                [label
@@ -1382,7 +1382,7 @@
                   [(compile local compilers)
                    (convert local (first parameter-types))
                    (compile test compilers)
-                   (convert-type (type test) (last parameter-types))
+                   (convert test (last parameter-types))
                    (il/call equiv-method)
                    (il/brfalse next-label)])
                 (compile expression compilers)
