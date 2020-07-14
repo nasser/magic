@@ -497,24 +497,30 @@
 
 (defn vector-compiler
   [{:keys [items] :as ast} compilers]
-  (let [method (interop/method clojure.lang.RT "vector" |System.Object[]|)]
-    [(prepare-array items compilers)
-     (il/call method)
-     (convert-type (.ReturnType method) (ast-type ast))]))
+  (if (zero? (count items))
+    (il/ldsfld (interop/field clojure.lang.PersistentVector "EMPTY"))
+    (let [method (interop/method clojure.lang.RT "vector" |System.Object[]|)]
+      [(prepare-array items compilers)
+       (il/call method)
+       (convert-type (.ReturnType method) (ast-type ast))])))
 
 (defn set-compiler
   [{:keys [items] :as ast} compilers]
-  (let [method (interop/method clojure.lang.RT "set" |System.Object[]|)]
-    [(prepare-array items compilers)
-     (il/call method)
-     (convert-type (.ReturnType method) (ast-type ast))]))
+  (if (zero? (count items))
+    (il/ldsfld (interop/field clojure.lang.PersistentHashSet "EMPTY"))
+    (let [method (interop/method clojure.lang.RT "set" |System.Object[]|)]
+      [(prepare-array items compilers)
+       (il/call method)
+       (convert-type (.ReturnType method) (ast-type ast))])))
 
 (defn map-compiler
   [{:keys [keys vals] :as ast} compilers]
-  (let [method (interop/method clojure.lang.RT "mapUniqueKeys" |System.Object[]|)]
-    [(prepare-array (interleave keys vals) compilers)
-     (il/call method)
-     (convert-type (.ReturnType method) (ast-type ast))]))
+  (if (zero? (count keys))
+    (il/ldsfld (interop/field clojure.lang.PersistentArrayMap "EMPTY"))
+    (let [method (interop/method clojure.lang.RT "mapUniqueKeys" |System.Object[]|)]
+      [(prepare-array (interleave keys vals) compilers)
+       (il/call method)
+       (convert-type (.ReturnType method) (ast-type ast))])))
 
 (defn quote-compiler
   [{:keys [expr]} compilers]
