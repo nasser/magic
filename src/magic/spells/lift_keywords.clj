@@ -47,7 +47,7 @@
                          [{:keys [val] :as ast} local-compilers]
                          (if-let [field (kw-fields val)]
                            [(il/ldsfld field)]
-                           (magic/compile ast compilers)))})]
+                           (magic/compile* ast compilers)))})]
            (reduce (fn [ctx x] (il/emit! ctx x))
                    {::il/ilg ilg}
                    [cctor-il])
