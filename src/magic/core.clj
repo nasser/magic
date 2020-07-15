@@ -462,8 +462,9 @@
       (il/stelem-ref))))
 
 (defn get-var [^clojure.lang.Var v]
-  (if (.isDynamic v)
-    (il/call (interop/method Var "get"))
+  (if (or (.isDynamic v)
+          (not (.isBound v)))
+    (il/call (interop/method Var "deref"))
     (il/call (interop/method Var "getRawRoot"))))
 
 (def ^:static TRUE true)
