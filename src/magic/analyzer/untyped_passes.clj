@@ -143,8 +143,12 @@
     :catch
     (assoc ast :throws? (-> ast :body :throws?))
     :try
-    (assoc ast :throws? (and (-> ast :body :throws?)
-                             (every? :throws? (-> ast :catches))))
+    (let [throws? (and (-> ast :body :throws?)
+                       (every? :throws? (-> ast :catches)))
+          throws? (if-let [finally-expr (-> ast :finally)]
+                    (or throws? (:throws? finally-expr))
+                    throws?)]
+      (assoc ast :throws? throws?))
     (:def
      :fn :fn-method
      :proxy :proxy-method
