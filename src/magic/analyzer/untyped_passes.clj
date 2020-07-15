@@ -135,12 +135,21 @@
                :bindings (vec bindings*)
                :throws? true)
         (assoc ast :throws? (:throws? body))))
+    :case
+    (let [{:keys [default expressions]} ast]
+      (assoc ast :throws?
+             (and (:throws? default)
+                  (every? :throws? expressions))))
+    :catch
+    (assoc ast :throws? (-> ast :body :throws?))
+    :try
+    (assoc ast :throws? (and (-> ast :body :throws?)
+                             (every? :throws? (-> ast :catches))))
     (:def
      :fn :fn-method
      :proxy :proxy-method
      :reify :reify-method
-     :deftype :deftype-method
-     :try :catch)
+     :deftype :deftype-method)
     ast
     #_else
     (merge ast
