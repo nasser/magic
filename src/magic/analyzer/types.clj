@@ -153,18 +153,15 @@
 (defn ast-type-ignore-tag [ast]
   (ast-type-impl* ast))
 
-(def non-void-ast-type
-  (memoize
-   (fn non-void-ast-type*
-     ([ast]
-      (non-void-ast-type* ast Object))
-     ([ast non-void-type]
-      (if (disregard-type? ast)
-        non-void-type
-        (let [t (ast-type-impl ast)]
-          (if (= t System.Void)
-            non-void-type
-            t)))))))
+(defn non-void-ast-type
+  ([ast] (non-void-ast-type ast Object))
+  ([ast non-void-type]
+   (if (disregard-type? ast)
+     non-void-type
+     (let [t (ast-type ast)]
+       (if (= t System.Void)
+         non-void-type
+         t)))))
 
 (defmethod ast-type-impl :default [ast]
   nil
