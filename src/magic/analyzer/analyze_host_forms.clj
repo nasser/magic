@@ -181,6 +181,7 @@
 
 
 ;; TODO analyze away the identity invoke hack
+;; this can use a review
 (defn analyze-host-call
   "Analyze (Foo/Bar a) into static method invocation or (.Foo a b c) into an instance method invocation"
   {:pass-info {:walk :post :after #{#'uniquify-locals}}}
@@ -204,23 +205,28 @@
             target-type (if static?
                           (:val target)
                           (ast-type target))]
-        (merge ast
-               {:op (if static?
-                      :static-method
-                      :instance-method)}
-               (if-let [meth (select-method
-                              (filter #(= (.Name %) (str method))
-                                      (.GetMethods target-type))
-                              (map ast-type args))]
-                 {:method meth}
-                 (if-let [best-method (select-method
-                                       (filter #(= (.Name %) (str method))
-                                               (get-all-methods target-type))
-                                       (map ast-type args))]
-                   {:method best-method}
-                   {:op (if static? 
-                          :dynamic-static-method
-                          :dynamic-instance-method)})))))
+        (if target-type
+          (merge ast
+                 {:op (if static?
+                        :static-method
+                        :instance-method)}
+                 (if-let [meth (select-method
+                                (filter #(= (.Name %) (str method))
+                                        (.GetMethods target-type))
+                                (map ast-type args))]
+                   {:method meth}
+                   (if-let [best-method (select-method
+                                         (filter #(= (.Name %) (str method))
+                                                 (get-all-methods target-type))
+                                         (map ast-type args))]
+                     {:method best-method}
+                     {:op (if static? 
+                            :dynamic-static-method
+                            :dynamic-instance-method)})))
+          (merge ast
+                 {:op (if static?
+                        :dynamic-static-method
+                        :dynamic-instance-method)}))))
     :else
     ast))
 
