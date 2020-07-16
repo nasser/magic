@@ -191,8 +191,7 @@
       (do
         (clojure.lang.RT/load (str module))
         (println "[compile-file] end" path "(skipped, module already exists, loaded instead)"))
-      (binding [*unchecked-math* true
-                *print-meta* false
+      (binding [*print-meta* false
                 *ns* *ns*
                 magic.emission/*module* (magic.emission/fresh-module module-name)]
         (let [type-name (clojure-clr-init-class-name module)
