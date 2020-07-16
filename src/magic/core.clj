@@ -1900,9 +1900,7 @@
         [init meta] (if (= :with-meta (:op init))
                       [(:expr init) meta]
                       [init meta])]
-    [(il/ldstr (str var-ns))
-     (il/ldstr (str var-name))
-     (il/call (interop/method clojure.lang.RT "var" String String))
+    [(compile {:op :the-var :var var} compilers)
      (when-not (nil? init)  
        [(il/dup)
         (compile init compilers)
