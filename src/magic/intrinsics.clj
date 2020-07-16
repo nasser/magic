@@ -353,10 +353,16 @@
            Boolean)))
   (fn intrinsic-instance?-compiler
     [{[{:keys [val] :as type-arg} obj-arg] :args} type compilers]
-    [(magic/compile obj-arg compilers)
-     (il/isinst val)
-     (il/ldnull)
-     (il/cgt-un)]))
+    (let [obj-arg-type (ast-type obj-arg)]
+      (if-not (or (nil? obj-arg-type)
+                  (= obj-arg-type Object))
+        (if (= obj-arg-type val)
+          (il/ldc-i4-1)
+          (il/ldc-i4-0))
+        [(magic/compile obj-arg compilers)
+         (il/isinst val)
+         (il/ldnull)
+         (il/cgt-un)]))))
 
 (defintrinsic clojure.core/count
   (constantly Int32)
