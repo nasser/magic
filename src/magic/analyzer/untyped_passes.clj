@@ -33,7 +33,10 @@
   [{:keys [op] {:keys [context]} :env :as ast}]
   (binding [*stack-empty?*
             (or (and *stack-empty?* (not= context :ctx/expr))
-                (= op :fn-method))]
+                (= op :fn-method)
+                (= op :proxy-method)
+                (= op :reify-method)
+                (= op :deftype-method))]
     (-> ast
         (assoc-in [:env :empty-stack?] *stack-empty?*)
         (update-children compute-empty-stack-context))))
