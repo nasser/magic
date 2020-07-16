@@ -29,7 +29,7 @@
 (defn reinterpret [{:keys [literal? op val] :as ast} to-type]
   (if (and (= op :const) literal?)
     (let [v (reinterpret-value val to-type)]
-      (assoc ast :val v :form v))
+      (assoc ast :val v :form v :const-type (type v)))
     ast))
 
 (defn reinterpret-interop [ast method-key args-key]
