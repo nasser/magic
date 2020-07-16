@@ -51,7 +51,13 @@
                               (if-let [field (var-fields var)]
                                 [(il/ldsfld field)
                                  (magic/get-var var)]
-                                (magic/compile* ast compilers)))})]
+                                (magic/compile* ast compilers)))
+                       :the-var
+                       (fn lifted-var-the-var-compiler
+                         [{:keys [var] :as ast} local-compilers]
+                         (if-let [field (var-fields var)]
+                           [(il/ldsfld field)]
+                           (magic/compile* ast compilers)))})]
            (reduce (fn [ctx x] (il/emit! ctx x))
                    {::il/ilg ilg}
                    [cctor-il])
