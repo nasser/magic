@@ -405,12 +405,14 @@
 
 (defmethod load-constant
   clojure.lang.APersistentSet [v]
-  (let [method (interop/method clojure.lang.RT "set" System.Object|[]|)]
-    [(new-array (map (fn [c] [(load-constant c)
-                              (convert-type (type c) Object)])
-                     v))
-     (il/call method)
-     (convert-type (.ReturnType method) (types/data-structure-types :set))]))
+  (if (zero? (count v))
+    (il/ldsfld (interop/field clojure.lang.PersistentHashSet "EMPTY"))
+    (let [method (interop/method clojure.lang.RT "set" System.Object|[]|)]
+      [(new-array (map (fn [c] [(load-constant c)
+                                (convert-type (type c) Object)])
+                       v))
+       (il/call method)
+       (convert-type (.ReturnType method) (types/data-structure-types :set))])))
 
 (defmethod load-constant
   clojure.lang.APersistentMap [v]
