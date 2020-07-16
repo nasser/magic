@@ -22,7 +22,9 @@
   "The interfaces the var associated with the AST implements, or []"
   [ast]
   (if-let [v (var-reference ast)]
-    (-> v deref type .GetInterfaces)
+    (if (deref v)
+      (-> v deref type .GetInterfaces)
+      [])
     []))
 
 (defn var-type
