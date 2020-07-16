@@ -278,7 +278,9 @@
 ;; TODO multidim arrays
 
 (defintrinsic clojure.core/aget
-  array-element-type
+  (fn [{:keys [args] :as ast}]
+    (when (= (count args) 2)
+      (array-element-type ast)))
   (fn intrinsic-aget-compiler
     [{:keys [args] :as ast} type compilers]
     (let [[array-arg index-arg] args
@@ -292,11 +294,12 @@
 ;; TODO multidim arrays
 
 (defintrinsic clojure.core/aset
-  (fn [ast] 
-    (when-let [array-type (array-element-type ast)]
-      (if (magic/statement? ast)
-        System.Void
-        array-type)))
+  (fn [{:keys [args] :as ast}] 
+    (when (= (count args) 3)
+      (when-let [array-type (array-element-type ast)]
+        (if (magic/statement? ast)
+          System.Void
+          array-type))))
   (fn intrinsic-aset-compiler
     [{:keys [args] :as ast} type compilers]
     (let [[array-arg index-arg value-arg] args
@@ -368,10 +371,11 @@
          )])))
 
 (defintrinsic clojure.core/make-array
-  (fn [{[first-arg] :args}]
-    (when (and (= :const (:op first-arg))
-               (= :class (:type first-arg)))
-      (.MakeArrayType (:val first-arg))))
+  (fn [{[first-arg :as args] :args}]
+    (when (= (count args) 2)
+     (when (and (= :const (:op first-arg))
+                (= :class (:type first-arg)))
+       (.MakeArrayType (:val first-arg)))))
   (fn intrinsic-make-array-compiler
     [{[type-arg len-arg] :args} type compilers]
     [(magic/compile len-arg compilers)
