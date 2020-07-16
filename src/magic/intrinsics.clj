@@ -354,8 +354,7 @@
   (fn intrinsic-instance?-compiler
     [{[{:keys [val] :as type-arg} obj-arg] :args} type compilers]
     (let [obj-arg-type (ast-type obj-arg)]
-      (if-not (or (nil? obj-arg-type)
-                  (= obj-arg-type Object))
+      (if (.IsValueType val)
         (if (= obj-arg-type val)
           (il/ldc-i4-1)
           (il/ldc-i4-0))
