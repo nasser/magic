@@ -1428,7 +1428,7 @@
    attributes
    (.ReturnType method)
    (mapv #(.ParameterType %) (.GetParameters method))
-   [(il/newobj (interop/constructor NotSupportedException))
+   [(il/newobj (interop/constructor NotImplementedException))
     (il/throw)]))
 
 (defn all-abstract-methods [type]
