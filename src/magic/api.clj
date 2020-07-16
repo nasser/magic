@@ -177,6 +177,8 @@
 
 (def ^:dynamic *recompile-namespaces* false)
 
+(def ^:dynamic *write-files* true)
+
 (defn compile-file
   [roots path module]
   (println "[compile-file] start" path)
@@ -209,7 +211,8 @@
               (throw (Exception. (str "Could not find " path ", roots " roots)))))
           (il/emit! ctx (il/ret))
           (.CreateType ns-type))
-        (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*)))
+        (when *write-files*
+         (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*))))
         (println "[compile-file] end" path "->" (.Name magic.emission/*module*))))))
 
 (def load-one' (deref (clojure.lang.RT/var "clojure.core" "load-one")))
