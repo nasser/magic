@@ -402,6 +402,7 @@
   "Is an if AST node always true?"
   [{:keys [op test then else]}]
   (and (= op :if)
+       (= :const (:op test))
        (or (and (:literal? test)
                 (not= (:val test) false)
                 (not= (:val test) nil))
@@ -412,6 +413,7 @@
   "Is an if AST node always false?"
   [{:keys [op test then else]}]
   (and (= op :if)
+       (= :const (:op test))
        (:literal? test)
        (or (= (:val test) false)
            (= (:val test) nil))))
