@@ -355,8 +355,7 @@
     [{[{:keys [val] :as type-arg} obj-arg] :args} type compilers]
     (let [obj-arg-type (ast-type obj-arg)]
       (if (and obj-arg-type
-               (.IsValueType obj-arg-type)
-               (.IsValueType val))
+               (.IsValueType obj-arg-type))
         (if (= obj-arg-type val)
           (il/ldc-i4-1)
           (il/ldc-i4-0))
