@@ -281,10 +281,10 @@
                arglist)))
          resolve-tag (fn [argvec]
                         (let [m (meta argvec)
-                              ^clojure.lang.Symbol tag (:tag m)
+                              tag (:tag m)
                               tag-name (str tag)]
                           (if (instance? clojure.lang.Symbol tag)
-                            (if (clojure.lang.Util/equiv (.IndexOf (.Name tag) ".") -1)                                              ;;; .indexOf  .getName
+                            (if (clojure.lang.Util/equiv (.IndexOf (.Name ^clojure.lang.Symbol tag) ".") -1)                                              ;;; .indexOf  .getName
                               (if (clojure.lang.Util/equals nil (maybe-special-tag tag))         ;;; clojure.lang.Compiler$HostExpr
                                 (let [c (clojure.lang.RT/classForName tag-name)]                                 ;;; clojure.lang.Compiler$HostExpr  maybeClass
                                   (if c
