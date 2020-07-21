@@ -236,7 +236,7 @@
                                              (compile-namespace roots lib opts)
                                              (dosync
                                                (commute -loaded-libs conj lib))))]
-       (compile-file roots path (munge (str namespace)))))))
+       (compile-file roots path (munge (str namespace)) opts)))))
 
 (def version "0.0-alpha")
 
