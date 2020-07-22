@@ -224,7 +224,6 @@
   (println "[compile-namespace]" namespace)
   (when-let [path (find-file roots namespace)]
     (with-redefs [clojure.core/load-one (fn magic-load-one-fn [lib need-ns require]
-                                          (println "  [load-one]" lib need-ns require (type -loaded-libs) (deref -loaded-libs))
                                           (binding [*ns* *ns*]
                                             (compile-namespace roots lib)
                                             (dosync
