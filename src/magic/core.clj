@@ -283,6 +283,14 @@
 (defmethod load-constant :default [k]
   (throw! "load-constant not implemented for " k " (" (type k) ")" ))
 
+(defn load-constant-meta [k]
+  (when-let [m (meta k)]
+    [(convert-type (type k) clojure.lang.IObj)
+     (load-constant m)
+     (convert-type (type m) clojure.lang.IPersistentMap)
+     (il/callvirt (interop/method clojure.lang.IObj "withMeta" clojure.lang.IPersistentMap))
+     (convert-type clojure.lang.IObj (type k))]))
+
 (defmethod load-constant Enum [v]
   (let [enum-type (Enum/GetUnderlyingType (type v))]
     (cond 
@@ -373,7 +381,8 @@
 (defmethod load-constant Symbol [k]
   [(load-constant (.Namespace k))
    (load-constant (.Name k))
-   (il/call (interop/method Symbol "intern" String String))])
+   (il/call (interop/method Symbol "intern" String String))
+   (load-constant-meta k)])
 
 ;; NOTE the stock compiler looks up types using RT.classForName
 ;; if the type is not a valuetype. why? does it make a difference?
@@ -392,7 +401,8 @@
 
 (defmethod load-constant
   clojure.lang.ISeq [v]
-  (persistent-list-il v))
+  [(persistent-list-il v)
+   (load-constant-meta v)])
 
 (defmethod load-constant
   clojure.lang.APersistentVector [v]
@@ -401,7 +411,8 @@
                               (convert-type (type c) Object)])
                      v))
      (il/call method)
-     (convert-type (.ReturnType method) (types/data-structure-types :vector))]))
+     (convert-type (.ReturnType method) (types/data-structure-types :vector))
+     (load-constant-meta v)]))
 
 (defmethod load-constant
   clojure.lang.APersistentSet [v]
@@ -412,7 +423,8 @@
                                 (convert-type (type c) Object)])
                        v))
        (il/call method)
-       (convert-type (.ReturnType method) (types/data-structure-types :set))])))
+       (convert-type (.ReturnType method) (types/data-structure-types :set))
+       (load-constant-meta v)])))
 
 (defmethod load-constant
   clojure.lang.APersistentMap [v]
@@ -423,7 +435,8 @@
                   (convert-type (type k) Object) ]))
           new-array)
      (il/call method)
-     (convert-type (.ReturnType method) (types/data-structure-types :map))]))
+     (convert-type (.ReturnType method) (types/data-structure-types :map))
+     (load-constant-meta v)]))
 
 ;; TODO remaining element types
 (defn load-element [type]
