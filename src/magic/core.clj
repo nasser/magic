@@ -1931,7 +1931,7 @@
   [{:keys [class-name]} compilers]
   (let [import-class-label (il/label)]
     [(il/call (interop/getter clojure.lang.Compiler "CurrentNamespace"))
-     (if-let [t (Magic.Runtime/FindType class-name)]
+     (if-let [t (types/resolve class-name)]
        [(il/ldtoken t)
         (il/call (interop/method Type "GetTypeFromHandle" RuntimeTypeHandle))]
        ;; TODO should this be an error? just throw the exception here?
