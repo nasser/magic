@@ -214,8 +214,10 @@
          (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*))))
         (println "[compile-file] end" path "->" (.Name magic.emission/*module*))))))
 
-(def load-one' (deref (clojure.lang.RT/var "clojure.core" "load-one")))
-(def -loaded-libs (deref (clojure.lang.RT/var "clojure.core" "*loaded-libs*")))
+;; *loaded-libs* is supposed to be private, so we're putting this indirection
+;; here for when we get var dereferencing to respect privacy
+(defn- loaded-libs-ref []
+  (var-get #'clojure.core/*loaded-libs*))
 
 (defn compile-namespace
   [roots namespace]
@@ -226,7 +228,7 @@
                                           (binding [*ns* *ns*]
                                             (compile-namespace roots lib)
                                             (dosync
-                                             (commute -loaded-libs conj lib))))]
+                                             (commute (loaded-libs-ref) conj lib))))]
       (compile-file roots path (munge (str namespace))))))
 
 (def version "0.0-alpha")
