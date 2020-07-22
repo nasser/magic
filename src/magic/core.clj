@@ -833,10 +833,6 @@
       (cond
         ;; we dont generate reference bytecode here, that happens elsewhere
         ;; the result is somewhat messy but could be cleaned up in a peephole pass
-        (and load-address?
-             (.IsValueType type))
-        [(load-argument-standard arg-id)
-         (convert-type type-ignore-tag type)]
         load-address?
         (load-argument-address arg-id)
         :else
