@@ -85,7 +85,9 @@
      (or (shorthand t)
          (and *module*
               (try 
-                (.GetType *module* t)
+                (let [name t
+                      qualified-name (str (namespace-munge ns) "." name)]
+                  (or (.GetType *module* qualified-name) (.GetType *module* name)))
                 (catch ArgumentException e
                   nil)))
          (Runtime/FindType t)
