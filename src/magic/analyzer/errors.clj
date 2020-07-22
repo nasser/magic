@@ -26,7 +26,7 @@
 
 (defmethod error ::missing-type
   [err {:keys [type] :as ast}]
-  (throw! "Could not find type " type " while analyzing form " (user-form ast)))
+  (throw! "Unable to resolve symbol: " type))
 
 (defmethod error ::missing-constructor-arity
   [err {:keys [args class] :as ast}]
