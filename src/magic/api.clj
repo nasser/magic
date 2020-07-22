@@ -153,7 +153,7 @@
                                                 ;; cant with-redefs because clojure.core/load bottoms out in
                                                 ;; clojure.lang.RT/load
                                                 (if-let [path' (find-file roots path)]
-                                                  (compile-file roots path' path)
+                                                  (compile-file roots path' path opts)
                                                   (throw (Exception. (str "Could not find " path ", roots " roots))))))))))]
                    (.Invoke (.GetMethod expr-type "eval") nil empty-args))
                  (recur (read-1) (inc i))))
