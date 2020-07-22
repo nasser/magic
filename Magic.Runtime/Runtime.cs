@@ -72,11 +72,12 @@ namespace Magic
 
             // fast path, will succeed for namespace qualified names (returned by Type.FullName)
             // e.g. "UnityEngine.Transform"
-            foreach (Assembly assy in assys)
+            for(int i = assys.Length - 1; i>=0; i--)
             {
-                  Type t1 = assy.GetType(p, false);
-                  if(t1 != null)
-                        return t1;
+                var assy = assys[i];
+                Type t1 = assy.GetType(p, false);
+                if(t1 != null)
+                      return t1;
             }
 
             // TODO parse name for complex types
