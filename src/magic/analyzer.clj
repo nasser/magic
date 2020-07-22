@@ -238,6 +238,7 @@
 
 (defn parse-deftype
   [[_ name fields & opts-specs :as form] env]
+  (#'clojure.core/validate-fields fields name)
   (let [[interfaces methods options] (#'clojure.core/parse-opts+specs opts-specs)
         implements (conj interfaces 'clojure.lang.IType)
         classname (str (namespace-munge *ns*) "." name)
