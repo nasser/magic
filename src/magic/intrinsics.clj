@@ -218,6 +218,31 @@
        (il/ldc-i4-0)
        end-label])))
 
+(defintrinsic clojure.core/>
+  #(when (numeric-args %) Boolean)
+  (fn intrinsic-lt-compiler
+    [{:keys [args] :as ast} type compilers]
+    (let [arg-pairs (partition 2 1 args)
+          less-label (il/label)
+          true-label (il/label)
+          end-label (il/label)
+          il-pairs
+          (map (fn [[a b]]
+                 (let [best-numeric-type
+                       (->> [a b] (map ast-type) types/best-numeric-promotion)]
+                   [(magic/compile a compilers)
+                    (magic/convert a best-numeric-type)
+                    (magic/compile b compilers)
+                    (magic/convert b best-numeric-type)]))
+               arg-pairs)]
+      [(->> (interleave il-pairs (repeat (il/blt less-label)))
+            drop-last)
+       (il/cgt)
+       (il/br end-label)
+       less-label
+       (il/ldc-i4-0)
+       end-label])))
+
 (defintrinsic clojure.core/=
   #(when (numeric-args %) Boolean)
   (fn intrinsic-eq-compiler
@@ -319,6 +344,19 @@
        (magic/store-element type)
        (when-not statement?
          (il/ldloc val-return))])))
+
+(defintrinsic clojure.core/nth
+  array-element-type
+  (fn intrinsic-nth-compiler
+    [{:keys [args] :as ast} type compilers]
+    (let [[array-arg index-arg] args
+          index-arg (reinterpret index-arg Int32)
+          value-type? (.IsValueType type)]
+      [(magic/compile array-arg compilers)
+       (magic/compile index-arg compilers)
+       (if value-type?
+         (il/ldelem type)
+         (il/ldelem-ref))])))
 
 (defintrinsic clojure.core/alength
   #(when-array-type % Int32)
