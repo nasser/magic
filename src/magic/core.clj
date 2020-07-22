@@ -1888,7 +1888,10 @@
         ctx' (reduce (fn [ctx method] (il/emit! ctx method))
                      {::il/type-builder deftype-type}
                      [(vals ctors) (vals methods*)])]
-    (compile-deftype-getbasis ctx' deftype-type fields)
+    (compile-deftype-getbasis ctx' deftype-type
+                              (if defrecord?
+                                (vec (drop-last 4 fields))
+                                fields))
     (when defrecord?
       (compile-defrecord-create ctx' deftype-type (drop-last 4 fields) ctor))
     (.CreateType deftype-type)
