@@ -78,7 +78,7 @@
      (nil? t)
      nil
      (instance? Type t)
-     t
+     (recur (.FullName t) ns)
      (symbol? t)
      (recur (str t) ns)
      (string? t)
