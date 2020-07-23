@@ -1050,12 +1050,14 @@
 (defn ifn-type? [t]
   (.IsAssignableFrom clojure.lang.IFn t))
 
-(defn compile-fn-type [{:keys [methods variadic? closed-overs fn-type fn-type-cctor] :as ast} compilers]
+(defn compile-fn-type [{:keys [methods variadic? closed-overs fn-type fn-type-cctor local] :as ast} compilers]
   (when-not (.IsCreated fn-type)
     (let [fixed-arity-methods (remove :variadic? methods)
+          fn-name-tag (-> local :meta :tag types/resolve)
           signatures (->> fixed-arity-methods
                           (map (fn [method]
                                  (let [return-type (or (-> method :form first meta :tag types/resolve)
+                                                       fn-name-tag
                                                        (-> method :body ast-type))
                                        param-types (map non-void-ast-type (:params method))]
                                    (list* return-type param-types))))
@@ -1101,7 +1103,9 @@
                              clojure.lang.RestFn
                              clojure.lang.AFunction)))
                  (il/ret)])
-          methods* (map #(compile % specialized-compilers) methods)]
+          methods* (->> methods
+                       (map #(assoc % :fn-name-tag fn-name-tag))
+                       (map #(compile % specialized-compilers)))]
       (reduce (fn [ctx x] (il/emit! ctx x))
               {::il/type-builder fn-type}
               [closed-over-fields ctor methods* (has-arity-method fixed-arities variadic-arity) (get-required-arity-method variadic-arity)])
@@ -1121,7 +1125,7 @@
     (.GetFields fn-type (enum-or BindingFlags/NonPublic BindingFlags/Instance)))])
 
 (defn fn-method-compiler
-  [{:keys [body params form variadic?]} compilers]
+  [{:keys [fn-name-tag body params form variadic?]} compilers]
   (let [param-hint (-> form first tag)
         param-types (mapv ast-type params)
         param-names (into #{} (map :name params))
@@ -1131,7 +1135,7 @@
         body-type (if (types/disregard-type? body)
                     System.Void
                     (ast-type body))
-        return-type (or param-hint body-type)
+        return-type (or param-hint fn-name-tag body-type)
         public-virtual (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         recur-target (il/label)
         invoke-method-name (if variadic? "doInvoke" "invoke")
