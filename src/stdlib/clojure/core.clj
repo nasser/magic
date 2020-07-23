@@ -373,7 +373,7 @@
 		        ;;todo - restore propagation of fn name
 				;;must figure out how to convey primitive hints to self calls first
 								;;(cons `fn fdecl)
-								(with-meta (cons `fn fdecl) {:rettag (:tag m)})))))
+								(with-meta (list* `fn name fdecl) {:rettag (:tag m)})))))
 
 (. (var defn) (setMacro))       
 
