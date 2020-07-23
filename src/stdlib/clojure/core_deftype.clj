@@ -622,7 +622,8 @@
 
 (defn- emit-method-builder [on-interface method on-method arglists]
   (let [methodk (keyword method)
-        gthis (with-meta (gensym) {:tag 'clojure.lang.AFunction})
+        gthis (gensym)
+        gthis-tagged (with-meta gthis {:tag 'clojure.lang.AFunction})
         ginterf (gensym)]
     `(fn [cache#]
       (let [~ginterf
@@ -641,7 +642,7 @@
                     (let [gargs (map #(gensym (str "gf__" % "__")) args)
                           target (first gargs)]
                       `([~@gargs]
-                          (let [cache# (.__methodImplCache ~gthis)
+                          (let [cache# (.__methodImplCache ~gthis-tagged)
                                 f# (.fnFor cache# (clojure.lang.Util/classOf ~target))]
                             (if f# 
                               (f# ~@gargs)
