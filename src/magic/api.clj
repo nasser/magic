@@ -111,6 +111,51 @@
   {:read-cond :allow
    :features #{:cljr}})
 
+(defn compile-expression [expr roots ctx]
+  (println "[compile-expression]" (-> expr (trim 30)) (str *ns*) (ns-aliases *ns*))
+  (let [expr-name (u/gensym "<magic>expr")
+        expr-type (.DefineType magic.emission/*module* expr-name abstract-sealed)
+        expr-method (.DefineMethod expr-type "eval" public-static)
+        expr-ilg (.GetILGenerator expr-method)
+        ctx' (assoc ctx
+                    ::il/type-builder expr-type
+                    ::il/method-builder expr-method
+                    ::il/ilg expr-ilg)]
+    (il/emit! ctx'
+              [(-> expr
+                   ana/analyze
+                   magic/compile)
+               [(il/pop)
+                (il/ret)]])
+    (il/emit! ctx (il/call expr-method))
+    (.CreateType expr-type)
+    (with-redefs [load (fn magic-load-fn [& paths]
+                         ;; copied from core.clj
+                         (doseq [^String path paths]
+                           (let [^String path (if (.StartsWith path "/")
+                                                path
+                                                (str (root-directory (ns-name *ns*)) \/ path))]
+                             (check-cyclic-dependency path)
+                             (when-not (= path (first *pending-paths*))
+                               (binding [*pending-paths* (conj *pending-paths* path)]
+                                 (let [path (.Substring path 1)]
+                                   ;; cant with-redefs because clojure.core/load bottoms out in
+                                   ;; clojure.lang.RT/load
+                                   (if-let [path' (find-file roots path)]
+                                     (compile-file roots path' path)
+                                     (throw (Exception. (str "Could not find " path ", roots " roots))))))))))]
+      (.Invoke (.GetMethod expr-type "eval") nil empty-args))))
+
+(defn compile-expression-top-level [expr roots ctx]
+  (println "[compile-expression-top-level]" expr)
+  (cond
+    (and (seq? expr)
+         (= 'do (first expr)))
+    (doseq [expr' (drop 1 expr)]
+      (compile-expression-top-level expr' roots ctx))
+    :else
+    (compile-expression expr roots ctx)))
+
 (defn load-file
   [roots path ctx]
   (let [file (System.IO.File/OpenText path)]
@@ -118,43 +163,10 @@
       (let [rdr (LineNumberingTextReader. file)
             read-1 (fn [] (try (read read-options rdr) (catch Exception _ nil)))]
         (loop [expr (read-1) i 0]
-          (if expr
-            (do
-              (println (-> expr (trim 30)) (str *ns*) (ns-aliases *ns*))
-              (let [expr-name (u/gensym "<magic>expr")
-                    expr-type (.DefineType magic.emission/*module* expr-name abstract-sealed)
-                    expr-method (.DefineMethod expr-type "eval" public-static)
-                    expr-ilg (.GetILGenerator expr-method)
-                    ctx' (assoc ctx
-                                ::il/type-builder expr-type
-                                ::il/method-builder expr-method
-                                ::il/ilg expr-ilg)]
-                (il/emit! ctx'
-                          [(-> expr
-                               ana/analyze
-                               magic/compile)
-                           [(il/pop)
-                            (il/ret)]])
-                (il/emit! ctx (il/call expr-method))
-                (.CreateType expr-type)
-                (with-redefs [load (fn magic-load-fn [& paths]
-                                     ;; copied from core.clj
-                                     (doseq [^String path paths]
-                                       (let [^String path (if (.StartsWith path "/")
-                                                            path
-                                                            (str (root-directory (ns-name *ns*)) \/ path))]
-                                         (check-cyclic-dependency path)
-                                         (when-not (= path (first *pending-paths*))
-                                           (binding [*pending-paths* (conj *pending-paths* path)]
-                                             (let [path (.Substring path 1)]
-                                               ;; cant with-redefs because clojure.core/load bottoms out in
-                                               ;; clojure.lang.RT/load
-                                               (if-let [path' (find-file roots path)]
-                                                 (compile-file roots path' path)
-                                                 (throw (Exception. (str "Could not find " path ", roots " roots))))))))))]
-                  (.Invoke (.GetMethod expr-type "eval") nil empty-args))
-                (recur (read-1) (inc i))))
-            (.Close rdr))))
+          (when expr
+            (compile-expression-top-level expr roots ctx)
+            (recur (read-1) (inc i))))
+        (.Close rdr))
       (finally
         (.Close file)))))
 
