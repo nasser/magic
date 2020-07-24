@@ -158,11 +158,9 @@
 
 (defn type-lookup-cache-evict [cache type-name]
   (if-let [ast (get (:reverse cache) type-name)]
-    (do
-      (println "[ast-type] evict!" type-name)
-      (-> cache
-          (update :forward dissoc ast)
-          (update :reverse dissoc type-name)))
+    (-> cache
+        (update :forward dissoc ast)
+        (update :reverse dissoc type-name))
     cache))
 
 (defn type-lookup-cache-evict! [type-name]
