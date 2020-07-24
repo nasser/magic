@@ -144,8 +144,36 @@
 
 ;;;;; ast types
 
-(def ast-type-impl*
- (memoize (fn ast-type-impl* [ast] (ast-type-impl ast))) )
+;; :forward ast -> type
+;; :reverse type name -> ast
+(def type-lookup-cache (atom {:forward {} :reverse {}}))
+
+(defn type-lookup-cache-store [cache ast type]
+  (if (keyword? type)
+    (-> cache
+        (update :forward assoc ast type))
+    (-> cache
+        (update :forward assoc ast type)
+        (update :reverse assoc (.FullName type) ast))))
+
+(defn type-lookup-cache-evict [cache type-name]
+  (if-let [ast (get (:reverse cache) type-name)]
+    (do
+      (println "[ast-type] evict!" type-name)
+      (-> cache
+          (update :forward dissoc ast)
+          (update :reverse dissoc type-name)))
+    cache))
+
+(defn type-lookup-cache-evict! [type-name]
+  (swap! type-lookup-cache type-lookup-cache-evict type-name))
+
+(defn ast-type-impl* [ast]
+  (if-let [cached-type (get (:forward @type-lookup-cache) ast)]
+    cached-type
+    (let [type (ast-type-impl ast)]
+      (swap! type-lookup-cache type-lookup-cache-store ast type)
+      type)))
 
 (defn ast-type [ast]
   (if-let [tag (-> ast :form meta :tag)]

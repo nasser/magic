@@ -1,5 +1,6 @@
 (ns magic.analyzer.generated-types
-  (:require [magic.util :as u])
+  (:require [magic.util :as u]
+            [magic.analyzer.types :as types])
   (:import [System.Reflection TypeAttributes]))
 
 (def ^:dynamic
@@ -21,6 +22,7 @@
     type))
 
 (defn define-new-type [module-builder name super interfaces attributes]
+  (types/type-lookup-cache-evict! name)
   (.DefineType
    module-builder name attributes super (into-array Type interfaces)))
 
