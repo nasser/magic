@@ -1,6 +1,5 @@
 (ns magic.analyzer.generated-types
-  (:require [magic.util :as u]
-            [magic.analyzer.types :as types])
+  (:require [magic.analyzer.types :as types])
   (:import [System.Reflection TypeAttributes]))
 
 (def ^:dynamic
@@ -55,9 +54,8 @@
 (defn variadic-fn-type [module-builder name interfaces]
   (fresh-type module-builder name clojure.lang.RestFn interfaces public))
 
-(defn proxy-type [module-builder super interfaces]
-  (fresh-type module-builder (str (u/gensym "proxy")) super interfaces public))
+(defn proxy-type [module-builder name super interfaces]
+  (fresh-type module-builder name super interfaces public))
 
-(defn reify-type [module-builder interfaces]
-  (fresh-type
-   module-builder (str (u/gensym "reify")) Object interfaces public-sealed))
+(defn reify-type [module-builder name interfaces]
+  (fresh-type module-builder name Object interfaces public-sealed))

@@ -212,6 +212,20 @@
     (assoc ast :const-type (type val))
     ast))
 
+(def ^:dynamic *fn-name* nil)
+
+(defn propagate-fn-name
+  {:pass-info {:walk :none}}
+  [{:keys [op name local] :as ast}]
+  (case op
+    :fn
+    (binding [*fn-name* (or name (:form local))]
+      (update-children ast propagate-fn-name))
+    #_else
+    (-> ast
+        (assoc :containing-fn-name *fn-name*)
+        (update-children propagate-fn-name))))
+
 (def untyped-pass-set
   #{#'collect-vars
     #'collect-keywords
@@ -228,6 +242,7 @@
     #'remove-empty-throw-children
     #'treat-throw-as-return
     #'prevent-recur-out-of-try
+    #'propagate-fn-name
     #'explicit-const-type})
 
 (def scheduled-passes

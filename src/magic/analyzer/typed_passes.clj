@@ -154,11 +154,13 @@
              :implements interfaces))
     ast))
 
-(defn gen-fn-name [n]
-  (string/replace
-   (str "<magic>" (u/gensym (str *ns* "$" (or n "<fn>") "_")))
-   "."
-   "_"))
+(defn gen-il-name
+  ([n] (gen-il-name n "<generated-type>"))
+  ([n default]
+   (string/replace
+    (str "<magic>" (u/gensym (str *ns* "$" (or n default) "_")))
+    "."
+    "_")))
 
 (def make-fn-type-cctor
  (memoize 
@@ -175,7 +177,7 @@
     :fn
     (let [name (or name (:form local))
           interfaces []
-          fn-name (gen-fn-name name)
+          fn-name (gen-il-name name "<fn>")
           fn-type (if variadic? 
                     (gt/variadic-fn-type *module* fn-name interfaces)
                     (gt/fn-type *module* fn-name interfaces))]
@@ -198,7 +200,7 @@
    looks up interface/super type methods. magic.emission/*module* must be bound
    before this function is called and will contain the generated proxy type when
    this function returns."
-  [{:keys [op class-and-interface fns] :as ast}]
+  [{:keys [op class-and-interface fns containing-fn-name] :as ast}]
   (case op
     :proxy
     (let [class-and-interface (mapv host/analyze-type class-and-interface)
@@ -211,7 +213,8 @@
                              (drop 1 class-and-interface)
                              class-and-interface))
           interfaces* (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
-          proxy-type (gt/proxy-type *module* super interfaces)
+          proxy-name (gen-il-name (str containing-fn-name "<proxy>"))
+          proxy-type (gt/proxy-type *module* proxy-name super interfaces)
           candidate-methods (into #{} (concat (.GetMethods super)
                                               (mapcat #(.GetMethods %) interfaces*)))
           fns (mapv #(analyze-method % candidate-methods :proxy-type proxy-type false) fns)
@@ -228,7 +231,7 @@
     ast))
 
 (defn analyze-reify
-  [{:keys [op interfaces methods] :as ast}]
+  [{:keys [op interfaces methods containing-fn-name] :as ast}]
   (case op
     :reify
     (let [interfaces*
@@ -237,7 +240,8 @@
                 (map host/analyze-type)
                 (mapv :val))
            clojure.lang.IObj)
-          reify-type (gt/reify-type *module* interfaces*)
+          reify-name (gen-il-name (str containing-fn-name "<reify>"))
+          reify-type (gt/reify-type *module* reify-name interfaces*)
           all-interfaces (into #{} (concat interfaces* (mapcat #(.GetInterfaces %) interfaces*)))
           candidate-methods (into #{} (concat (.GetMethods Object)
                                               (mapcat #(.GetMethods %) all-interfaces)))
