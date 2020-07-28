@@ -564,13 +564,18 @@
     (il/ldsfld field)))
 
 (defn field-volatile? [f]
-  (let [modifiers (into #{} (.GetRequiredCustomModifiers f))]
-    (modifiers IsVolatile)))
+  (if (instance? System.Reflection.Emit.FieldBuilder f)
+    (println (str "cannot look up required custom modifiers on FieldBuilder" f ", skipping"))
+    (let [modifiers (into #{} (.GetRequiredCustomModifiers f))]
+      (modifiers IsVolatile))))
 
 (defn instance-field-compiler
   "Symbolic bytecode for instance fields"
-  [{:keys [field target]} compilers]
-  [(compile target compilers)
+  [{:keys [field target] :as ast} compilers]
+  (println "[instance-field-compiler]" (:form ast) (:op target) (:local compilers))
+  [(if (= target :deftype-this)
+     (il/ldarg-0)
+     (compile target compilers))
    (when (field-volatile? field)
      (il/volatile))
    (il/ldfld field)])
@@ -1834,17 +1839,6 @@
                  (il/newobj (ctors arg-count))])
               (compile ast (assoc local-compilers 
                                   :new (:new compilers)))))
-          :instance-field
-          (fn deftype-instance-field-compiler 
-            [{:keys [field target] :as ast} local-compilers]
-            (if (fieldinfos-set field)
-              [(if (= target :deftype-this) 
-                 (il/ldarg-0)
-                 (compile target local-compilers))
-               (when (volatile? field)
-                 (il/volatile))
-               (il/ldfld field)]
-              (compile ast compilers)))
           :local
           (fn deftype-local-compiler
             [{:keys [local name] :as ast} inner-compilers]
