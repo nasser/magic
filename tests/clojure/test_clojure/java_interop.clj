@@ -304,7 +304,7 @@
 
 (deftest test-make-array
   ; negative size
-  (is (thrown? ArgumentOutOfRangeException (make-array Int32 -1)))   ;;; NegativeArraySizeException Integer
+  (is (thrown? OverflowException (make-array Int32 -1)))   ;;; NegativeArraySizeException Integer
 
   ; one-dimensional
   (are [x] (= (alength (make-array Int32 x)) x)      ;;; Integer
