@@ -52,7 +52,6 @@
                (not (resolve-ns (symbol opns) env))) ; (class/field ..)
           (let [target (types/resolve opns)
                 op (symbol opname)]
-            (types/resolve target)
             (with-meta (list '. target (if (zero? (count expr))
                                          op
                                          (list* op expr)))
