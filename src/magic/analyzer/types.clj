@@ -446,7 +446,7 @@
        (or (and (:literal? test)
                 (not= (:val test) false)
                 (not= (:val test) nil))
-           (and (.IsValueType (ast-type-impl test))
+           (and (is-value-type? (ast-type-impl test))
                 (not= Boolean (ast-type-impl test))))))
 
 (defn always-else?
