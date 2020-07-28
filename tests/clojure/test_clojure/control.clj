@@ -340,6 +340,7 @@
            :set (sorted-set 2 1 3))))
   (testing "test number equivalence"
     (is (= :1 (case 1N 1 :1 :else))))
+  #_ ;; not issuing warnings yet -nasser
   (testing "test warn when boxing/hashing expr for all-ints case"
     (should-print-err-message
       #"Performance warning, .*:\d+ - case has int tests, but tested expression is not primitive..*\r?\n"
@@ -419,6 +420,7 @@
          :c -2
          :d 4294967296
          :d 3))
+  #_ ;; not issuing warnings yet -nasser
   (testing "test warn for hash collision"
     (should-print-err-message
      #"Performance warning, .*:\d+ - hash collision of some case test constants; if selected, those entries will be tested sequentially..*\r?\n"
