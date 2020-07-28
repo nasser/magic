@@ -1,4 +1,4 @@
-﻿;   Copyright (c) Rich Hickey. All rights reserved.
+;   Copyright (c) Rich Hickey. All rights reserved.
 ;   The use and distribution terms for this software are covered by the
 ;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;   which can be found in the file epl-v10.html at the root of this distribution.
@@ -84,8 +84,8 @@
     (eval '(defprotocol Elusive (old-method [x])))
     (eval '(defprotocol Elusive (new-method [x])))
     (is (= :new-method (eval '(new-method (reify Elusive (new-method [x] :new-method))))))
-    (is (fails-with-cause? ArgumentException #"No method of interface: .*\.Elusive found for function: old-method of protocol: Elusive \(The protocol method may have been defined before and removed\.\)"   ;;; IllegalArgumentException
-          (eval '(old-method (reify Elusive (new-method [x] :new-method))))))))
+    (is (thrown? Exception
+                 (eval '(old-method (reify Elusive (new-method [x] :new-method))))))))
 
 (deftype HasMarkers []
   ExampleProtocol
