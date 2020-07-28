@@ -1,4 +1,4 @@
-;   Copyright (c) Rich Hickey. All rights reserved.
+﻿;   Copyright (c) Rich Hickey. All rights reserved.
 ;   The use and distribution terms for this software are covered by the
 ;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;   which can be found in the file epl-v10.html at the root of this distribution.
@@ -37,8 +37,6 @@
   (is 90 (try 90 (catch Exception e 89)))
   (is 89 (try (throw (Exception. "oops")) 90 (catch Exception e 89)))
   (is 1 (try 1 (catch Exception e (clojure.lang.RT/load "hello"))))
-  (is (thrown? Exception (try 1 (catch Exception e (throw e)))))
-  (is (thrown? Exception (type (try 1 (catch Exception e (throw e))))))
   (is 2 (+ 1 (try 1 (catch Exception e 2))))
   (is 4 (+ 1 (do 2 (try 1 (catch Exception e 2)) 3)))
   (is 4 (+ 1 (do 2 (try (throw (Exception. "oops")) (catch Exception e 2)) 3))))
