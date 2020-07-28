@@ -251,7 +251,10 @@
       ))
   (testing "IPersistentCollection"
     (testing ".cons"
-      (let [rec (r 1 2)]
+      ;; type hint required here -nasser
+      ;; without the hint, .cons is ambigious between IPersistentMap.cons 
+      ;; and IPersistentCollection.cons, both of which are implemented by records
+      (let [^clojure.lang.IPersistentMap rec (r 1 2)] 
         (are [x] (= rec (.cons rec x))
              nil {})
         (is (= (r 1 3) (.cons rec {:b 3})))
