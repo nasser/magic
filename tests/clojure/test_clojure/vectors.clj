@@ -1,4 +1,4 @@
-﻿;   Copyright (c) Rich Hickey. All rights reserved.
+;   Copyright (c) Rich Hickey. All rights reserved.
 ;   The use and distribution terms for this software are covered by the
 ;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;   which can be found in the file epl-v10.html at the root of this distribution.
@@ -86,6 +86,7 @@
   (is (== 60 (let [prim-vec (into (vector-of :long) (range 1000))]
                (reduce + (subvec prim-vec 10 15))))))
 
+#_ ;; magic does not support gvec, and returns a normal vector for calls to vector-of -nasser
 (deftest test-vec-compare
   (let [nums      (range 1 100)
         ; randomly replaces a single item with the given value
@@ -310,6 +311,7 @@
       (are [idx] (nil? (.entryAt empty-v idx))
            0 1))))
 
+#_ ;; magic does not support gvec, and returns a normal vector for calls to vector-of -nasser
 (deftest test-vec-creation
   (testing "Plain (vector-of :type)"
     (are [x] (and (empty? x) (instance? clojure.core.Vec x))

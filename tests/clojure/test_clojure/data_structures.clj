@@ -1114,7 +1114,8 @@
                       '()
                       (lazy-seq)
                       clojure.lang.PersistentQueue/EMPTY
-                      (vector-of :long) ]]
+                      #_ ;; -nasser
+                     (vector-of :long) ]]
     (doseq [c1 empty-colls, c2 empty-colls]
       (is-same-collection c1 c2)))
   (let [colls1 [ [-3 :a "7th"]
@@ -1127,6 +1128,7 @@
                  (sequence (map identity) [-3 :a "7th"]) ]]
     (doseq [c1 colls1, c2 colls1]
       (is-same-collection c1 c2)))
+  #_ ;; -nasser
   (is-same-collection [-3 1 7] (vector-of :long -3 1 7)))
 
 (defn case-indendent-string-cmp [s1 s2]
