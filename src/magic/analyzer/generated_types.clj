@@ -23,8 +23,12 @@
 
 (defn define-new-type [module-builder name super interfaces attributes]
   (types/type-lookup-cache-evict! name)
-  (.DefineType
-   module-builder name attributes super (into-array Type interfaces)))
+  (if module-builder
+    (.DefineType
+     module-builder name attributes super (into-array Type interfaces))
+    (throw (Exception. (str "no module builder provided when defining new type " 
+                            name
+                            ", was magic.emission/*module* bound?")))))
 
 (defn fresh-type [module-builder name super interfaces attributes]
   (if *reusable-types*
