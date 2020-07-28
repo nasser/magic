@@ -376,23 +376,19 @@
 ;; TODO -> form locals :form meta :tag ??
 (defmethod ast-type-impl :binding [ast]
   (or
-    (if-let [tag (-> ast :form meta :tag)]
-      (if (symbol? tag)
-        (resolve tag)
-        tag))
-    (if-let [init (:init ast)]
-      (ast-type-impl init))
-    Object))
+   (when-let [tag (-> ast :form meta :tag)]
+     (resolve tag))
+   (when-let [init (:init ast)]
+     (ast-type-impl init))
+   Object))
 
 (defmethod ast-type-impl :local
   [{:keys [name form local by-ref?] {:keys [locals]} :env :as ast}]
   (let [tag (-> form locals :form meta :tag)
         type (cond tag
-                   (if (symbol? tag)
-                     (if-let [t (resolve tag)]
-                       t
-                       (throw! "Could not resolve type hint " tag " while analyzing form " form))
-                     tag)
+                   (if-let [t (resolve tag)]
+                     t
+                     (throw! "Could not resolve type hint " tag " while analyzing form " form))
                    (= local :arg)
                    Object
                    (= local :proxy-this)
