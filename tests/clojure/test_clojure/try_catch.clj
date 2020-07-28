@@ -1,4 +1,4 @@
-﻿;   Copyright (c) Rich Hickey. All rights reserved.
+;   Copyright (c) Rich Hickey. All rights reserved.
 ;   The use and distribution terms for this software are covered by the
 ;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;   which can be found in the file epl-v10.html at the root of this distribution.
@@ -15,11 +15,16 @@
   (:import [clojure.test ReflectorTryCatchFixture 
                          ReflectorTryCatchFixture+Cookies]))                        ;;; ReflectorTryCatchFixture$Cookies
 
+(defn maybe-unwrap-exception [e]
+  (if (instance? System.Reflection.TargetInvocationException e)
+    (.InnerException ^System.Reflection.TargetInvocationException e)
+    e))
+
 (defn- get-exception [expression]
   (try (eval expression)
     nil
     (catch System.Exception t                                                         ;;; java.lang.Throwable
-      t)))
+      (maybe-unwrap-exception t))))
 
 (deftest catch-receives-checked-exception
   (are [expression expected-exception] (= expected-exception
