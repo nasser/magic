@@ -96,6 +96,18 @@
      :else
      nil)))
 
+(defn is-array? [t]
+  (and (instance? Type t) (.IsArray t) (= 1 (.GetArrayRank t))))
+
+(defn is-value-type? [t]
+  (and (instance? Type t) (.IsValueType t)))
+
+(defn is-enum? [t]
+  (and (instance? Type t) (.IsEnum t)))
+
+(defn is-primitive? [t]
+  (and (instance? Type t) (.IsPrimitive t)))
+
 (defn tag [x]
   (if-let [t (-> x meta :tag)]
     (resolve t)))

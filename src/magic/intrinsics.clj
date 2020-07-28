@@ -281,15 +281,15 @@
 
 (defn array-type [{:keys [args]}]
   (let [type (-> args first ast-type)]
-    (when (.IsArray type) type)))
+    (when (types/is-array? type) type)))
 
 (defn when-array-type [{:keys [args]} v]
   (let [type (-> args first ast-type)]
-    (when (.IsArray type) v)))
+    (when (types/is-array? type) v)))
 
 (defn array-element-type [{:keys [args]}]
   (let [type (-> args first ast-type)]
-    (when (.IsArray type)
+    (when (types/is-array? type)
       (.GetElementType type))))
 
 (defintrinsic clojure.core/aclone
@@ -393,7 +393,7 @@
     [{[{:keys [val] :as type-arg} obj-arg] :args} type compilers]
     (let [obj-arg-type (ast-type obj-arg)]
       (if (and obj-arg-type
-               (.IsValueType obj-arg-type))
+               (types/is-value-type? obj-arg-type))
         (if (= obj-arg-type val)
           (il/ldc-i4-1)
           (il/ldc-i4-0))
@@ -408,7 +408,7 @@
     [{[first-arg] :args} type compilers]
     (let [arg-type (ast-type first-arg)]
       [(magic/compile first-arg compilers)
-       (if (.IsArray arg-type)
+       (if (types/is-array? arg-type)
          (il/ldlen)
          [(magic/convert first-arg Object)
           (il/call (interop/method RT "count" Object))]

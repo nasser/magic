@@ -106,7 +106,7 @@
       (merge (dissoc ast :class)
              {:type target-type
               :children (vec (remove #(= % :class) children))}
-             (cond (and (.IsValueType target-type)
+             (cond (and (types/is-value-type? target-type)
                         (empty? args))
                    {:op :initobj}
                    ;; due to an annoying limitation of SRE we cannot look up 

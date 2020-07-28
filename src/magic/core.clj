@@ -55,13 +55,13 @@
     :else (il/ldc-i4 (int k))))
 
 (defn reference-to-type [t]
-  (when (.IsValueType t)
+  (when (types/is-value-type? t)
     (let [loc (il/local t)]
       [(il/stloc loc)
        (il/ldloca loc)])))
 
 (defn reference-to-argument [{:keys [arg-id] :as ast}]
-  (if (.IsValueType (ast-type ast))
+  (if (types/is-value-type? (ast-type ast))
     (load-argument-address arg-id)
     (load-argument-standard arg-id)))
 
@@ -102,21 +102,21 @@
     (= from to)
     nil
 
-    (and (.IsEnum from) (= Object to))
+    (and (types/is-enum? from) (= Object to))
     (il/box from)
 
-    (.IsEnum from)
+    (types/is-enum? from)
     (convert-type (Enum/GetUnderlyingType from) to)
 
-    (.IsEnum to)
+    (types/is-enum? to)
     (convert-type from (Enum/GetUnderlyingType to))
 
     ;; cannot convert nil to value type
-    (and (nil? from) (.IsValueType to))
+    (and (nil? from) (types/is-value-type? to))
     (throw (Exception. (str "Cannot convert nil to value type " to)))
 
     ;; TODO truthiness
-    (and (.IsValueType from)
+    (and (types/is-value-type? from)
          (= to Boolean))
     [(il/pop)
      (il/ldc-i4-1)]
@@ -151,13 +151,13 @@
        (il/ldsfld (interop/field Magic.Constants "True"))
        end])
     
-    (and (= System.Void from) (not (.IsValueType to)))
+    (and (= System.Void from) (not (types/is-value-type? to)))
     (il/ldnull)
 
     (and (= System.Void to) (not= System.Void from))
     (il/pop)
     
-    (and (= System.Void from) (.IsValueType to))
+    (and (= System.Void from) (types/is-value-type? to))
     (throw (Exception. (str "Cannot convert void to value type " to)))
 
     ;; use user defined implicit conversion if it exists
@@ -169,11 +169,11 @@
     (il/call (interop/method to "op_Explicit" from))
 
     ;; use intrinsic conv opcodes from primitive to primitive
-    (and (.IsPrimitive from) (.IsPrimitive to))
+    (and (types/is-primitive? from) (types/is-primitive? to))
     (intrinsic-conv to)
 
     ;; box valuetypes to objects
-    (and (.IsValueType from) (= to Object))
+    (and (types/is-value-type? from) (= to Object))
     (il/box from)
 
     ;; RT casts
@@ -202,7 +202,7 @@
     ;; TODO this will throw an exception of the object
     ;; does not have the exact runtime type of the valuetype
     ;; ie it does not perform a conversion like the above clauses
-    (and (= from Object) (.IsValueType to))
+    (and (= from Object) (types/is-value-type? to))
     (il/unbox-any to)
 
     ;; castclass if to is a subclass of from
@@ -213,7 +213,7 @@
     (.IsSubclassOf from to)
     nil
 
-    (and (.IsValueType from)
+    (and (types/is-value-type? from)
          (.IsAssignableFrom to from))
     [(reference-to-type from)
      (il/box from)]
@@ -227,13 +227,13 @@
     ;; emit ToString when possible
     (= to String)
     [(reference-to-type from)
-     ((if (.IsValueType from)
+     ((if (types/is-value-type? from)
         il/call
         il/callvirt)
       (interop/method from "ToString"))]
 
-    (and (not (.IsValueType from))
-         (not (.IsValueType to)))
+    (and (not (types/is-value-type? from))
+         (not (types/is-value-type? to)))
     (il/castclass to)
 
     :else
@@ -452,7 +452,7 @@
     UInt64 (il/ldelem-i8) ;; weird??
     Single (il/ldelem-r4)
     Double (il/ldelem-r8)
-    (if (.IsValueType type)
+    (if (types/is-value-type? type)
       (il/ldelem type)
       (il/ldelem-ref))))
 
@@ -471,7 +471,7 @@
     ;; UInt64 (il/stelem-i8) ;; weird??
     Single (il/stelem-r4)
     Double (il/stelem-r8)
-    (if (.IsValueType type)
+    (if (types/is-value-type? type)
       (il/stelem type)
       (il/stelem-ref))))
 
@@ -550,7 +550,7 @@
   "Symbolic bytecode for instance properties"
   [{:keys [target property]} compilers]
   (let [target-type (ast-type target)]
-    (if (.IsValueType target-type)
+    (if (types/is-value-type? target-type)
       [(compile (assoc target :load-address? true) compilers)
        (il/call (.GetGetMethod property))]
       [(compile target compilers)
@@ -624,7 +624,7 @@
   [{:keys [method non-virtual? target args generic-parameters] :as ast} compilers]  
   (let [target-type (ast-type target)
         virtual-method? (.IsVirtual method)
-        value-type-target? (.IsValueType target-type)]
+        value-type-target? (types/is-value-type? target-type)]
     [(if value-type-target?
        [(compile (assoc target :load-address? true) compilers)
         (convert target target-type)]
