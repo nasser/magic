@@ -1117,6 +1117,8 @@
         (il/emit! {::il/ilg (.GetILGenerator fn-type-cctor)} (il/ret)))
       (doseq [i interfaces]
         (.AddInterfaceImplementation fn-type i)))
+    (when fn-type-cctor
+     (.. fn-type-cctor GetILGenerator (Emit OpCodes/Ret)))
     (.CreateType fn-type)))
 
 (defn fn-compiler
