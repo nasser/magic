@@ -5786,9 +5786,11 @@ Note that read can execute code (controlled by *read-eval*),
                name)
         gen-class-clause (first (filter #(= :gen-class (first %)) references))
         gen-class-call
-          (when gen-class-clause
-            (list* `gen-class :name (.Replace (str name) \- \_) :impl-ns name :main true (next gen-class-clause)))   ;;; .replace
-        references (remove #(= :gen-class (first %)) references)
+        (when gen-class-clause
+          (list* `gen-class :name (.Replace (str name) \- \_) :impl-ns name :main true (next gen-class-clause)))   ;;; .replace
+        refer-clojure-reference (some #(when (= :refer-clojure (first %)) %) references)
+        references (remove #(or (= :gen-class (first %))
+                                (= :refer-clojure (first %))) references)
         ;ns-effect (clojure.core/in-ns name)
         name-metadata (meta name)]
     `(do
@@ -5797,8 +5799,10 @@ Note that read can execute code (controlled by *read-eval*),
            `((.resetMeta (clojure.lang.Namespace/find '~name) ~name-metadata)))  
        (with-loading-context
         ~@(when gen-class-call (list gen-class-call))
-        ~@(when (and (not= name 'clojure.core) (not-any? #(= :refer-clojure (first %)) references))
+        ~@(when (and (not= name 'clojure.core) (not refer-clojure-reference))
             `((clojure.core/refer '~'clojure.core)))
+         ~(when refer-clojure-reference
+             (process-reference refer-clojure-reference))
          ~@(map process-reference references))
         (if (.Equals '~name 'clojure.core)                                          ;;; .equals
           nil
