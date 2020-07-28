@@ -144,7 +144,7 @@
                           System.Type
                           (and (= :const (:op target))
                                (= :class (:type target)))
-                          (:val target)
+                          (types/resolve (:val target))
                           :else
                           (ast-type target))
             m-or-f (str m-or-f)
