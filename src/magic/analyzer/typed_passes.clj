@@ -160,6 +160,15 @@
    "."
    "_"))
 
+(def make-fn-type-cctor
+ (memoize 
+  (fn [fn-type]
+    (.DefineConstructor
+     fn-type
+     (enum-or MethodAttributes/Public MethodAttributes/Static)
+     CallingConventions/Standard
+     Type/EmptyTypes))))
+
 (defn analyze-fn
   [{:keys [op name local vars keywords variadic?] :as ast}]
   (case op
@@ -177,15 +186,11 @@
              ;; would create one themselves or reuse one if another pass had created one
              ;; already, but the SRE quirk makes that difficult. instead we create one here
              ;; and expose it in the AST. this means that the core compiler is doing
-             ;; work for the optimizatio passes, which is less than ideal, but what
+             ;; work for the optimization passes, which is less than ideal, but what
              ;; are you going to do.
              :fn-type-cctor (when (or (pos? (count vars))
                                       (pos? (count keywords)))
-                             (.DefineConstructor
-                              fn-type
-                              (enum-or MethodAttributes/Public MethodAttributes/Static)
-                              CallingConventions/Standard
-                              Type/EmptyTypes))))
+                              (make-fn-type-cctor fn-type))))
     ast))
 
 (defn analyze-proxy
