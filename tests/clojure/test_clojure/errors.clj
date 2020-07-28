@@ -1,4 +1,4 @@
-﻿;   Copyright (c) Rich Hickey. All rights reserved.
+;   Copyright (c) Rich Hickey. All rights reserved.
 ;   The use and distribution terms for this software are covered by the
 ;   Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;   which can be found in the file epl-v10.html at the root of this distribution.
@@ -89,8 +89,9 @@
           (catch Exception t (is nil)))))))                          ;;; Throwable
 
 (deftest ex-info-disallows-nil-data
-  (is (thrown? Microsoft.Scripting.ArgumentTypeException (ex-info "message" nil)))        ;;; IllegalArgumentException  -- we have an overload on ctors --passing nil makes it impossible to determine which to call.
-  (is (thrown? ArgumentException (ex-info "message" nil (Exception. "cause")))))          ;;; IllegalArgumentException  Throwable.
+  ;; updated to the exception type we throw -nasser
+  (is (thrown? Exception (ex-info "message" nil)))        ;;; IllegalArgumentException  -- we have an overload on ctors --passing nil makes it impossible to determine which to call.
+  (is (thrown? Exception (ex-info "message" nil (Exception. "cause")))))          ;;; IllegalArgumentException  Throwable.
 
 (deftest ex-info-arities-construct-equivalent-exceptions
   (let [ex1 (ex-info "message" {:foo "bar"})
