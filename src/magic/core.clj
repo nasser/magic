@@ -60,16 +60,6 @@
       [(il/stloc loc)
        (il/ldloca loc)])))
 
-(defn reference-to-argument [{:keys [arg-id] :as ast}]
-  (if (types/is-value-type? (ast-type ast))
-    (load-argument-address arg-id)
-    (load-argument-standard arg-id)))
-
-(defn reference-to [{:keys [local arg-id] :as ast}]
-  (if (= local :arg)
-    (reference-to-argument ast)
-    (reference-to-type (ast-type ast))))
-
 ;; TODO overflows?
 ;; can overflow opcodes replace e.g. RT.intCast?
 (def intrinsic-conv
