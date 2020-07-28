@@ -161,12 +161,14 @@
 (def type-lookup-cache (atom {:forward {} :reverse {}}))
 
 (defn type-lookup-cache-store [cache ast type]
-  (if (keyword? type)
-    (-> cache
-        (update :forward assoc ast type))
+  (cond
+    (instance? Type type)
     (-> cache
         (update :forward assoc ast type)
-        (update :reverse assoc (.FullName type) ast))))
+        (update :reverse assoc (.FullName type) ast))
+    :else
+    (-> cache
+        (update :forward assoc ast type))))
 
 (defn type-lookup-cache-evict [cache type-name]
   (if-let [ast (get (:reverse cache) type-name)]
