@@ -254,6 +254,13 @@
     (update ast :form vary-meta assoc :tag clojure.lang.ISeq)
     ast))
 
+(defn ensure-latest-types [{:keys [op type val] :as ast}]
+  (if (and (= :const op)
+           (= :class type))
+    (let [resolved (types/resolve (.FullName val))]
+      (assoc ast :val resolved))
+    ast))
+
 (defn typed-pass* [ast]
   (-> ast
       analyze-proxy
@@ -263,6 +270,7 @@
       analyze-gen-interface
       hint-variadic-parameter
       host/analyze-byref
+      ensure-latest-types
       host/analyze-type
       host/analyze-host-field
       host/analyze-constructor
