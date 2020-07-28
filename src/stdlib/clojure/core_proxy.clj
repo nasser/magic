@@ -310,7 +310,7 @@
   plus an additional (explicit) first arg corresponding to this, and
   sets the proxy's fn map. Returns the proxy."
   {:added "1.0"}
-  [^IProxy proxy mappings]
+  [^clojure.lang.IProxy proxy mappings]
     (. proxy (__initClojureFnMappings mappings))
 	proxy)
 
@@ -325,14 +325,14 @@
   behavior of an existing instance without changing its identity.
   Returns the proxy."
   {:added "1.0"}
-  [^IProxy proxy mappings]
+  [^clojure.lang.IProxy proxy mappings]
     (. proxy (__updateClojureFnMappings mappings))
 	proxy)
 
 (defn proxy-mappings
   "Takes a proxy instance and returns the proxy's fn map."
   {:added "1.0"}
-  [^IProxy proxy]
+  [^clojure.lang.IProxy proxy]
     (. proxy (__getClojureFnMappings)))
 
 (defmacro proxy
