@@ -842,8 +842,7 @@
         :else
         [(load-argument-standard arg-id)]))
     :fn
-    [(load-argument-standard 0)
-     (convert-type Object (ast-type ast))]
+    [(load-argument-standard 0)]
     :proxy-this
     (load-argument-standard 0)
     (throw! "Local " name " not bound, could not compile! " local)))
