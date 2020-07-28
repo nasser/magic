@@ -1625,8 +1625,8 @@
   {:tag String
    :added "1.0
    :static true"}
-  [^clojure.lang.Named x]
-    (if (string? x) x (. x (getName))))
+  [x]
+    (if (string? x) x (. ^clojure.lang.Named x (getName))))
 
 (defn namespace
   "Returns the namespace String of a symbol or keyword, or nil if not present."
