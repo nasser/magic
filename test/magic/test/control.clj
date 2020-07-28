@@ -290,8 +290,8 @@
       :set (sorted-set 2 1 3)))
   (testing "test number equivalence"
     (is (= :1 (case 1N 1 :1 :else))))
-  #_ (testing "test warn when boxing/hashing expr for all-ints case"
-    (should-print-err-message
+   (testing "test warn when boxing/hashing expr for all-ints case"
+  #_  (should-print-err-message
      #"Performance warning, .*:\d+ - case has int tests, but tested expression is not primitive..*\r?\n"
      (let [x (Object.)] (case x 1 1 2))))
   (testing "test correct behavior on sparse ints"
@@ -364,8 +364,8 @@
       :c -2
       :d 4294967296
       :d 3))
-  #_ (testing "test warn for hash collision"
-    (should-print-err-message
+  (testing "test warn for hash collision"
+    #_ (should-print-err-message
      #"Performance warning, .*:\d+ - hash collision of some case test constants; if selected, those entries will be tested sequentially..*\r?\n"
      (case 1 1 :long 9223372039002259457N :big 2)))
   (testing "test constants are *not* evaluated"
