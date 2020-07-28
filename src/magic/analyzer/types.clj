@@ -109,7 +109,7 @@
   (and (instance? Type t) (.IsPrimitive t)))
 
 (defn tag [x]
-  (if-let [t (-> x meta :tag)]
+  (when-let [t (-> x meta :tag)]
     (resolve t)))
 
 (defmulti ast-type-impl
