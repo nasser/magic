@@ -1082,10 +1082,15 @@
            compilers
            {:local
             (fn fn-local-compiler
-              [{:keys [name] :as ast} _cmplrs]
+              [{:keys [name load-address?] :as ast} _cmplrs]
               (if-let [fld (closed-over-field-map name)]
                 [(il/ldarg-0)
-                 (il/ldfld fld)]
+                 (il/ldfld fld)
+                 ;; it would be nice if we could ldflda here, but 
+                 ;; our closure fields are read-only and the clr does
+                 ;; not allow ldflda of read-only fields
+                 (when load-address?
+                   (reference-to-type (ast-type ast)))]
                 (local-compiler ast _cmplrs)))})
           ctor (il/constructor
                 (enum-or MethodAttributes/Public)
@@ -1476,10 +1481,15 @@
            compilers
            {:local
             (fn proxy-local-compiler
-              [{:keys [name] :as ast} _cmplrs]
+              [{:keys [name load-address?] :as ast} _cmplrs]
               (if-let [fld (closed-over-field-map name)]
                 [(il/ldarg-0)
-                 (il/ldfld fld)]
+                 (il/ldfld fld)
+                 ;; it would be nice if we could ldflda here, but 
+                 ;; our closure fields are read-only and the clr does
+                 ;; not allow ldflda of read-only fields
+                 (when load-address?
+                   (reference-to-type (ast-type ast)))]
                 (compile* ast compilers)))})
           provided-methods
           (into {} (map (fn [f] [(:source-method f) (compile f specialized-compilers)]) fns))
@@ -1632,10 +1642,15 @@
            compilers
            {:local
             (fn proxy-local-compiler
-              [{:keys [name] :as ast} _cmplrs]
+              [{:keys [name load-address?] :as ast} _cmplrs]
               (if-let [fld (closed-over-field-map name)]
                 [(il/ldarg-0)
-                 (il/ldfld fld)]
+                 (il/ldfld fld)
+                 ;; it would be nice if we could ldflda here, but 
+                 ;; our closure fields are read-only and the clr does
+                 ;; not allow ldflda of read-only fields
+                 (when load-address?
+                   (reference-to-type (ast-type ast)))]
                 (local-compiler ast _cmplrs)))})
           super-ctor (first (.GetConstructors Object))
           ctor-params (map ast-type (vals closed-overs))
