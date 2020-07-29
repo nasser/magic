@@ -140,13 +140,13 @@
        istrue
        (il/ldsfld (interop/field Magic.Constants "True"))
        end])
-    
+
     (and (= System.Void from) (not (types/is-value-type? to)))
     (il/ldnull)
 
     (and (= System.Void to) (not= System.Void from))
     (il/pop)
-    
+
     (and (= System.Void from) (types/is-value-type? to))
     (throw (Exception. (str "Cannot convert void to value type " to)))
 
@@ -264,14 +264,14 @@
 
 (defn prepare-array [items compilers]
   (new-array
-    (map
-      (fn [c]
-        [(compile c compilers)
-         (convert c Object)])
-       items)))
+   (map
+    (fn [c]
+      [(compile c compilers)
+       (convert c Object)])
+    items)))
 
 (defmethod load-constant :default [k]
-  (throw! "load-constant not implemented for " k " (" (type k) ")" ))
+  (throw! "load-constant not implemented for " k " (" (type k) ")"))
 
 (defn load-constant-meta [k]
   (when-let [m (meta k)]
@@ -283,7 +283,7 @@
 
 (defmethod load-constant Enum [v]
   (let [enum-type (Enum/GetUnderlyingType (type v))]
-    (cond 
+    (cond
       (= enum-type SByte) (load-constant (sbyte v))
       (= enum-type Int16) (load-constant (short v))
       (= enum-type Int32) (load-constant (int v))
@@ -421,7 +421,7 @@
     [(->> (interleave (keys v) (vals v))
           (map (fn [k]
                  [(load-constant k)
-                  (convert-type (type k) Object) ]))
+                  (convert-type (type k) Object)]))
           new-array)
      (il/call method)
      (convert-type (.ReturnType method) (types/data-structure-types :map))
@@ -608,15 +608,15 @@
   [{:keys [method args] :as ast} compilers]
   (let [arg-types (map ast-type args)]
     [(interleave
-       (map #(compile % compilers) args)
-       (mapv convert
+      (map #(compile % compilers) args)
+      (mapv convert
             args
             (interop/parameter-types method)))
      (il/call method)]))
 
 (defn instance-method-compiler
   "Symbolic bytecode for instance methods"
-  [{:keys [method non-virtual? target args generic-parameters] :as ast} compilers]  
+  [{:keys [method non-virtual? target args generic-parameters] :as ast} compilers]
   (let [target-type (ast-type target)
         virtual-method? (.IsVirtual method)
         value-type-target? (types/is-value-type? target-type)]
@@ -648,7 +648,7 @@
     [(il/ldloca-s loc)
      (il/initobj type)
      (if load-address?
-      (il/ldloca-s loc)
+       (il/ldloca-s loc)
        (il/ldloc loc))]))
 
 (defn new-compiler
@@ -680,7 +680,7 @@
 (defn loop-compiler
   [{:keys [bindings body] :as ast} compilers]
   (let [;; uniqued names -> il/locals
-        binding-map 
+        binding-map
         (reduce (fn [m binding]
                   (assoc m
                          (-> binding :name)
@@ -700,13 +700,12 @@
                            (if load-address?
                              (il/ldloca loc)
                              [(il/ldloc loc)
-                              #_ (convert (ast-type init) (ast-type ast))
-                              ])
+                              #_(convert (ast-type init) (ast-type ast))])
                            (compile* ast compilers)))}
                {:recur (fn loop-recur-compiler
                          [{:keys [exprs]
                            :as   ast} cmplrs]
-                         [(interleave 
+                         [(interleave
                            (map #(compile % cmplrs) exprs)
                            (map #(convert %1 (non-void-ast-type %2)) exprs bindings))
                           (map il/stloc (reverse binding-vector))
@@ -730,7 +729,7 @@
                                      (:name binding)
                                      (il/local (non-void-ast-type binding)
                                                (str (:name binding)))))
-                            (sorted-map) 
+                            (sorted-map)
                             bindings)
         ;; TODO compiler local and recur with compilers or cmplrs?
         specialized-compilers
@@ -763,7 +762,7 @@
                                      (:name binding)
                                      (il/local (non-void-ast-type binding)
                                                (str (:name binding)))))
-                            (sorted-map) 
+                            (sorted-map)
                             bindings)
         specialized-compilers
         (merge compilers
@@ -784,7 +783,7 @@
              (convert (:init binding) (non-void-ast-type binding))
              (il/stloc (binding-map (:name binding)))])
           binding-il bindings)
-     (interleave 
+     (interleave
       (map (fn [il binding]
              [(il/ldloc (binding-map (:name binding)))
               (when-let [fn-type (-> binding :init :fn-type)]
@@ -841,9 +840,9 @@
   (->> (.GetInterfaces t)
        (filter #(= "Magic" (.Namespace %)))
        (filter
-         #(contains?
-            (set (.. t (GetInterfaceMap %) TargetMethods))
-            bm))
+        #(contains?
+          (set (.. t (GetInterfaceMap %) TargetMethods))
+          bm))
        first))
 
 (def ifn-invoke-methods
@@ -855,7 +854,7 @@
 (defn ifn-invoke-compiler [{:keys [args] :as ast} compilers]
   (let [positional-args (take 20 args)
         rest-args (drop 20 args)
-        invoke-method 
+        invoke-method
         (if (empty? rest-args)
           (ifn-invoke-methods (count args))
           variadic-ifn-invoke-method)]
@@ -866,7 +865,7 @@
      (when-not (empty? rest-args)
        [(load-constant (count rest-args))
         (il/newarr Object)
-        (map-indexed 
+        (map-indexed
          (fn [i arg]
            [(il/dup)
             (load-constant (int i))
@@ -894,14 +893,14 @@
         ]
     [(compile fn compilers)
      (ifn-invoke-compiler ast compilers)
-     #_ (if interface-match
-       [(il/castclass interface-match)
-        (interleave
-         (map #(compile % compilers) args)
-         (map #(convert %1 %2) arg-types param-types))
-        (il/callvirt (apply interop/method interface-match "invokeTyped" param-types))
-        (convert (.ReturnType best-method) (ast-type ast))]
-       (ifn-invoke-compiler ast compilers))]))
+     #_(if interface-match
+         [(il/castclass interface-match)
+          (interleave
+           (map #(compile % compilers) args)
+           (map #(convert %1 %2) arg-types param-types))
+          (il/callvirt (apply interop/method interface-match "invokeTyped" param-types))
+          (convert (.ReturnType best-method) (ast-type ast))]
+         (ifn-invoke-compiler ast compilers))]))
 
 (defn var-compiler
   [{:keys [var] :as ast} compilers]
@@ -923,7 +922,7 @@
     (cond
       (= target-op :instance-field)
       (if (.IsInitOnly field)
-        (throw (ex-info "Cannot set! immutable field" 
+        (throw (ex-info "Cannot set! immutable field"
                         {:field (.Name field) :type (.DeclaringType field) :form (:form ast)}))
         (let [v (il/local (ast-type val))]
           [(compile target' compilers)
@@ -983,8 +982,8 @@
           [(load-var (:var target))
            (compile val compilers)
            (when value-used?
-            [(il/stloc v)
-             (il/ldloc v)])
+             [(il/stloc v)
+              (il/ldloc v)])
            (convert val Object)
            (il/call (interop/method clojure.lang.Var "set" Object))
            (il/pop)
@@ -996,25 +995,25 @@
   "Symbolic bytecode for the IFnArity.HasArity method"
   [fixed-arities variadic-arity]
   (il/method
-    "HasArity"
-    (enum-or MethodAttributes/Public
-             MethodAttributes/Virtual)
-    Boolean [(il/parameter Int32)]
-    (let [ret-true (il/label)]
-       [(when variadic-arity
-          [(il/ldarg-1)
-           (load-constant (int variadic-arity))
-           (il/bge ret-true)])
-        (map (fn [arity]
-               [(il/ldarg-1)
-                (load-constant (int arity))
-                (il/beq ret-true)])
-             fixed-arities)
-        (il/ldc-i4-0)
-        (il/ret)
-        ret-true
-        (il/ldc-i4-1)
-        (il/ret)])))
+   "HasArity"
+   (enum-or MethodAttributes/Public
+            MethodAttributes/Virtual)
+   Boolean [(il/parameter Int32)]
+   (let [ret-true (il/label)]
+     [(when variadic-arity
+        [(il/ldarg-1)
+         (load-constant (int variadic-arity))
+         (il/bge ret-true)])
+      (map (fn [arity]
+             [(il/ldarg-1)
+              (load-constant (int arity))
+              (il/beq ret-true)])
+           fixed-arities)
+      (il/ldc-i4-0)
+      (il/ret)
+      ret-true
+      (il/ldc-i4-1)
+      (il/ret)])))
 
 (defn get-required-arity-method
   "Symbolic bytecode for the RestFn.getRequiredArity method"
@@ -1025,8 +1024,8 @@
      (enum-or MethodAttributes/Public
               MethodAttributes/Virtual)
      Int32 []
-    [(load-constant (int variadic-arity))
-     (il/ret)] )))
+     [(load-constant (int variadic-arity))
+      (il/ret)])))
 
 (defn private-constructor [t]
   (first (.GetConstructors t (enum-or BindingFlags/NonPublic BindingFlags/Instance))))
@@ -1034,12 +1033,12 @@
 ;; TODO this is unused
 (def default-constructor
   (il/constructor
-    (enum-or MethodAttributes/Public)
-    CallingConventions/Standard
-    []
-    [(il/ldarg-0)
-     (il/call (private-constructor clojure.lang.AFunction))
-     (il/ret)]))
+   (enum-or MethodAttributes/Public)
+   CallingConventions/Standard
+   []
+   [(il/ldarg-0)
+    (il/call (private-constructor clojure.lang.AFunction))
+    (il/ret)]))
 
 (defn ifn-type? [t]
   (.IsAssignableFrom clojure.lang.IFn t))
@@ -1092,14 +1091,14 @@
                 (enum-or MethodAttributes/Public)
                 CallingConventions/Standard []
                 [(il/ldarg-0)
-                 (il/call (private-constructor 
+                 (il/call (private-constructor
                            (if variadic?
                              clojure.lang.RestFn
                              clojure.lang.AFunction)))
                  (il/ret)])
           methods* (->> methods
-                       (map #(assoc % :fn-name-tag fn-name-tag))
-                       (map #(compile % specialized-compilers)))]
+                        (map #(assoc % :fn-name-tag fn-name-tag))
+                        (map #(compile % specialized-compilers)))]
       (reduce (fn [ctx x] (il/emit! ctx x))
               {::il/type-builder fn-type}
               [closed-over-fields ctor methods* (has-arity-method fixed-arities variadic-arity) (get-required-arity-method variadic-arity)])
@@ -1108,12 +1107,12 @@
       (doseq [i interfaces]
         (.AddInterfaceImplementation fn-type i)))
     (when fn-type-cctor
-     (.. fn-type-cctor GetILGenerator (Emit OpCodes/Ret)))
+      (.. fn-type-cctor GetILGenerator (Emit OpCodes/Ret)))
     (.CreateType fn-type)))
 
 (defn fn-compiler
   [{:keys [fn-type closed-overs] :as ast} compilers]
-  (compile-fn-type ast compilers)  
+  (compile-fn-type ast compilers)
   [(il/newobj (first (.GetConstructors fn-type)))
    (map
     (fn [il field] [(il/dup) il (il/stfld field)])
@@ -1140,14 +1139,14 @@
                {:recur (fn fn-recur-compiler
                          [{:keys [exprs]
                            :as   ast} cmplrs]
-                         [(interleave 
+                         [(interleave
                            (map #(compile % cmplrs) exprs)
                            (map #(convert %1 %2) exprs param-types))
                           (map store-argument (->> params count inc (range 1) reverse))
                           (il/br recur-target)])
                 :local (fn fn-method-local-compiler
                          [{:keys [name local] :as ast} local-compilers]
-                         (if (and (= local :arg) 
+                         (if (and (= local :arg)
                                   (param-names name))
                            (local-compiler (update ast :arg-id inc) local-compilers)
                            (compile* ast compilers)))})
@@ -1166,7 +1165,7 @@
         (il/method
          "invokeTyped"
          public-virtual
-        return-type param-il
+         return-type param-il
          [recur-target
           compiled-body
           (convert-type body-type return-type)
@@ -1199,25 +1198,25 @@
                    (= expr-type System.Void)))
           method-attributes
           (if outside-type?
-           (enum-or MethodAttributes/Assembly MethodAttributes/Static)
+            (enum-or MethodAttributes/Assembly MethodAttributes/Static)
             (enum-or MethodAttributes/Assembly))
           closed-overs-map
           (into {} (map (fn [name i] [name i]) (keys closed-overs) (range)))
           closure-compilers
           (merge compilers
-                 {:local (fn try-local-compiler 
+                 {:local (fn try-local-compiler
                            [{:keys [name] :as ast} _compilers]
                            (if-let [arg-id (closed-overs-map name)]
                              (load-argument-standard (if outside-type? arg-id (inc arg-id)))
-                             (compile* ast compilers)))})          
+                             (compile* ast compilers)))})
           bodyfn
           (fn [compilers]
             (let [try-local (when expr-has-value?
                               (il/local expr-type))]
               [(il/exception
                 [(if-not expr-has-value?
-                  [(compile body compilers)
-                   (map #(compile % compilers) catches)]
+                   [(compile body compilers)
+                    (map #(compile % compilers) catches)]
                    [(compile body compilers)
                     (convert body expr-type)
                     (when expr-has-value?
@@ -1228,7 +1227,7 @@
                  [(when finally
                     (il/finally
                       (compile finally compilers)))]])
-               (cond 
+               (cond
                  expr-has-value? (il/ldloc try-local)
                  (not (= System.Void expr-type)) (il/ldnull))]))
           method-return-type (if (types/disregard-type? ast)
@@ -1245,8 +1244,8 @@
         ;; emit a normal try statement inline
         (bodyfn compilers)
         ;; otherwise we lift the try into a method closure.
-        
-        [(when-not outside-type? 
+
+        [(when-not outside-type?
            ;; if we're inside of a type the try method is an instance method
            ;; and we emit `this` to invoke it
            (load-argument-standard 0))
@@ -1510,12 +1509,11 @@
                       (vals closed-over-field-map))
           ctx (reduce (fn [ctx method] (il/emit! ctx method))
                       ctx
-                      (vals methods))
-          ]
+                      (vals methods))]
       (il/emit! ctx ctor)
       (.CreateType proxy-type))))
 
-(defn proxy-compiler [{:keys [class-and-interface proxy-type args closed-overs form] :as ast} compilers]  
+(defn proxy-compiler [{:keys [class-and-interface proxy-type args closed-overs form] :as ast} compilers]
   (compile-proxy-type ast compilers)
   (when-not (every? #(and (= :const (:op %))
                           (= :class (:type %)))
@@ -1526,7 +1524,7 @@
    (map #(compile % compilers) (vals closed-overs))
    (il/newobj (first (.GetConstructors proxy-type)))])
 
-(defn method-compiler 
+(defn method-compiler
   "Shared compiler for methods of proxy, reify, and deftype"
   [{:keys [op name body source-method reify-type deftype-type] :as ast} compilers]
   (let [proxy? (= op :proxy-method)
@@ -1782,8 +1780,8 @@
                      (il/volatile))
                    (il/stfld field)])))
           (il/ret)])
-        ctors 
-        (merge 
+        ctors
+        (merge
          {(count ctor-params) ctor}
          ;; defrecord gets extra constructors that invoke the main ctor
          (when defrecord?
@@ -1828,7 +1826,7 @@
                   (map #(compile % local-compilers) args)
                   (map convert args ctor-params))
                  (il/newobj (ctors arg-count))])
-              (compile ast (assoc local-compilers 
+              (compile ast (assoc local-compilers
                                   :new (:new compilers)))))
           :local
           (fn deftype-local-compiler
@@ -1841,7 +1839,7 @@
                        inner-compilers)
               (compile* ast compilers)))
           :set!
-          (fn deftype-set!-compiler 
+          (fn deftype-set!-compiler
             [{:keys [target val] :as ast} cmplrs]
             (let [value-used? (not (statement? ast))]
               (cond (and (= :instance-field (:op target))
@@ -1864,9 +1862,9 @@
                     (and (= :local (:op target))
                          (= :field (:local target))
                          (field-map (-> target :name str)))
-                    (recur (assoc ast :target 
+                    (recur (assoc ast :target
                                   {:op :instance-field
-                                   :field (field-map (-> target :name str))}) 
+                                   :field (field-map (-> target :name str))})
                            cmplrs)
                     :else
                     (compile ast compilers))))})
@@ -1883,7 +1881,7 @@
     (when defrecord?
       (compile-defrecord-create ctx' deftype-type (drop-last 4 fields) ctor))
     (.CreateType deftype-type)
-    [(when-not defrecord? 
+    [(when-not defrecord?
        [(compile positional-factory compilers)
         (il/pop)])
      (il/ldtoken deftype-type)
@@ -1901,7 +1899,7 @@
                       [(:expr init) meta]
                       [init meta])]
     [(compile {:op :the-var :var var} compilers)
-     (when-not (nil? init)  
+     (when-not (nil? init)
        [(il/dup)
         (compile init compilers)
         (convert init Object)
@@ -1999,7 +1997,7 @@
   [ast compilers]
   (or (-> ast :op compilers)
       (throw (Exception. (str "No compiler for " (pr-str (or  (:op ast)
-                                                                ast)))))))
+                                                              ast)))))))
 
 ;; (merge base-compilers *initial-compilers*) might be better
 (defn get-compilers
@@ -2007,9 +2005,9 @@
   ([compilers] (get-compilers compilers *spells*))
   ([compilers spells]
    (reduce
-     (fn [compilers* spell] (spell compilers*))
-     compilers
-     spells)))
+    (fn [compilers* spell] (spell compilers*))
+    compilers
+    spells)))
 
 
 (defn compile*
