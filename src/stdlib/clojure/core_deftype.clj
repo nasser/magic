@@ -668,6 +668,9 @@
                      (str "method " (.sym v) " of protocol " (.sym p))
                      (str "function " (.sym v)))))))))
 
+(defn- tag-from-meta [x]
+  (-> x meta :tag))
+
 (defn- emit-protocol [name opts+sigs]
   (let [iname (symbol (str (munge (namespace-munge *ns*)) "." (munge name)))
         [opts sigs]
@@ -697,7 +700,7 @@
                         {} sigs))
         meths (mapcat (fn [sig]
                         (let [m (munge (:name sig))]
-                          (map #(vector m (vec (map (fn [param] (or (tag param) 'Object)) %)) (or (tag %) (tag m) 'Object)) 
+                          (map #(vector m (vec (map (fn [param] (or (tag-from-meta param) 'Object)) %)) (or (tag-from-meta %) (tag-from-meta m) 'Object)) 
                                (:arglists sig))))
                       (vals sigs))]
   `(do
