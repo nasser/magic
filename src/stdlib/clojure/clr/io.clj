@@ -13,7 +13,7 @@
     clojure.clr.io
     (:import 
      (System.IO 
-       Stream  ;; BufferedStream 
+       Stream  BufferedStream 
        FileInfo  FileStream  MemoryStream
        FileMode FileShare FileAccess FileOptions
        BinaryReader BinaryWriter
