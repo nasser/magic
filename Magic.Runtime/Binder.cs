@@ -16,11 +16,7 @@ namespace Magic
             return _binder.BindToField(bindingAttr, match, value, culture);
         }
 
-#if CSHARP8
-        public override MethodBase? BindToMethod(BindingFlags bindingAttr, MethodBase[] match, ref object[] args, ParameterModifier[]? modifiers, CultureInfo? culture, string[]? names, out object state)
-#else
         public override MethodBase BindToMethod(BindingFlags bindingAttr, MethodBase[] match, ref object[] args, ParameterModifier[] modifiers, CultureInfo culture, string[] names, out object state)
-#endif
         {
             try {
                 var nativeResult = _binder.BindToMethod(bindingAttr, match, ref args, modifiers, culture, names, out state);
@@ -63,11 +59,7 @@ namespace Magic
             _binder.ReorderArgumentArray(ref args, state);
         }
 
-#if CSHARP8        
-        public override MethodBase? SelectMethod(BindingFlags bindingAttr, MethodBase[] match, Type[] argumentTypes, ParameterModifier[]? modifiers)
-#else
         public override MethodBase SelectMethod(BindingFlags bindingAttr, MethodBase[] match, Type[] argumentTypes, ParameterModifier[] modifiers)
-#endif
         {
             if(match.Length == 0)
                 return null;
@@ -80,11 +72,7 @@ namespace Magic
                 if(argumentTypes[i] == null)
                     return null;
             
-#if CSHARP8
-            MethodBase? result = null;
-#else
             MethodBase result = null;
-#endif
             // SelectMethod on the default binder throws an exception if passed
             // typebuilders. this comes up when trying to bind to proxy methods
             // during analysis when (the proxy type is not yet complete). we
@@ -117,9 +105,20 @@ namespace Magic
             return result;
         }
 
+        // https://stackoverflow.com/questions/31173612/type-getenumunderlyingtype-replacement-for-net35
+        static Type GetEnumUnderlyingType(Type t)
+        {
+            if (!t.IsEnum)
+                throw new ArgumentException("Expected Enum type, got " + t.FullName);
+            FieldInfo[] fields = t.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (fields == null || fields.Length != 1)
+                throw new ArgumentException("Enum invalid");
+            return fields[0].FieldType;
+        }
+
         static bool MatchesByEnumConversionConversion(Type argumentType, Type parameterType)
             => parameterType.IsEnum
-               && parameterType.GetEnumUnderlyingType() == argumentType;
+               && GetEnumUnderlyingType(parameterType) == argumentType;
 
         static bool MatchesByObjectConversion(Type argumentType, Type parameterType)
             => argumentType == typeof(object)
@@ -133,11 +132,7 @@ namespace Magic
         static bool MatchesByInterfaceConversion(Type argumentType, Type parameterType) 
             => parameterType.IsInterface && argumentType.IsInterface;
 
-#if CSHARP8
-        static bool MatchByMagicBindingRules(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[]? modifiers)
-#else
         static bool MatchByMagicBindingRules(BindingFlags bindingAttr, MethodBase candidate, Type[] argumentTypes, ParameterModifier[] modifiers)
-#endif
         {
             var parameters = candidate.GetParameters();
             if (parameters.Length != argumentTypes.Length) return false;

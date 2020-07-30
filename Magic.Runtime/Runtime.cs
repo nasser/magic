@@ -29,10 +29,10 @@ namespace Magic
             Type initType = null;
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (asm.IsDynamic)
+                if (asm is System.Reflection.Emit.AssemblyBuilder)
                     continue;
                 initType = asm.GetType(initClassName);
-                if (initType != null)
+                if (((Object)initType) != null)
                     break;
             }
             if (initType == null)
@@ -48,23 +48,15 @@ namespace Magic
             throw e;
         }
 
-#if CSHARP8
-        public static Type? FindType(string p)
-#else
         public static Type FindType(string p)
-#endif
         {
-#if CSHARP8
-            Type? t = null;
-#else
             Type t = null;
-#endif
             // fastest path, will succeed for assembly qualified names (returned by Type.AssemblyQualifiedName)
             // or namespace qualified names (returned by Type.FullName) in the executing assembly or mscorlib
             // e.g. "UnityEngine.Transform, UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null"
             t = Type.GetType(p, false);
 
-            if (t != null)
+            if (((Object)t) != null)
                 return t;
 
             AppDomain domain = AppDomain.CurrentDomain;
@@ -76,7 +68,7 @@ namespace Magic
             {
                 var assy = assys[i];
                 Type t1 = assy.GetType(p, false);
-                if(t1 != null)
+                if(((Object)t1) != null)
                       return t1;
             }
 
@@ -90,11 +82,7 @@ namespace Magic
     public static class Dispatch
     {
 
-#if CSHARP8
-        static object InvokeUnwrappingExceptions(MethodBase method, object? target, object[]? args)
-#else
-        static object InvokeUnwrappingExceptions(MethodBase method, object target, object[]? args)
-#endif
+        static object InvokeUnwrappingExceptions(MethodBase method, object target, object[] args)
         {
             try {
                 return method.Invoke(target, args);
@@ -121,7 +109,7 @@ namespace Magic
             {
                 if(property.PropertyType.IsPrimitive && valueType.IsPrimitive)
                     value = Convert.ChangeType(value, property.PropertyType);
-                property.SetValue(o, value);
+                property.SetValue(o, value, null);
                 return value;
             }
             throw new Exception($"Could not set member `{name}` on target {o.ToString()}, no such member exists.");
@@ -136,22 +124,18 @@ namespace Magic
                 return field.GetValue(o);
             var property = oType.GetProperty(name);
             if (property != null)
-                return InvokeUnwrappingExceptions(property.GetMethod, o, null);
+                return InvokeUnwrappingExceptions(property.GetGetMethod(), o, null);
             var method = oType.GetMethod(name, Type.EmptyTypes);
             if (method != null)
                 return InvokeUnwrappingExceptions(method, o, null);
             throw new Exception($"Could not invoke zero arity member `{name}` on target {(o == null ? "null" : o.ToString())}.");
         }
 
-        static MethodBase? BindToMethod(BindingFlags bindingFlags, Type t, string name, object[] args)
+        static MethodBase BindToMethod(BindingFlags bindingFlags, Type t, string name, object[] args)
         {
             var methods = t.GetMethods().Where(m => m.Name == name).ToArray();
             Object state;
-#if CSHARP8
-            MethodBase? method;
-#else
             MethodBase method;
-#endif
             method = null;
             if(methods.Length > 0)
                  method = Binder.Shared.BindToMethod(bindingFlags,methods,ref args,null,null,null,out state);
@@ -163,7 +147,8 @@ namespace Magic
             var method = BindToMethod(BindingFlags.Public | BindingFlags.Instance, o.GetType(), name, args);
             if(method != null)
                 return InvokeUnwrappingExceptions(method, o, args);
-            throw new Exception($"Could not invoke instance member method `{name}` on target {o.ToString()} ({o.GetType()}) with argument types { String.Join<Object>(", ", args) }.");
+            var argsString = args.Select(a => a.ToString()).ToArray();
+            throw new Exception($"Could not invoke instance member method `{name}` on target {o.ToString()} ({o.GetType()}) with argument types { String.Join(", ", argsString) }.");
         }
 
         public static object InvokeStaticMethod(object t, string name, object[] args)
@@ -171,7 +156,8 @@ namespace Magic
             var method = BindToMethod(BindingFlags.Public | BindingFlags.Static, (Type)t, name, args);
             if(method != null)
                 return InvokeUnwrappingExceptions(method, null, args);
-            throw new Exception($"Could not invoke static member method `{name}` on target {t} with argument types { String.Join<Object>(", ", args) }.");
+            var argsString = args.Select(a => a.ToString()).ToArray();
+            throw new Exception($"Could not invoke static member method `{name}` on target {t} with argument types { String.Join(", ", argsString) }.");
         }
 
         public static object InvokeConstructor(Type t, object[] args)
