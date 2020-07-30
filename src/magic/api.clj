@@ -205,6 +205,7 @@
         (println "[compile-file] end" path "(skipped, module already exists, loaded instead)"))
       (binding [*print-meta* false
                 *ns* *ns*
+                *file* path
                 magic.emission/*module* (magic.emission/fresh-module module-name)]
         (let [type-name (clojure-clr-init-class-name module)
               ns-type (.DefineType magic.emission/*module* type-name abstract-sealed)
