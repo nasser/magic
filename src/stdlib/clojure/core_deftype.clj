@@ -700,7 +700,7 @@
                         {} sigs))
         meths (mapcat (fn [sig]
                         (let [m (munge (:name sig))]
-                          (map #(vector m (vec (map (fn [param] (or (tag-from-meta param) 'Object)) %)) (or (tag-from-meta %) (tag-from-meta m) 'Object)) 
+                          (map #(vector m (vec (map (fn [param] (or (tag-from-meta param) 'Object)) (drop 1 %))) (or (tag-from-meta %) (tag-from-meta m) 'Object)) 
                                (:arglists sig))))
                       (vals sigs))]
   `(do
