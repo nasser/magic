@@ -350,10 +350,13 @@
   (fn intrinsic-nth-compiler
     [{:keys [args] :as ast} type compilers]
     (let [[array-arg index-arg] args
-          index-arg (reinterpret index-arg Int32)
+          index-arg' (reinterpret index-arg Int32)
           value-type? (.IsValueType type)]
       [(magic/compile array-arg compilers)
-       (magic/compile index-arg compilers)
+       (if-not (= index-arg' index-arg)
+         (magic/compile index-arg' compilers)
+         [(magic/compile index-arg compilers)
+          (magic/convert index-arg Int32)])
        (if value-type?
          (il/ldelem type)
          (il/ldelem-ref))])))
