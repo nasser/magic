@@ -55,7 +55,7 @@
   (fresh-type module-builder name clojure.lang.RestFn interfaces public))
 
 (defn proxy-type [module-builder name super interfaces]
-  (fresh-type module-builder name super interfaces public))
+  (fresh-type module-builder name super (conj interfaces clojure.lang.IProxy) public))
 
 (defn reify-type [module-builder name interfaces]
   (fresh-type module-builder name Object interfaces public-sealed))
