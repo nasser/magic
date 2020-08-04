@@ -846,7 +846,7 @@
        first))
 
 (def ifn-invoke-methods
-  (mapv #(apply interop/method IFn "invoke" (repeat % Object)) (range 20)))
+  (mapv #(apply interop/method IFn "invoke" (repeat % Object)) (range 21)))
 
 (def variadic-ifn-invoke-method
   (apply interop/method IFn "invoke" (concat (repeat 20 Object) [System.Object|[]|])))
