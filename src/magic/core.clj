@@ -937,16 +937,19 @@
            (when value-used?
              (il/ldloc v))]))
       (= target-op :instance-property)
-      (let [v (il/local (ast-type val))]
-        [(compile target' compilers)
-         (compile val compilers)
-         (if value-used?
-           [(il/stloc v)
-            (il/ldloc v)])
-         (convert val (.PropertyType property))
-         (il/callvirt (.GetSetMethod property))
-         (if value-used?
-           (il/ldloc v))])
+      (if (.CanWrite property)
+        (let [v (il/local (ast-type val))]
+          [(compile target' compilers)
+           (compile val compilers)
+           (if value-used?
+             [(il/stloc v)
+              (il/ldloc v)])
+           (convert val (.PropertyType property))
+           (il/callvirt (.GetSetMethod property))
+           (if value-used?
+             (il/ldloc v))])
+        (throw (ex-info "Cannot set! propery with no public setter"
+                        {:property (.Name property) :type (.DeclaringType property) :form (:form ast)})))
       (= target-op :static-field)
       (let [v (il/local (ast-type val))]
         [(compile val compilers)
