@@ -401,7 +401,7 @@
   {:collect/what                    #{:constants :callsites}
    :collect/where                   #{:reify :fn}
    :collect/top-level?              false
-   :collect-closed-overs/where      #{:reify :fn :loop :try :proxy-method}
+   :collect-closed-overs/where      #{:reify :fn :loop :proxy-method}
    :collect-closed-overs/top-level? false
    :uniquify/uniquify-env           true})
 
