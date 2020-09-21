@@ -226,6 +226,87 @@
         (assoc :containing-fn-name *fn-name*)
         (update-children propagate-fn-name))))
 
+(defn- arg->binding [init]
+  (let [name (gensym)]
+    {:op :binding
+     :env (:env init) ;; TODO is this ok?
+     :name name
+     :init init
+     :form name
+     :local :let
+     :children [:init]}))
+
+(defn- binding->local [{:keys [name]}]
+  {:op :local
+   :name name
+   :form name
+   :local :let
+   :assignable? false})
+
+(defn empty-stack-let [ast args-kw]
+  (let [args (args-kw ast)
+        arg-vector? (vector? args)
+        bindings (mapv arg->binding (if arg-vector? args [args]))
+        locals (if arg-vector? 
+                 (mapv binding->local bindings)
+                 (binding->local (first bindings)))
+        body* (assoc ast args-kw locals)]
+    (merge ast
+           {:op :let
+            :bindings bindings
+            :body body*
+            :children [:bindings :body]
+            :needs-empty-stack? true})))
+
+(defn empty-stack-let-map [{:keys [keys vals] :as ast}]
+  (let [bindings (mapv arg->binding (interleave keys vals))
+        pairs (partition 2 2 bindings)
+        keys* (mapv (comp binding->local first) pairs)
+        vals* (mapv (comp binding->local last) pairs)
+        body* (-> ast
+                  (assoc :keys keys*) 
+                  (assoc :vals vals*))]
+    (merge ast
+           {:op :let
+            :bindings bindings
+            :body body*
+            :children [:bindings :body]
+            :needs-empty-stack? true})))
+
+(defn ensure-empty-stack-for-try
+  {:pass-info {:walk :post :before #{#'uniquify-locals}}}
+  [{:keys [op] :as ast}]
+  (case op
+    :try
+    (assoc ast :needs-empty-stack? true)
+    (:host-call :new :invoke)
+    (if (some :needs-empty-stack? (:args ast))
+      (empty-stack-let ast :args)
+      ast)
+    (:set :vector)
+    (if (some :needs-empty-stack? (:items ast))
+      (empty-stack-let ast :items)
+      ast)
+    :map
+    (if (or (some :needs-empty-stack? (:keys ast))
+            (some :needs-empty-stack? (:vals ast)))
+      (empty-stack-let-map ast)
+      ast)
+    :recur
+    (if (some :needs-empty-stack? (:exprs ast))
+      (empty-stack-let ast :exprs)
+      ast)
+    :set!
+    (if (:needs-empty-stack? (:val ast))
+      (empty-stack-let ast :val)
+      ast)
+    :def
+    (if (:needs-empty-stack? (:init ast))
+      (empty-stack-let ast :init)
+      ast)
+    #_else
+    ast))
+
 (def untyped-pass-set
   #{#'collect-vars
     #'collect-keywords
@@ -237,6 +318,7 @@
     #'collect-closed-overs
     #'trim
     #'uniquify-locals
+    #'ensure-empty-stack-for-try
     #'wrap-tagged-expressions
     #'compute-empty-stack-context
     #'remove-empty-throw-children

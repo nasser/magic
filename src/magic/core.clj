@@ -1193,71 +1193,32 @@
        [hinted-method unhinted-shim])]))
 
 (defn try-compiler
-  [{:keys [catches closed-overs body finally top-level outside-type?] :as ast {:keys [empty-stack?]} :env} compilers]
+  [{:keys [catches body finally] :as ast} compilers]
   (if (and (empty? catches)
            (nil? finally))
     (compile body compilers)
     (let [expr-type (ast-type ast)
-          expr-has-value?
-          (not (or (types/disregard-type? ast)
-                   (= expr-type System.Void)))
-          method-attributes
-          (if outside-type?
-            (enum-or MethodAttributes/Assembly MethodAttributes/Static)
-            (enum-or MethodAttributes/Assembly))
-          closed-overs-map
-          (into {} (map (fn [name i] [name i]) (keys closed-overs) (range)))
-          closure-compilers
-          (merge compilers
-                 {:local (fn try-local-compiler
-                           [{:keys [name] :as ast} _compilers]
-                           (if-let [arg-id (closed-overs-map name)]
-                             (load-argument-standard (if outside-type? arg-id (inc arg-id)))
-                             (compile* ast compilers)))})
-          bodyfn
-          (fn [compilers]
-            (let [try-local (when expr-has-value?
-                              (il/local expr-type))]
-              [(il/exception
-                [(if-not expr-has-value?
-                   [(compile body compilers)
-                    (map #(compile % compilers) catches)]
-                   [(compile body compilers)
-                    (convert body expr-type)
-                    (when expr-has-value?
-                      (il/stloc try-local))
-                    (interleave
-                     (map #(compile % compilers) catches)
-                     (map #(when-not (types/disregard-type? %) [(convert % expr-type) (il/stloc try-local)]) catches))])
-                 [(when finally
-                    (il/finally
-                      (compile finally compilers)))]])
-               (cond
-                 expr-has-value? (il/ldloc try-local)
-                 (not (= System.Void expr-type)) (il/ldnull))]))
-          method-return-type (if (types/disregard-type? ast)
-                               System.Void
-                               expr-type)
-          method-il (il/method
-                     (str (gensym "try"))
-                     method-attributes
-                     method-return-type (->> closed-overs vals (mapv non-void-ast-type))
-                     [(bodyfn closure-compilers)
-                      (il/ret)])]
-      (if (or top-level empty-stack?)
-        ;; at the top level or when the stack is known to be empty we can
-        ;; emit a normal try statement inline
-        (bodyfn compilers)
-        ;; otherwise we lift the try into a method closure.
-
-        [(when-not outside-type?
-           ;; if we're inside of a type the try method is an instance method
-           ;; and we emit `this` to invoke it
-           (load-argument-standard 0))
-         (->> closed-overs vals (map #(compile % compilers)))
-         (il/call method-il)
-         (when (types/disregard-type? ast)
-           (il/ldnull))]))))
+          expr-has-value? (not (or (types/disregard-type? ast)
+                                   (= expr-type System.Void)))
+          try-local (when expr-has-value?
+                      (il/local expr-type))]
+      [(il/exception
+        [(if-not expr-has-value?
+           [(compile body compilers)
+            (map #(compile % compilers) catches)]
+           [(compile body compilers)
+            (convert body expr-type)
+            (when expr-has-value?
+              (il/stloc try-local))
+            (interleave
+             (map #(compile % compilers) catches)
+             (map #(when-not (types/disregard-type? %) [(convert % expr-type) (il/stloc try-local)]) catches))])
+         [(when finally
+            (il/finally
+              (compile finally compilers)))]])
+       (cond
+         expr-has-value? (il/ldloc try-local)
+         (not (= System.Void expr-type)) (il/ldnull))])))
 
 (defn throw-compiler
   [{:keys [exception] {:keys [context]} :env} compilers]
