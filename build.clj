@@ -64,12 +64,10 @@
   ;; build and copy runtime
   (exec "dotnet" "build Magic.Runtime/Magic.Runtime.csproj -c Debug")
   (copy-file "Magic.Runtime/bin/Debug/net35/Magic.Runtime.dll" "Magic.Unity/Infrastructure/Magic.Runtime.dll")
-  ;; build and copy il2cpp patches
-  (exec "dotnet" "build Magic.IL2CPP/Magic.IL2CPP.Patches.csproj -c Debug")
-  (copy-file "Magic.IL2CPP/bin/Debug/net461/Magic.IL2CPP.Patches.dll" "Magic.Unity/Infrastructure/Desktop/Magic.IL2CPP.Patches.dll")
-  ;; build il2cpp cli a
+  ;; build il2cpp patches cli
   (exec "dotnet" "build Magic.IL2CPP/Magic.IL2CPP.CLI.csproj -c Release")
-
+  (copy-dir "Magic.IL2CPP/bin/Release/net461" "Magic.Unity/Infrastructure/IL2CPP")
+  
   ;; build clojure core
   (build-core)
   ;; patch clojure core for il2cpp
