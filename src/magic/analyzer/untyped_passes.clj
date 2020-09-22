@@ -304,12 +304,10 @@
     (if (:needs-empty-stack? (:init ast))
       (empty-stack-let ast :init)
       ast)
-    :do
-    (if (some :needs-empty-stack? (:statements ast))
-      (assoc ast :needs-empty-stack? true)
-      ast)
     #_else
-    ast))
+    (if (some :needs-empty-stack? (children ast))
+      (assoc ast :needs-empty-stack? true)
+      ast)))
 
 (def untyped-pass-set
   #{#'collect-vars
