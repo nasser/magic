@@ -77,7 +77,7 @@
   (doseq [source (Directory/GetFiles "." "clojure.*.clj.dll")]
     (let [destination (Path/Combine "Magic.Unity/Infrastructure" (Path/GetFileName source))]
       (move source destination)))
-  ;; copy magic`
+  ;; copy magic
   (Directory/Delete "Magic.Unity/Infrastructure/Desktop/magic" true)
   (copy-dir "src/magic" "Magic.Unity/Infrastructure/Desktop/magic")
   ;; copy mage
