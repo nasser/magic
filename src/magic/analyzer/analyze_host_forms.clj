@@ -1,6 +1,6 @@
 (ns magic.analyzer.analyze-host-forms
   (:require
-   [clojure.tools.analyzer.passes
+   [magic.analyzer
     [uniquify :refer [uniquify-locals]]]
    [magic.interop :as interop]
    [magic.core :as magic]

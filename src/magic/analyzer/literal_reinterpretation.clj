@@ -1,6 +1,6 @@
 (ns magic.analyzer.literal-reinterpretation
   (:require
-    [clojure.tools.analyzer.passes
+    [magic.analyzer
      [uniquify :refer [uniquify-locals]]]
     [magic.analyzer
      [analyze-host-forms :as host]

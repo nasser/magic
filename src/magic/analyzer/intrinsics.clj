@@ -1,6 +1,6 @@
 (ns magic.analyzer.intrinsics
   (:require
-    [clojure.tools.analyzer.passes
+    [magic.analyzer
      [uniquify :refer [uniquify-locals]]]
     [magic.analyzer
      [util :as util]

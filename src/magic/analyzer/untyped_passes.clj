@@ -3,10 +3,10 @@
    [clojure.tools.analyzer.passes :refer [schedule]]
    [clojure.tools.analyzer.ast :refer [nodes children update-children]]
    [clojure.tools.analyzer.passes
-    [trim :refer [trim]]
-    [collect-closed-overs :refer [collect-closed-overs]]
-    [uniquify :refer [uniquify-locals]]]
+    [trim :refer [trim]]]
    [magic.analyzer
+    [collect-closed-overs :refer [collect-closed-overs]]
+    [uniquify :refer [uniquify-locals]]
     [remove-local-children :refer [remove-local-children]]]))
 
 (defn collect-vars
