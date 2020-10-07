@@ -112,8 +112,9 @@
   {:read-cond :allow
    :features #{:cljr}})
 
-(defn compile-expression [expr roots ctx]
-  (println "[compile-expression]" (-> expr (trim 30)) (str *ns*) (ns-aliases *ns*))
+(defn compile-expression [expr roots ctx opts]
+  (when-not (:suppress-print-forms opts)
+    (println "[compile-expression]" (-> expr (trim 30)) (str *ns*) (ns-aliases *ns*)))
   (let [expr-name (u/gensym "<magic>expr")
         expr-type (.DefineType magic.emission/*module* expr-name abstract-sealed)
         expr-method (.DefineMethod expr-type "eval" public-static)
@@ -147,29 +148,32 @@
                                      (throw (Exception. (str "Could not find " path ", roots " roots))))))))))]
       (.Invoke (.GetMethod expr-type "eval") nil empty-args))))
 
-(defn compile-expression-top-level [expr roots ctx]
-  (println "[compile-expression-top-level]" expr)
+(defn compile-expression-top-level [expr roots ctx opts]
+  (when-not (:suppress-print-forms opts)
+    (println "[compile-expression-top-level]" expr))
   (cond
     (and (seq? expr)
          (= 'do (first expr)))
     (doseq [expr' (drop 1 expr)]
-      (compile-expression-top-level expr' roots ctx))
+      (compile-expression-top-level expr' roots ctx opts))
     :else
-    (compile-expression expr roots ctx)))
+    (compile-expression expr roots ctx opts)))
 
 (defn load-file
-  [roots path ctx]
-  (let [file (System.IO.File/OpenText path)]
-    (try
-      (let [rdr (LineNumberingTextReader. file)
-            read-1 (fn [] (try (read read-options rdr) (catch Exception _ nil)))]
-        (loop [expr (read-1) i 0]
-          (when expr
-            (compile-expression-top-level expr roots ctx)
-            (recur (read-1) (inc i))))
-        (.Close rdr))
-      (finally
-        (.Close file)))))
+  ([roots path ctx]
+   (load-file roots path ctx nil))
+  ([roots path ctx opts]
+   (let [file (System.IO.File/OpenText path)]
+     (try
+       (let [rdr (LineNumberingTextReader. file)
+             read-1 (fn [] (try (read read-options rdr) (catch Exception _ nil)))]
+         (loop [expr (read-1) i 0]
+           (when expr
+             (compile-expression-top-level expr roots ctx opts)
+             (recur (read-1) (inc i))))
+         (.Close rdr))
+       (finally
+         (.Close file))))))
 
 (defn load-assembly
   [path]
@@ -193,40 +197,45 @@
 (def ^:dynamic *write-files* true)
 
 (defn compile-file
-  [roots path module]
-  (println "[compile-file] start" path)
-  (let [module-name (-> module
-                        str
-                        (string/replace "/" ".")
-                        (str ".clj"))]
-    (if (and (not *recompile-namespaces*)
-             (System.IO.File/Exists (str module-name ".dll")))
-      (do
-        (clojure.lang.RT/load (str module))
-        (println "[compile-file] end" path "(skipped, module already exists, loaded instead)"))
-      (binding [*print-meta* false
-                *ns* *ns*
-                *file* path
-                magic.emission/*module* (magic.emission/fresh-module module-name)]
-        (let [type-name (clojure-clr-init-class-name module)
-              ns-type (.DefineType magic.emission/*module* type-name abstract-sealed)
-              init-method (.DefineMethod ns-type "Initialize" public-static)
-              init-ilg (.GetILGenerator init-method)
-              ctx {::il/module-builder magic.emission/*module*
-                   ::il/type-builder ns-type
-                   ::il/method-builder init-method
-                   ::il/ilg init-ilg}]
+  ([roots path module]
+   (compile-file roots path module nil))
+  ([roots path module opts]
+   (when-not (:suppress-print-forms opts)
+     (println "[compile-file] start" path))
+   (let [module-name (-> module
+                         str
+                         (string/replace "/" ".")
+                         (str ".clj"))]
+     (if (and (not *recompile-namespaces*)
+              (System.IO.File/Exists (str module-name ".dll")))
+       (do
+         (clojure.lang.RT/load (str module))
+         (when-not (:suppress-print-forms opts)
+           (println "[compile-file] end" path "(skipped, module already exists, loaded instead)")))
+       (binding [*print-meta* false
+                 *ns* *ns*
+                 *file* path
+                 magic.emission/*module* (magic.emission/fresh-module module-name)]
+         (let [type-name (clojure-clr-init-class-name module)
+               ns-type (.DefineType magic.emission/*module* type-name abstract-sealed)
+               init-method (.DefineMethod ns-type "Initialize" public-static)
+               init-ilg (.GetILGenerator init-method)
+               ctx {::il/module-builder magic.emission/*module*
+                    ::il/type-builder ns-type
+                    ::il/method-builder init-method
+                    ::il/ilg init-ilg}]
           ;; TODO this is becoming a mess -- normalize paths in one place
-          (if (System.IO.File/Exists path)
-            (load-file roots path ctx)
-            (if-let [path (find-file roots path)]
-              (load-file roots path ctx)
-              (throw (Exception. (str "Could not find " path ", roots " roots)))))
-          (il/emit! ctx (il/ret))
-          (.CreateType ns-type))
-        (when *write-files*
-         (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*))))
-        (println "[compile-file] end" path "->" (.Name magic.emission/*module*))))))
+           (if (System.IO.File/Exists path)
+             (load-file roots path ctx)
+             (if-let [path (find-file roots path)]
+               (load-file roots path ctx)
+               (throw (Exception. (str "Could not find " path ", roots " roots)))))
+           (il/emit! ctx (il/ret))
+           (.CreateType ns-type))
+         (when *write-files*
+           (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*))))
+         (when-not (:suppress-print-forms opts)
+           (println "[compile-file] end" path "->" (.Name magic.emission/*module*))))))))
 
 ;; *loaded-libs* is supposed to be private, so we're putting this indirection
 ;; here for when we get var dereferencing to respect privacy
@@ -234,15 +243,20 @@
   (var-get #'clojure.core/*loaded-libs*))
 
 (defn compile-namespace
-  [roots namespace]
-  (println "[compile-namespace]" namespace)
-  (when-let [path (find-file roots namespace)]
-    (with-redefs [clojure.core/load-one (fn magic-load-one-fn [lib need-ns require]
-                                          (binding [*ns* *ns*]
-                                            (compile-namespace roots lib)
-                                            (dosync
-                                             (commute (loaded-libs-ref) conj lib))))]
-      (compile-file roots path (munge (str namespace))))))
+  "Keys in opts:
+  :suppress-print-forms - if logical true, suppresses printing each compiled form"
+  ([roots namespace]
+   (compile-namespace roots namespace nil))
+  ([roots namespace opts]
+   (when-not (:suppress-print-forms opts)
+     (println "[compile-namespace]" namespace))
+   (when-let [path (find-file roots namespace)]
+     (with-redefs [clojure.core/load-one (fn magic-load-one-fn [lib need-ns require]
+                                           (binding [*ns* *ns*]
+                                             (compile-namespace roots lib)
+                                             (dosync
+                                              (commute (loaded-libs-ref) conj lib))))]
+       (compile-file roots path (munge (str namespace)) opts)))))
 
 (def version "0.0-alpha")
 
