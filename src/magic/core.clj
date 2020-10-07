@@ -208,8 +208,8 @@
     [(reference-to-type from)
      (il/box from)]
     
-    (.IsAssignableFrom to from)
-    nil
+    ;; (.IsAssignableFrom to from)
+    ;; nil
 
     (.IsAssignableFrom from to)
     (il/castclass to)
