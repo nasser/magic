@@ -29,6 +29,8 @@
     (api/compile-namespace load-path 'clojure.spec.alpha)
     (api/compile-namespace load-path 'clojure.core.specs.alpha)
     (api/compile-namespace load-path 'clojure.core.server)
+    (api/compile-namespace load-path 'clojure.core.reducers)
+    (api/compile-namespace load-path 'clojure.clr.shell)
     (api/compile-namespace load-path 'clojure.edn)
     (api/compile-namespace load-path 'clojure.data)
     (api/compile-namespace load-path 'clojure.set)))
