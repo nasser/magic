@@ -20,7 +20,8 @@
 (def abstract-sealed (enum-or TypeAttributes/Public TypeAttributes/Abstract TypeAttributes/Sealed))
 
 (defn eval [expr]
-  (binding [*module* (fresh-module "eval")]
+  (binding [*module* (fresh-module "eval")
+            *file* "#eval#"]
     (let [ast (ana/analyze expr)
           bc (magic/compile ast)
           type-name (str (u/gensym "<magic-eval>"))]
