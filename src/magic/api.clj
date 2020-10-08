@@ -250,13 +250,14 @@
   ([roots namespace opts]
    (when-not (:suppress-print-forms opts)
      (println "[compile-namespace]" namespace))
-   (when-let [path (find-file roots namespace)]
+   (if-let [path (find-file roots namespace)]
      (with-redefs [clojure.core/load-one (fn magic-load-one-fn [lib need-ns require]
                                            (binding [*ns* *ns*]
                                              (compile-namespace roots lib)
                                              (dosync
                                               (commute (loaded-libs-ref) conj lib))))]
-       (compile-file roots path (munge (str namespace)) opts)))))
+       (compile-file roots path (munge (str namespace)) opts))
+     (throw (Exception. (str "could not find source file for namespace " namespace))))))
 
 (def version "0.0-alpha")
 
