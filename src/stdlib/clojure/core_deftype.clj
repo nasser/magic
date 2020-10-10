@@ -630,7 +630,8 @@
              (fn
                ~@(map 
                   (fn [args]
-                    (let [gargs (-> (mapv #(gensym (str "gf__" % "__")) args)
+                    (let [gargs (-> (map #(gensym (str "gf__" % "__")) args)
+                                    vec
                                     (update 0 vary-meta assoc :tag on-interface))
                           target (first gargs)]
                       `([~@gargs]

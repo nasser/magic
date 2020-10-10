@@ -258,8 +258,9 @@
    "strings"  System.String|[]|})
 
 ;; ported from clojure.lang.CljCompiler.Ast.HostExpr --nasser
-(defn- maybe-special-tag [tag]
-  (shorthand-type-names (.Name tag)))
+(def maybe-special-tag
+  (fn [tag]
+    (shorthand-type-names (.Name tag))))
 
 (def
  ^{:private true}
@@ -282,7 +283,7 @@
          resolve-tag (fn [argvec]
                         (let [m (meta argvec)
                               tag (:tag m)
-                              tag-name (str tag)]
+                              tag-name (if tag (.ToString tag) "")]
                           (if (instance? clojure.lang.Symbol tag)
                             (if (clojure.lang.Util/equiv (.IndexOf (.Name ^clojure.lang.Symbol tag) ".") -1)                                              ;;; .indexOf  .getName
                               (if (clojure.lang.Util/equals nil (maybe-special-tag tag))         ;;; clojure.lang.Compiler$HostExpr
@@ -373,7 +374,7 @@
 		        ;;todo - restore propagation of fn name
 				;;must figure out how to convey primitive hints to self calls first
 								;;(cons `fn fdecl)
-								(with-meta (list* `fn name fdecl) {:rettag (:tag m)})))))
+								(with-meta (cons `fn (cons name fdecl)) {:rettag (:tag m)})))))
 
 (. (var defn) (setMacro))       
 
@@ -5216,7 +5217,9 @@ Note that read can execute code (controlled by *read-eval*),
   {:added "1.0"}
   [name & decl]
   (let [[pre-args [args expr]] (split-with (comp not vector?) decl)
-        args-without-tags (vary-meta (mapv #(vary-meta % dissoc :tag) args)
+        args-without-tags (vary-meta (->> args
+                                          (map #(vary-meta % dissoc :tag))
+                                          vec)
                                      dissoc :tag)]
     `(do
        (defn ~name ~@pre-args ~args ~(apply (eval (list `fn args expr)) args))
