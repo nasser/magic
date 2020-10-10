@@ -3243,11 +3243,20 @@
 
 ;; evaluation
 
+(def ^:dynamic
+  ^{:doc "The function called to evaluate a form."}
+  *eval-form-fn*
+  (fn [form]
+    ;; (clojure.lang.Compiler/eval form)
+    (throw (NotSupportedException.
+            (str "Bind clojure.core/*eval-form-fn* to enable evaluation. "
+                 "Called with " form)))))
+
 (defn eval
   "Evaluates the form data structure (not text!) and returns the result."
   {:added "1.0"
    :static true}
-  [form] (. clojure.lang.Compiler (eval form)))
+  [form] (*eval-form-fn* form))
 
 (defmacro doseq
   "Repeatedly executes body (presumably for side-effects) with
@@ -5828,6 +5837,111 @@ Note that read can execute code (controlled by *read-eval*),
 
 ;;;;;;;;;;; require/use/load, contributed by Stephen C. Gilardi ;;;;;;;;;;;;;;;;;;
 
+;;;;;; bootstrap loading machinery
+;; extends basic clojure loading mechanisms with hooks (dynamic vars) that allow
+;; an embedding system to change how loading and compiling works
+;; contributed by Ramsey Nasser
+(def ^:dynamic
+  ^{:doc "The vector of paths to use as roots when loading namespaces."}
+  *load-paths* [(System.IO.Path/GetDirectoryName (.Location (.Assembly clojure.lang.RT)))])
+
+(def ^:dynamic
+  ^{:doc "The function called to evaluate the contents of a file.
+          The file should be read, analyzed, compiled into memory, and evaluated
+          but no file should be written do disk. Throws an exception by default."}
+  *load-file-fn*
+  (fn [^System.IO.FileInfo file relative-path]
+    ;; (clojure.lang.RT/LoadScript file relative-path)
+    (throw (NotSupportedException.
+            (str "Bind clojure.core/*load-file-fn* to enable namespace loading. "
+                 "Called with " (.FullName file))))))
+
+(def ^:dynamic
+  ^{:doc "The function called to compile a file to disk.
+          Similar to *load-file-fn* but the results should be written to disk."}
+  *compile-file-fn*
+  (fn [^System.IO.FileInfo file relative-path]
+    (throw (NotSupportedException.
+            (str "Bind clojure.core/*compile-file-fn* to enable compilation. "
+                 "Called with " (.FullName file))))))
+
+(defn find-file
+  "port of clojure.lang.RT.FindFile, but uses *load-paths* "
+  ([filename]
+   (loop [path (first *load-paths*)
+          paths (rest *load-paths*)]
+     (when path
+       (if-let [fi (find-file path filename)]
+         fi
+         (recur (first paths) (rest paths))))))
+  ([path filename]
+   (let [probe-path (-> path
+                        (System.IO.Path/Combine filename)
+                        (.Replace "/" (str System.IO.Path/DirectorySeparatorChar)))]
+     (when (System.IO.File/Exists probe-path)
+       (System.IO.FileInfo. probe-path)))))
+
+(defn -try-load-init-type [relative-path]
+  (binding [*ns* *ns*
+            *warn-on-reflection* *warn-on-reflection*
+            *unchecked-math* *unchecked-math*]
+    (clojure.lang.Compiler/TryLoadInitType relative-path)))
+
+(defn -load-assembly [full-path relative-path]
+  (binding [*ns* *ns*
+            *warn-on-reflection* *warn-on-reflection*
+            *unchecked-math* *unchecked-math*]
+    (let [assy (System.Reflection.Assembly/LoadFrom full-path)]
+      (clojure.lang.Compiler/InitAssembly assy relative-path))))
+
+;; port of clojure.lang.RT.load
+(defn -load
+  ([^String relative-path] (-load relative-path true))
+  ([^String relative-path fail-of-not-found]
+   (let [clj-name (str relative-path ".clj")
+         cljc-name (str relative-path ".cljc")
+         clj-dll-name (str (.Replace relative-path "/" ".") ".clj.dll")
+         cljc-dll-name (str (.Replace relative-path "/" ".") ".cljc.dll")
+         ^System.IO.FileInfo clj-info (or (find-file clj-name)
+                                          (find-file cljc-name))
+         ^System.IO.FileInfo assy-info (or (find-file clj-dll-name)
+                                           (find-file cljc-dll-name))]
+     (cond
+       ;; load from file system
+       (and assy-info
+            (or (not clj-info)
+                (>= (.. assy-info LastWriteTime Ticks)
+                    (.. clj-info LastWriteTime Ticks))))
+       (-load-assembly (.FullName assy-info) relative-path)
+
+       (and clj-info *compile-files*)
+       (*compile-file-fn* clj-info relative-path)
+
+       clj-info
+       (*load-file-fn* clj-info relative-path)
+
+       ;; load from init type or fail
+       :else
+       (or (-try-load-init-type relative-path)
+           (and fail-of-not-found
+                (throw (System.IO.FileNotFoundException.
+                        (str "Could not locate any of "
+                             [clj-name cljc-name clj-dll-name cljc-dll-name]
+                             (str " on load path " *load-paths*)
+                             (when (.Contains relative-path "_")
+                               (str " Please check that namespaces with dashes "
+                                    "use underscores in the Clojure file name.")))))))))))
+
+(def ^:dynamic
+  ^{:doc "The function called whenever a namespace is loaded.
+          By default bound to an implementation that checks the filesystem first
+          and falls back to init types, but can be rebound for bootstraping or
+          running in environments without filesystems. Uses *load-paths* as load
+          path."}
+  *load-fn* -load)
+
+;;;;;; end bootstrap loading machinery
+
 (defonce ^:dynamic 
   ^{:private true
      :doc "A ref to a sorted set of symbols representing loaded libs"}
@@ -6095,7 +6209,7 @@ Note that read can execute code (controlled by *read-eval*),
       (check-cyclic-dependency path)
       (when-not (= path (first *pending-paths*))
         (binding [*pending-paths* (conj *pending-paths* path)]
-          (clojure.lang.RT/load (.Substring path 1)))))))       ;;; .substring
+          (*load-fn* (.Substring path 1)))))))       ;;; .substring
 
 (defn compile
   "Compiles the namespace named by the symbol lib into a set of
