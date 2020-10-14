@@ -226,6 +226,28 @@
          (not (types/is-value-type? to)))
     (il/castclass to)
 
+    (isa? from IConvertible)
+    (let [method (cond
+                   (= to Double) "ToDouble"
+                   (= to Single) "ToSingle"
+                   (= to Boolean) "ToBoolean"
+                   (= to Byte) "ToByte"
+                   (= to Char) "ToChar"
+                   (= to DateTime) "ToDateTime"
+                   (= to Decimal) "ToDecimal"
+                   (= to Int16) "ToInt16"
+                   (= to Int32) "ToInt32"
+                   (= to Int64) "ToInt64"
+                   (= to UInt16) "ToUInt16"
+                   (= to UInt32) "ToUInt32"
+                   (= to UInt64) "ToUInt64"
+                   (= to Byte) "ToByte"
+                   (= to SByte) "ToSByte"
+                   (= to String) "ToString")]
+      [(il/castclass IConvertible)
+       (il/ldnull)
+       (il/callvirt (magic.interop/method IConvertible method IFormatProvider))])
+    
     :else
     (throw (Exception. (str "Cannot convert " from " to " to)))))
 
