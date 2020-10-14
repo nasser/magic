@@ -266,23 +266,29 @@
     ast))
 
 (defn typed-pass* [ast]
-  (-> ast
-      analyze-proxy
-      analyze-reify
-      analyze-fn
-      analyze-deftype
-      analyze-gen-interface
-      hint-variadic-parameter
-      host/analyze-byref
-      ensure-latest-types
-      host/analyze-type
-      host/analyze-host-field
-      host/analyze-constructor
-      host/analyze-host-interop
-      host/analyze-host-call
-      host/analyze-enums
-      novel/csharp-operators
-      intrinsics/analyze))
+  (try 
+    (-> ast
+        analyze-proxy
+        analyze-reify
+        analyze-fn
+        analyze-deftype
+        analyze-gen-interface
+        hint-variadic-parameter
+        host/analyze-byref
+        ensure-latest-types
+        host/analyze-type
+        host/analyze-host-field
+        host/analyze-constructor
+        host/analyze-host-interop
+        host/analyze-host-call
+        host/analyze-enums
+        novel/csharp-operators
+        intrinsics/analyze)
+    (catch Exception e
+      {:op :error
+       :exception e
+       :form (:form ast)
+       :ast ast})))
 
 (def ^:dynamic *typed-pass-locals* {})
 

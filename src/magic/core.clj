@@ -1914,8 +1914,15 @@
 
 (defn tagged-compiler
   [{:keys [expr tag]} compilers]
-  [(compile expr compilers)
-   (convert expr (types/resolve tag))])
+  (if-let [t (types/resolve tag)]
+    [(compile expr compilers)
+     (convert expr (types/resolve tag))]
+    (throw (ex-info "Could not resolve tag" {:tag tag}))))
+
+(defn error-compiler
+  [{:keys [exception ast]} compilers]
+  (throw (ex-info "Failed to compile"
+                  {:exception exception :ast ast :form (:form ast)})))
 
 (def base-compilers
   {:const               #'const-compiler
@@ -1967,7 +1974,8 @@
    :gen-interface       #'gen-interface-compiler
    :def                 #'def-compiler
    :import              #'import-compiler
-   :tagged              #'tagged-compiler})
+   :tagged              #'tagged-compiler
+   :error               #'error-compiler})
 
 (def ^:dynamic *spells* [])
 
@@ -1998,7 +2006,7 @@
        (try
          (compiler ast compilers)
          (catch Exception e
-           (throw (Exception. (str "Failed to compile " (:form ast) " " *op-stack*) e))))))))
+           (throw (ex-info "Failed to compile" {:exception e :form (:form ast) :meta (-> ast :form meta) :file *file* :op-stack *op-stack*}))))))))
 
 (defn maybe-compile-reference-to [{:keys [op load-address?] :as ast}]
   ;; locals will have compiled to ldloca already, so we skip them here

@@ -152,15 +152,31 @@
 (defn compiler-munge [s]
   (-> s (.Replace "/" ".") (.Replace "-" "_")))
 
+(defn present-error [e]
+  (loop [message (.Message e)
+         data (ex-data e)
+         source-span (-> data :meta :source-span)
+         file (:file data)]
+    (if-let [e' (:exception data)]
+      (recur (.Message e') (ex-data e') (or (-> (ex-data e') :meta :source-span) source-span) (or (:file (ex-data e') file)))
+      (throw (clojure.lang.ClojureException. 
+              (str message (:name data) " (compiling " file ":" (:start-line source-span) ":" (:start-column source-span) ")"))))))
+
 (defn runtime-load-file [file path]
-  (let [full-path (.FullName file)]
-    (compile-file full-path (compiler-munge (str path)) 
-                  {:write-files false :suppress-print-forms true})))
+  (try
+    (let [full-path (.FullName file)]
+      (compile-file full-path (compiler-munge (str path))
+                    {:write-files false :suppress-print-forms true}))
+    (catch clojure.lang.ExceptionInfo e
+      (present-error e))))
 
 (defn runtime-compile-file [file path]
-  (let [full-path (.FullName file)]
-    (compile-file full-path (compiler-munge (str path))
-                  {:write-files true :suppress-print-forms false})))
+  (try
+    (let [full-path (.FullName file)]
+      (compile-file full-path (compiler-munge (str path))
+                    {:write-files true :suppress-print-forms false}))
+    (catch clojure.lang.ExceptionInfo e
+      (present-error e))))
 
 
 (def version "0.0-alpha")
