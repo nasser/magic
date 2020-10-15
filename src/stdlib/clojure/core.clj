@@ -4034,13 +4034,21 @@ Note that read can execute code (controlled by *read-eval*),
           (recur (inc i) (next xs))))
       ret))
 
+(def ^:dynamic
+  ^{:doc "The function called to expand a macro."}
+  *macroexpand-1-fn*
+  (fn [form]
+    (throw (NotSupportedException.
+            (str "Bind clojure.core/*macroexpand-1-fn* to enable macroexpansion. "
+                 "Called with " form)))))
+
 (defn macroexpand-1
   "If form represents a macro form, returns its expansion,
   else returns form."
   {:added "1.0"
    :static true}
   [form]
-    (. clojure.lang.Compiler (macroexpand1 form)))
+    (*macroexpand-1-fn* form))
 
 (defn macroexpand
   "Repeatedly calls macroexpand-1 on form until it no longer

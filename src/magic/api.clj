@@ -178,6 +178,9 @@
     (catch clojure.lang.ExceptionInfo e
       (present-error e))))
 
+(defn runtime-macroexpand-1 [form]
+  (ana/macroexpand-1 form))
+
 
 (def version "0.0-alpha")
 
