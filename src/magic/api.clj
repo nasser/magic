@@ -130,7 +130,7 @@
          (il/emit! ctx (il/ret))
          (.CreateType ns-type))
        (when (:write-files opts)
-         (.. magic.emission/*module* Assembly (Save (.Name magic.emission/*module*))))
+         (Magic.Emission/EmitAssembly (.Assembly magic.emission/*module*) (.Name magic.emission/*module*)))
        (when-not (:suppress-print-forms opts)
          (println "[compile-file] end" path "->" (.Name magic.emission/*module*)))))))
 
