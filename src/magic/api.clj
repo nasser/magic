@@ -12,6 +12,7 @@
             [magic.emission :refer [*module* fresh-module]]
             [clojure.string :as string])
   (:import [clojure.lang RT LineNumberingTextReader]
+           [System.IO Path Directory File]
            [System.Reflection MethodAttributes TypeAttributes]
            [System.Reflection.Emit AssemblyBuilder ModuleBuilder]))
 
@@ -130,9 +131,15 @@
          (il/emit! ctx (il/ret))
          (.CreateType ns-type))
        (when (:write-files opts)
-         (Magic.Emission/EmitAssembly (.Assembly magic.emission/*module*) (.Name magic.emission/*module*)))
-       (when-not (:suppress-print-forms opts)
-         (println "[compile-file] end" path "->" (.Name magic.emission/*module*)))))))
+         (let [compile-path (or *compile-path* ".")
+               file-name (.Name magic.emission/*module*)
+               assembly (.Assembly magic.emission/*module*)
+               final-path (Path/Combine compile-path file-name)]
+           (Directory/CreateDirectory compile-path)
+           (Magic.Emission/EmitAssembly assembly file-name)
+           (File/Move file-name final-path)
+           (when-not (:suppress-print-forms opts)
+             (println "[compile-file] end" path "->" final-path))))))))
 
 (defn compile-namespace
   "Keys in opts:
