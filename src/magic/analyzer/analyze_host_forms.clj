@@ -151,11 +151,14 @@
             static? (= :class (:type target))
             binding-flags (if static? public-static public-instance)
             all-methods (concat (.GetMethods target-type)
-                              (mapcat #(.GetMethods %) (.GetInterfaces target-type)))
+                                (mapcat #(.GetMethods %) (.GetInterfaces target-type)))
+            relevant-methods (->> all-methods
+                                  (filter #(= (.Name %) m-or-f))
+                                  (filter #(empty? (.GetParameters %))))
             ast* (merge ast
                         (when identity-hack? ;; TODO update :form too?
                           {:target (-> target :args first)})
-                        (when-let [method (first (filter #(= (.Name %) m-or-f) all-methods))]
+                        (when-let [method (first relevant-methods)]
                           {:op (if static? :static-method :instance-method)
                            :method method})
                         (when-let [field (.GetField target-type m-or-f binding-flags)]
