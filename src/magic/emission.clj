@@ -18,10 +18,9 @@
   "Creates a fresh ModuleBuilder, suitable for binding to *module*"
   [name]
   (->
-   (.. AppDomain CurrentDomain
-       (DefineDynamicAssembly
-        (AssemblyName. name)
-        assemby-builder-access))
+   (Magic.Emission/DefineDynamicAssembly 
+    (AssemblyName. name)
+    assemby-builder-access)
    (.DefineDynamicModule (str name ".dll"))))
 
 (def ^:dynamic

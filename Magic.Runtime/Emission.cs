@@ -1,6 +1,6 @@
 using System;
+using System.Reflection;
 using System.Reflection.Emit;
-using System.Linq;
 #if NETSTANDARD
 using Lokad.ILPack;
 #endif
@@ -9,14 +9,22 @@ namespace Magic
 {
     public static class Emission
     {
+        public static AssemblyBuilder DefineDynamicAssembly(AssemblyName name, AssemblyBuilderAccess access)
+        {
+#if NETSTANDARD
+            return AssemblyBuilder.DefineDynamicAssembly(name, access);
+#else
+            var assy = AppDomain.CurrentDomain.DefineDynamicAssembly(name, access);
+            return AppDomain.CurrentDomain.DefineDynamicAssembly(name, access);
+#endif
+        }
+
         public static void EmitAssembly(AssemblyBuilder assy, string filename)
         {
 #if NETSTANDARD
-            Console.WriteLine("[emit] with Lokad.ILPack");
             var generator = new AssemblyGenerator();
             generator.GenerateAssembly(assy, filename);
 #else
-            Console.WriteLine("[emit] with SRE");
             assy.Save(filename);
 #endif
         }
