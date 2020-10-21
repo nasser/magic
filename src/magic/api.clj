@@ -20,27 +20,6 @@
 (def public-static (enum-or MethodAttributes/Public MethodAttributes/Static))
 (def abstract-sealed (enum-or TypeAttributes/Public TypeAttributes/Abstract TypeAttributes/Sealed))
 
-(defn eval [expr]
-  (binding [*module* (fresh-module "eval")
-            *file* "#eval#"]
-    (let [ast (ana/analyze expr)
-          bc (magic/compile ast)
-          type-name (str (u/gensym "<magic-eval>"))]
-      (->> (il/type
-            type-name
-            (il/method
-             "eval"
-             public-static
-             Object []
-             [bc
-              (magic/convert ast Object)
-              (il/ret)]))
-           (il/emit! {::il/module-builder *module*}))
-      (-> *module*
-          (.GetType type-name)
-          (.GetMethod "eval")
-          (.Invoke nil empty-args)))))
-
 (defn bind-spells! [spells]
   (alter-var-root #'magic/*spells* (constantly spells)))
 
@@ -61,21 +40,25 @@
 (defn compile-expression [expr ctx opts]
   (when-not (:suppress-print-forms opts)
     (println "[compile-expression]" (-> expr (trim 30)) (str *ns*) (ns-aliases *ns*)))
-  (let [expr-name (u/gensym "<magic>expr")
+  (let [ast (ana/analyze expr)
+        il (magic/compile ast) 
+        expr-name (u/gensym "<magic>expr")
         expr-type (.DefineType magic.emission/*module* expr-name abstract-sealed)
-        expr-method (.DefineMethod expr-type "eval" public-static)
+        expr-method (if (:compiled-for-eval opts)
+                      (.DefineMethod expr-type "eval" public-static (ast-type ast) Type/EmptyTypes)
+                      (.DefineMethod expr-type "eval" public-static))
         expr-ilg (.GetILGenerator expr-method)
         ctx' (assoc ctx
                     ::il/type-builder expr-type
                     ::il/method-builder expr-method
                     ::il/ilg expr-ilg)]
     (il/emit! ctx'
-              [(-> expr
-                   ana/analyze
-                   magic/compile)
-               [(il/pop)
-                (il/ret)]])
-    (il/emit! ctx (il/call expr-method))
+              [il
+               (when-not (:compiled-for-eval opts)
+                 (il/pop))
+               (il/ret)])
+    (when-not (:compiled-for-eval opts)
+      (il/emit! ctx (il/call expr-method)))
     (.CreateType expr-type)
     (.Invoke (.GetMethod expr-type "eval") nil empty-args)))
 
@@ -170,6 +153,20 @@
       (recur (.Message e') (ex-data e') (or (-> (ex-data e') :meta :source-span) source-span) (or (:file (ex-data e') file)))
       (throw (clojure.lang.ClojureException. 
               (str message (:name data) " (compiling " file ":" (:start-line source-span) ":" (:start-column source-span) ")"))))))
+
+(defn eval [expr]
+  (try
+    (binding [*module* (fresh-module "eval")
+              *ns* *ns*
+              *file* "#eval#"]
+      (let [ctx {::il/module-builder *module*}]
+        (compile-expression-top-level
+         expr ctx
+         {:compiled-for-eval true
+          :write-files false
+          :suppress-print-forms true})))
+    (catch clojure.lang.ExceptionInfo e
+      (present-error e))))
 
 (defn runtime-load-file [file path]
   (try
