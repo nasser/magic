@@ -137,7 +137,9 @@
                final-path (Path/Combine compile-path file-name)]
            (Directory/CreateDirectory compile-path)
            (Magic.Emission/EmitAssembly assembly file-name)
-           (File/Move file-name final-path)
+           (if-not (File/Exists final-path)
+             (File/Move file-name final-path)
+             (println "[compile-file] file already exists" final-path))
            (when-not (:suppress-print-forms opts)
              (println "[compile-file] end" path "->" final-path))))))))
 

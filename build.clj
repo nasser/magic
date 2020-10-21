@@ -2,12 +2,14 @@
   (:require [magic.api :as api]
             magic.util
             files
+            [magic.core :refer [*spells*]]
+            [magic.spells.sparse-case :refer [sparse-case]]
             [mage.core :as il]
             [magic.profiler :refer [profile write-trace!]])
   (:import [System.Reflection MethodAttributes TypeAttributes BindingFlags]
            [System.IO File Directory Path DirectoryInfo]))
 
-(def load-path
+(def local-load-paths
   [files/magic-root
    files/mage-root
    files/clojure-root
@@ -20,20 +22,62 @@
    "/home/nasser/projects/magic/datascript/test"
    "/home/nasser/projects/arcadia/Assets/Arcadia/Source/"])
 
-(defn build-core []
-  (binding [*print-meta* true
-            *warn-on-reflection* false
-            clojure.core/*loaded-libs* (ref (sorted-set))
-            magic.api/*recompile-namespaces* true]
-    (api/compile-namespace load-path 'clojure.core)
-    (api/compile-namespace load-path 'clojure.spec.alpha)
-    (api/compile-namespace load-path 'clojure.core.specs.alpha)
-    (api/compile-namespace load-path 'clojure.core.server)
-    (api/compile-namespace load-path 'clojure.core.reducers)
-    (api/compile-namespace load-path 'clojure.clr.shell)
-    (api/compile-namespace load-path 'clojure.edn)
-    (api/compile-namespace load-path 'clojure.data)
-    (api/compile-namespace load-path 'clojure.set)))
+(defn bootstrap [& opts]
+  (let [opts (set opts)]
+    (binding [*print-meta* true
+              clojure.core/*loaded-libs* (ref (sorted-set))
+              *load-paths* (vec (concat local-load-paths *load-paths*))
+              *eval-form-fn* magic.api/eval
+              *compile-file-fn* magic.api/runtime-compile-file
+              *load-file-fn* magic.api/runtime-load-file
+              *spells* (if (:portable opts) (conj *spells* sparse-case) *spells*)
+              *warn-on-reflection* true
+              *compile-path* "bootstrap"]
+      (compile 'clojure.core)
+      (println (str "build 'clojure.core"))
+      (compile 'clojure.spec.alpha)
+      (println (str "build 'clojure.spec.alpha"))
+      (compile 'clojure.core.specs.alpha)
+      (println (str "build 'clojure.core.specs.alpha"))
+    ;; (compile 'clojure.pprint)
+      (println (str "build 'clojure.pprint"))
+      (compile 'clojure.clr.io)
+      (println (str "build 'clojure.clr.io"))
+      (compile 'clojure.clr.shell)
+      (println (str "build 'clojure.clr.shell"))
+      (compile 'clojure.core.protocols)
+      (println (str "build 'clojure.core.protocols"))
+      (compile 'clojure.core.reducers)
+      (println (str "build 'clojure.core.reducers"))
+      (compile 'clojure.core.server)
+      (println (str "build 'clojure.core.server"))
+      (compile 'clojure.data)
+      (println (str "build 'clojure.data"))
+      (compile 'clojure.edn)
+      (println (str "build 'clojure.edn"))
+      (compile 'clojure.instant)
+      (println (str "build 'clojure.instant"))
+      (compile 'clojure.main)
+      (println (str "build 'clojure.main"))
+      (compile 'clojure.repl)
+      (println (str "build 'clojure.repl"))
+      (compile 'clojure.set)
+      (println (str "build 'clojure.set"))
+      (compile 'clojure.stacktrace)
+      (println (str "build 'clojure.stacktrace"))
+      (compile 'clojure.string)
+      (println (str "build 'clojure.string"))
+      (compile 'clojure.template)
+      (println (str "build 'clojure.template"))
+      (compile 'clojure.test)
+      (println (str "build 'clojure.test"))
+      (compile 'clojure.uuid)
+      (println (str "build 'clojure.uuid"))
+      (compile 'clojure.walk)
+      (println (str "build 'clojure.walk"))
+      (compile 'clojure.zip)
+      (println (str "build 'clojure.zip"))
+      (compile 'magic.api))))
 
 (defn move [source destination]
   (println "[moving]" source destination)
