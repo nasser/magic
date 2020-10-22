@@ -332,7 +332,7 @@
 ;;; making the appropriate adjustments. Return the remainder of the string
 (defn- write-initial-lines 
   [^TextWriter this ^String s] 
-  (let [lines (.Split #"\n" s )]                                                      ;;; (.Split s "\n" -1)
+  (let [lines (.Split #"\n" s )]
     (if (= (count lines) 1)
       s
       (dosync 
@@ -344,10 +344,10 @@
              (setf :pos newpos)
              (add-to-buffer this (make-buffer-blob l nil oldpos newpos))
              (write-buffered-output this))
-		   (do
-		     (write-white-space this)
+       (do
+         (write-white-space this)
              (write-to-base l)))
-         (write-to-base (int \newline))
+         (write-to-base ^String (pp-newline))
          (doseq [^String l (next (butlast lines))]
            (write-to-base l)
            (write-to-base ^String (pp-newline))
@@ -380,7 +380,7 @@
   (let [lb (struct logical-block nil nil (ref 0) (ref 0) (ref false) (ref false))
         fields (ref {:pretty-writer true
                      :base (column-writer writer max-columns)
-                     :logical-blocks lb 
+                     :logical-blocks lb
                      :sections nil
                      :mode :writing
                      :buffer []
@@ -389,50 +389,48 @@
                      :miser-width miser-width
                      :trailing-white-space nil
                      :pos 0})]
-    (proxy [TextWriter IDeref PrettyFlush] []
+    (proxy [TextWriter IDeref clojure.pprint.PrettyFlush] []
       (deref [] fields)
 
-      (Write 
-       ([x]
-          ;;     (prlabel write x (getf :mode))
-          (condp = (class x)
-            String 
-            (let [^String s0 (write-initial-lines this x)
-                  ^String s (.Replace #"\s+$" s0 "" 1)                              ;;; (.replaceFirst s0 "\\s+$" "")
-                  white-space (.Substring s0 (count s))
-                  mode (getf :mode)]
-              (dosync
-               (if (= mode :writing)
-                 (do
-                   (write-white-space this)
-                   (write-to-base s)
-                   (setf :trailing-white-space white-space))
-                 (let [oldpos (getf :pos)
-                       newpos (+ oldpos (count s0))]
-                   (setf :pos newpos)
-                   (add-to-buffer this (make-buffer-blob s white-space oldpos newpos))))))
-            Char
-            (p-write-char this (int x))
-            Int32
-            (p-write-char this x)
-			Int64
-            (p-write-char this x)))
+      (Write
+        ([^String x]
+         (let [^String s0 (write-initial-lines this x)
+               ^String s (.Replace #"\s+$" s0 "" 1)
+               white-space (.Substring s0 (count s))
+               mode (getf :mode)]
+           (dosync
+            (if (= mode :writing)
+              (do
+                (write-white-space this)
+                (write-to-base s)
+                (setf :trailing-white-space white-space))
+              (let [oldpos (getf :pos)
+                    newpos (+ oldpos (count s0))]
+                (setf :pos newpos)
+                (add-to-buffer this (make-buffer-blob s white-space oldpos newpos)))))))
         ([^String x off len]
-           (.Write ^TextWriter this (subs (str x) off (+ off len)))))                 ;;; Added type hint
+         (.Write ^TextWriter this (subs (str x) off (+ off len))))
+        ([^Int64 x]
+         (p-write-char this x))
+        ([^Int32 x]
+         (p-write-char this x))
+        ([^Char x]
+         (p-write-char this x)))
 
       (ppflush []
-             (if (= (getf :mode) :buffering)
-               (dosync
-                (write-tokens this (getf :buffer) true)
-                (setf :buffer []))
-               (write-white-space this)))
-	  (Flush []                                    ;; flush
-             (.ppflush ^PrettyFlush this)
-             (let [^TextWriter w (getf :base)]
-               (.Flush w)))                        ;;; .flush
-
+        (if (= (getf :mode) :buffering)
+          (dosync
+           (write-tokens this (getf :buffer) true)
+           (setf :buffer []))
+          (write-white-space this)))
+      
+      (Flush []
+        (.ppflush ^clojure.pprint.PrettyFlush this)
+        (let [^TextWriter w (getf :base)]
+          (.Flush w)))
+      
       (Close []
-             (.Flush ^TextWriter this)))))
+        (.Flush ^TextWriter this)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

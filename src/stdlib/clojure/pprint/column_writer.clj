@@ -58,32 +58,26 @@
      (let [fields (ref {:max max-columns, :cur 0, :line 0 :base writer})]
        (proxy [TextWriter IDeref] []
          (deref [] fields)
-		 (Flush []
-		   (.Flush writer))
+
+         (Flush []
+           (.Flush writer))
+         
          (Write
-          ([^chars cbuf off len]   (let [off (int off) len (int len)]       ;;; removed ^Integer hints on off, len 
-             (let [^TextWriter writer (get-field this :base)] 
-               (.Write writer cbuf off len))) )              
-          ([x]
-             (condp = (class x)
-
-               String 
-               (let [^String s x
-                     nl (.LastIndexOf s \newline)]                                  ;;; (int \newline)                               
-                 (dosync (if (neg? nl)
-                           (set-field this :cur (+ (get-field this :cur) (count s)))
-                           (do
-                             (set-field this :cur (- (count s) nl 1))
-                             (set-field this :line (+ (get-field this :line)
-                                                      (count (filter #(= % \newline) s)))))))
-                 (.Write ^TextWriter (get-field this :base) s))
-                 
-               ;Char
-               ;(.Write writer ^Char x)
-
-               ;;(cc-write-char this x)
-
-               Int32
-               (c-write-char this x)
-			   Int64
-			   (c-write-char this x))))))))
+           ([^chars cbuf off len]
+            (let [off (int off)
+                  len (int len)
+                  ^TextWriter writer (get-field this :base)]
+              (.Write writer cbuf off len)))
+           ([^String x]
+            (let [^String s x
+                  nl (.LastIndexOf s \newline)]
+              (dosync (if (neg? nl)
+                        (set-field this :cur (+ (get-field this :cur) (count s)))
+                        (do
+                          (set-field this :cur (- (count s) nl 1))
+                          (set-field this :line (+ (get-field this :line)
+                                                   (count (filter #(= % \newline) s)))))))
+              (.Write ^TextWriter (get-field this :base) s)))
+           ([^Char x] (.Write writer ^Char x))
+           ([^Int32 x] (c-write-char this x))
+           ([^Int64 x] (c-write-char this x)))))))

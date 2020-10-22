@@ -39,7 +39,7 @@
       (println (str "build 'clojure.spec.alpha"))
       (compile 'clojure.core.specs.alpha)
       (println (str "build 'clojure.core.specs.alpha"))
-    ;; (compile 'clojure.pprint)
+      (compile 'clojure.pprint)
       (println (str "build 'clojure.pprint"))
       (compile 'clojure.clr.io)
       (println (str "build 'clojure.clr.io"))
