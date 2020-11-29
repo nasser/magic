@@ -5853,6 +5853,12 @@ Note that read can execute code (controlled by *read-eval*),
   ^{:doc "The vector of paths to use as roots when loading namespaces."}
   *load-paths* [(System.IO.Path/GetDirectoryName (.Location (.Assembly clojure.lang.RT)))])
 
+;; dynamic vars provided by the runtime
+;; *load-file-fn* 
+;; *compile-file-fn*
+;; *load-fn*
+
+#_
 (def ^:dynamic
   ^{:doc "The function called to evaluate the contents of a file.
           The file should be read, analyzed, compiled into memory, and evaluated
@@ -5864,6 +5870,7 @@ Note that read can execute code (controlled by *read-eval*),
             (str "Bind clojure.core/*load-file-fn* to enable namespace loading. "
                  "Called with " (.FullName file))))))
 
+#_
 (def ^:dynamic
   ^{:doc "The function called to compile a file to disk.
           Similar to *load-file-fn* but the results should be written to disk."}
@@ -5940,6 +5947,7 @@ Note that read can execute code (controlled by *read-eval*),
                                (str " Please check that namespaces with dashes "
                                     "use underscores in the Clojure file name.")))))))))))
 
+#_
 (def ^:dynamic
   ^{:doc "The function called whenever a namespace is loaded.
           By default bound to an implementation that checks the filesystem first
