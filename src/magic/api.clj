@@ -100,7 +100,8 @@
                   ::il/type-builder ns-type
                   ::il/method-builder init-method
                   ::il/ilg init-ilg}
-             file (System.IO.File/OpenText path)]
+             file (System.IO.File/OpenText path)
+             module-file-name (str module-name ".dll")]
          (try
            (let [rdr (LineNumberingTextReader. file)
                  read-1 (fn [] (try (read read-options rdr) (catch Exception _ nil)))]
@@ -112,19 +113,22 @@
            (finally
              (.Close file)))
          (il/emit! ctx (il/ret))
-         (.CreateType ns-type))
-       (when (:write-files opts)
-         (let [compile-path (or *compile-path* ".")
-               file-name (.Name magic.emission/*module*)
-               assembly (.Assembly magic.emission/*module*)
-               final-path (Path/Combine compile-path file-name)]
-           (Directory/CreateDirectory compile-path)
-           (Magic.Emission/EmitAssembly assembly file-name)
-           (if-not (File/Exists final-path)
-             (File/Move file-name final-path)
-             (println "[compile-file] file already exists" final-path))
-           (when-not (:suppress-print-forms opts)
-             (println "[compile-file] end" path "->" final-path))))))))
+         (.CreateType ns-type)
+         (when (:write-files opts)
+           (let [compile-path (or *compile-path* ".")
+                 file-name module-file-name
+                 assembly (.Assembly magic.emission/*module*)
+                 final-path (Path/Combine compile-path file-name)]
+             (Directory/CreateDirectory compile-path)
+             (Magic.Emission/EmitAssembly assembly file-name)
+             (if-not (and (not= compile-path ".")
+                          (File/Exists final-path))
+               (File/Move file-name final-path)
+               (do 
+                 (println "[compile-file] file already exists" final-path)
+                 (File/Delete final-path)))
+             (when-not (:suppress-print-forms opts)
+               (println "[compile-file] end" path "->" final-path)))))))))
 
 (defn compile-namespace
   "Keys in opts:
