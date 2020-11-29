@@ -584,7 +584,6 @@
 (defn instance-field-compiler
   "Symbolic bytecode for instance fields"
   [{:keys [field target] :as ast} compilers]
-  (println "[instance-field-compiler]" (:form ast) (:op target) (:local compilers))
   [(if (= target :deftype-this)
      (il/ldarg-0)
      (compile target compilers))
