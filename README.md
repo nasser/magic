@@ -29,7 +29,7 @@ To compile a clojure file or clojure project to .NET assemblies using Magic, you
 
 Nostrand runs a clojure functions that will compile your files or projects.
 
-```
+```console
 git clone https://github.com/nasser/nostrand.git
 ```
 
@@ -50,7 +50,7 @@ Nostrand uses the previously copied dll to build itself.
 
 To compile magic you can chose either dotnet (for net core) or mono (for net framework). Using `mono` is more stable at the moment. As mentioned in the `nostrand` readme, `nos` is a command that runs a function. for mono the `nos` script is in `nostrand/bin/x64/Debug/net471`. Add nos to your Path and just create a small bash script to access the command :
 
-```
+```console
 mono "/Users/.../nostrand/bin/x64/Debug/net471/Nostrand.exe" "$@" 
 ```
 
@@ -69,7 +69,7 @@ Here is an example of the build function to compile your files in the current fo
 ```
 Then you call the `build` function of the `mytasks` file with `nos`:
 
-```
+```console
 nos mytasks/build
 ```
 And your dll will be added in the `build` folder in the current directory.
@@ -98,13 +98,13 @@ You can now update your `mytasks` file :
 ```
 
 You can now compile using the same command as before :
-```
+```console
 nos mytasks/build
 ```
 
 The 2 dlls with be added to the `build` folder. The dependency is added to a `deps` folder. Following the project tree to help you visualise what was created.
 
-```clojure
+```console
 ├── build
 │   ├── loic_exos.clj.dll
 │   └── loic_exos_test.clj.dll
@@ -136,13 +136,13 @@ Nostand allows you to run the test and provides a cli REPL.
 ### Testing
 
 To run all the tests, go to your magic repo and use the command
-```
+```console
 nos test/all
 ```
 
 You can run tests from the REPL as well. Following an example to run the tests from the namespace `magic.test.logic` :
 
-```
+```clojure
 $ cd path/to/magic
 $ nos cli-repl
 user> (require 'magic.test.logic)
@@ -160,7 +160,7 @@ Ran 6 tests containing 124 assertions.
 
 After you made changes to a file (for instance `magic.core`), just reload the file in the REPL :
 
-```
+```clojure
 user> (use 'magic.core :reload-all)
 ```
 
