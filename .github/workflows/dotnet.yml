@@ -1,7 +1,7 @@
 name: .NET
 
 # This script achieves the MAGIC compiler boostrappping and stores the new assemblies in a github artifact
-# the DLLs will be accessible for 90 days upon build date.
+# The DLLs will be accessible for 90 days upon build date.
 
 on: [push]
 
@@ -53,24 +53,21 @@ jobs:
       run: |
         cd Clojure.Runtime/
         dotnet build
-
     # Build Clojure.Runtime inside magic folder
     - name: Generate Clojure.Runtime assemblies of magic
       run: |
         cd magic/Magic.Runtime/
         dotnet build
-
     # Build Magic with Nostrand repo DLLs (old Dlls)
     - name: Build Nostrand
       run: |
         cd nostrand/
         dotnet build
-
     # Compile magic to dll with old Nostrand version
     - name: Compile Magic using Nostrand
       run: |
         cd magic/
-        dotnet "../nostrand/bin/x64/Debug/net5.0/Nostrand.dll" "build/bootstrap"
+        mono "../nostrand/bin/x64/Debug/net471/Nostrand.exe" "build/bootstrap"
     
     # Copy Magic dll to nostrand
     - name: Copy new Magic dlls in bootstrap to Nostrand reference
@@ -83,20 +80,17 @@ jobs:
         cp Clojure.Runtime/bin/Debug/net40/* nostrand/references-net4x/
         cp magic/Magic.Runtime/bin/Debug/netstandard2.0/* nostrand/references-netstandard/
         cp magic/Magic.Runtime/bin/Debug/net461/* nostrand/references-net4x/
-
     # Rebuild Nostrand using the new magic DLLs
     - name: Rebuild Nostrand (with new Magic dlls)
       run: |
         cd nostrand/
         dotnet build
-
     # Compile magic to dll with new nostrand (self-hosting cycle complete)
     - name: Recompile Magic with the new Nostrand version
       run: |
         cd magic/
         rm -rf bootstrap/
-        dotnet "../nostrand/bin/x64/Debug/net5.0/Nostrand.dll" "build/bootstrap"
-
+        mono "../nostrand/bin/x64/Debug/net471/Nostrand.exe" "build/bootstrap"
    # Store the bootstrap folder with the new assemblies as artifact for 90 days
     - name: Store new DLLs as a github artifact
       uses: actions/upload-artifact@v2
