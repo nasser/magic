@@ -21,7 +21,7 @@ MAGIC is a compiler for Clojure written in Clojure targeting the Common Language
 
 To compile a clojure file or clojure project to .NET assemblies using Magic, you need [Nostrand](https://github.com/nasser/nostrand).
 
-`Nostrand` was built using Magic and Magic is compiled using Nostrand (There is a cyclic dependency to achieve the compiler boostrapping).
+`Nostrand` was built using Magic and Magic is compiled using Nostrand (There is a cyclic dependency to achieve the compiler bootstrapping).
 
 ### Setup
 
@@ -35,7 +35,7 @@ git clone https://github.com/nasser/nostrand.git
 
 2) Download the latest Magic dlls from the magic project last build artifact.
 
-Click on the last build in the [actions](https://github.com/flybot-sg/magic/actions) and then click on the artifact at the bottom to download the magic assemblies.
+Click on the last build in the `actions` tab and then click on the artifact at the bottom to download the magic assemblies.
 
 3) Copy the previously downloaded dlls in the `references` folder of `nostrand`.
 
@@ -48,13 +48,13 @@ Nostrand uses the previously copied dll to build itself.
 
 ### Compiling
 
-To compile magic you can chose either dotnet (for net core) or mono (for net framework). Using `mono` is more stable at the moment. As mentioned in the `nostrand` readme, `nos` is a command that runs a function. for mono the `nos` script is in `nostrand/bin/x64/Debug/net471`. Add nos to your Path and just create a small bash script to access the command :
+To compile with magic you can chose either dotnet (for net core) or mono (for net framework). Using `mono` is more stable at the moment. As mentioned in the `nostrand` readme, `nos` is a command that runs a function. for mono the `nos` script is in `nostrand/bin/x64/Debug/net471`. Add `nos` to your Path and just create a small bash script to access the command :
 
 ```console
 mono "/Users/.../nostrand/bin/x64/Debug/net471/Nostrand.exe" "$@" 
 ```
 
-You now need to create a clojure function that will compile your files and call it with nos, for more info check the [nostrand readme](https://github.com/nasser/nostrand). The clojure file with the build function needs to be added in the `nostrand/bin/x64/Debug/net471` folder if you use mono.
+You now need to create a clojure function that will compile your files and call it with nos, for more info check the [nostrand readme](https://github.com/nasser/nostrand). The clojure file with the build function can be placed at the root direcotry of your project.
 
 - To compile clojure files
 
