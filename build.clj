@@ -1,32 +1,32 @@
 (ns build
   (:require [magic.api :as api]
             magic.util
-            files
+            #_files
             [magic.core :refer [*spells*]]
             [magic.spells.sparse-case :refer [sparse-case]]
-            [mage.core :as il]
-            [magic.profiler :refer [profile write-trace!]])
+            #_[mage.core :as il]
+            #_[magic.profiler :refer [profile write-trace!]])
   (:import [System.Reflection MethodAttributes TypeAttributes BindingFlags]
            [System.IO File Directory Path DirectoryInfo]))
 
-(def local-load-paths
-  [files/magic-root
-   files/mage-root
-   files/clojure-root
-   files/analyzer-root
-   (str files/clojure-root "clojure") ;; HACK
-   files/test-root
-   "."
-   "/home/nasser/projects/magic/sandbox"
-   "/home/nasser/projects/magic/datascript/src"
-   "/home/nasser/projects/magic/datascript/test"
-   "/home/nasser/projects/arcadia/Assets/Arcadia/Source/"])
+#_(def local-load-paths
+    [files/magic-root
+     files/mage-root
+     files/clojure-root
+     files/analyzer-root
+     (str files/clojure-root "clojure") ;; HACK
+     files/test-root
+     "."
+     "/home/nasser/projects/magic/sandbox"
+     "/home/nasser/projects/magic/datascript/src"
+     "/home/nasser/projects/magic/datascript/test"
+     "/home/nasser/projects/arcadia/Assets/Arcadia/Source/"])
 
 (defn bootstrap [& opts]
   (let [opts (set opts)]
     (binding [*print-meta* true
               clojure.core/*loaded-libs* (ref (sorted-set))
-              *load-paths* (vec (concat local-load-paths *load-paths*))
+              *load-paths* (vec (concat [] *load-paths*))
               *eval-form-fn* magic.api/eval
               *compile-file-fn* magic.api/runtime-compile-file
               *load-file-fn* magic.api/runtime-load-file
@@ -115,7 +115,7 @@
   (copy-dir "Magic.IL2CPP/bin/Release/net461" "Magic.Unity/Infrastructure/IL2CPP")
   
   ;; build clojure core
-  (build-core)
+  #_(build-core)
   ;; patch clojure core for il2cpp
   (exec "mono" (str "Magic.IL2CPP/bin/Release/net461/Magic.IL2CPP.CLI.exe "
                     (String/Join " " (Directory/EnumerateFiles "." "*.clj.dll"))))
