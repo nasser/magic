@@ -1,83 +1,46 @@
 (ns build
-  (:require [magic.api :as api]
-            magic.util
-            #_files
-            [magic.core :refer [*spells*]]
-            [magic.spells.sparse-case :refer [sparse-case]]
-            #_[mage.core :as il]
-            #_[magic.profiler :refer [profile write-trace!]])
-  (:import [System.Reflection MethodAttributes TypeAttributes BindingFlags]
-           [System.IO File Directory Path DirectoryInfo]))
+  (:require [magic.core :refer [*spells*]]
+            [magic.spells.sparse-case :refer [sparse-case]])
+  (:import [System.IO File Directory Path DirectoryInfo]))
 
-#_(def local-load-paths
-    [files/magic-root
-     files/mage-root
-     files/clojure-root
-     files/analyzer-root
-     (str files/clojure-root "clojure") ;; HACK
-     files/test-root
-     "."
-     "/home/nasser/projects/magic/sandbox"
-     "/home/nasser/projects/magic/datascript/src"
-     "/home/nasser/projects/magic/datascript/test"
-     "/home/nasser/projects/arcadia/Assets/Arcadia/Source/"])
+(def std-libs-to-compile
+  '[clojure.string ;; respect this order to prevent compiling twice the same file
+    clojure.walk
+    clojure.edn
+    clojure.set
+    clojure.spec.alpha
+    clojure.core.specs.alpha
+    clojure.main
+    clojure.pprint
+    clojure.clr.io
+    clojure.clr.shell
+    clojure.core.protocols
+    clojure.core.reducers
+    clojure.core.server
+    clojure.data
+    clojure.instant
+    clojure.repl
+    clojure.template
+    clojure.stacktrace
+    clojure.test
+    clojure.uuid
+    clojure.zip
+    magic.api
+    clojure.core]) ;; if clojure.core not at the end, prevent other files from being compiled
 
 (defn bootstrap [& opts]
   (let [opts (set opts)]
     (binding [*print-meta* true
               clojure.core/*loaded-libs* (ref (sorted-set))
-              *load-paths* (vec (concat [] *load-paths*))
+              *spells* (if (:portable opts) (conj *spells* sparse-case) *spells*)
               *eval-form-fn* magic.api/eval
               *compile-file-fn* magic.api/runtime-compile-file
               *load-file-fn* magic.api/runtime-load-file
-              *spells* (if (:portable opts) (conj *spells* sparse-case) *spells*)
               *warn-on-reflection* true
               *compile-path* "bootstrap"]
-      (compile 'clojure.core)
-      (println (str "build 'clojure.core"))
-      (compile 'clojure.spec.alpha)
-      (println (str "build 'clojure.spec.alpha"))
-      (compile 'clojure.core.specs.alpha)
-      (println (str "build 'clojure.core.specs.alpha"))
-      (compile 'clojure.pprint)
-      (println (str "build 'clojure.pprint"))
-      (compile 'clojure.clr.io)
-      (println (str "build 'clojure.clr.io"))
-      (compile 'clojure.clr.shell)
-      (println (str "build 'clojure.clr.shell"))
-      (compile 'clojure.core.protocols)
-      (println (str "build 'clojure.core.protocols"))
-      (compile 'clojure.core.reducers)
-      (println (str "build 'clojure.core.reducers"))
-      (compile 'clojure.core.server)
-      (println (str "build 'clojure.core.server"))
-      (compile 'clojure.data)
-      (println (str "build 'clojure.data"))
-      (compile 'clojure.edn)
-      (println (str "build 'clojure.edn"))
-      (compile 'clojure.instant)
-      (println (str "build 'clojure.instant"))
-      (compile 'clojure.main)
-      (println (str "build 'clojure.main"))
-      (compile 'clojure.repl)
-      (println (str "build 'clojure.repl"))
-      (compile 'clojure.set)
-      (println (str "build 'clojure.set"))
-      (compile 'clojure.stacktrace)
-      (println (str "build 'clojure.stacktrace"))
-      (compile 'clojure.string)
-      (println (str "build 'clojure.string"))
-      (compile 'clojure.template)
-      (println (str "build 'clojure.template"))
-      (compile 'clojure.test)
-      (println (str "build 'clojure.test"))
-      (compile 'clojure.uuid)
-      (println (str "build 'clojure.uuid"))
-      (compile 'clojure.walk)
-      (println (str "build 'clojure.walk"))
-      (compile 'clojure.zip)
-      (println (str "build 'clojure.zip"))
-      (compile 'magic.api))))
+      (doseq [lib std-libs-to-compile]
+        (println (str "building " lib))
+        (compile lib)))))
 
 (defn move [source destination]
   (println "[moving]" source destination)
