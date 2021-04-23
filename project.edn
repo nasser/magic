@@ -1,7 +1,7 @@
 {:name "MAGIC Compiler"
  :description "Morgan And Grand Iron Clojure Compiler"
  :author "Ramsey Nasser"
- :source-paths ["src" "test"]
+ :source-paths ["src" "src/stdlib" "test"]
  :references ["Magic.Runtime/bin/Debug/net461/Magic.Runtime.dll" ]
  :dependencies [[:github nasser/mage "master" :paths ["src"]]
                 [:github nasser/test.check "master"]
