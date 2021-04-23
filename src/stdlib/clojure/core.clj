@@ -4394,7 +4394,10 @@ Note that read can execute code (controlled by *read-eval*),
     (ns-resolve ns nil sym))
   ([ns env sym]
     (when-not (contains? env sym)
-      (clojure.lang.Compiler/maybeResolveIn (the-ns ns) sym))))
+      (try
+        (clojure.lang.Compiler/maybeResolveIn (the-ns ns) sym)
+        (catch clojure.lang.TypeNotFoundException _e
+          nil)))))
 
 (defn resolve
   "same as (ns-resolve *ns* symbol) or (ns-resolve *ns* &env symbol)"
