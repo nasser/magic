@@ -24,7 +24,7 @@
     (if (identical? v x)
       v
       (if (instance? clojure.lang.IObj v)
-        (vary-meta v assoc ::obj x ::class (-> x class .Name symbol))    ;;; .getName
+        (vary-meta v assoc ::obj x ::class (-> x class str symbol))    ;;; .getName
         v))))
 
 (defn nav
