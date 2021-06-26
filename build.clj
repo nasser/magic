@@ -17,6 +17,7 @@
     clojure.core.protocols
     clojure.core.reducers
     clojure.core.server
+    clojure.datafy
     clojure.data
     clojure.instant
     clojure.repl
@@ -30,14 +31,14 @@
 
 (defn bootstrap [& opts]
   (let [opts (set opts)]
-    (binding [*print-meta* true
+    (binding [*print-meta*               true
               clojure.core/*loaded-libs* (ref (sorted-set))
-              *spells* (if (:portable opts) (conj *spells* sparse-case) *spells*)
-              *eval-form-fn* magic.api/eval
-              *compile-file-fn* magic.api/runtime-compile-file
-              *load-file-fn* magic.api/runtime-load-file
-              *warn-on-reflection* true
-              *compile-path* "bootstrap"]
+              *spells*                   (if (:portable opts) (conj *spells* sparse-case) *spells*)
+              *eval-form-fn*             magic.api/eval
+              *compile-file-fn*          magic.api/runtime-compile-file
+              *load-file-fn*             magic.api/runtime-load-file
+              *warn-on-reflection*       true
+              *compile-path*             "bootstrap"]
       (doseq [lib std-libs-to-compile]
         (println (str "building " lib))
         (compile lib)))))

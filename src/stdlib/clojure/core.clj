@@ -6195,6 +6195,25 @@ Note that read can execute code (controlled by *read-eval*),
   [& args]
   (apply load-libs :require args))
 
+#_(defn- serialized-require
+  "Like 'require', but serializes loading.
+  Interim function preferred over 'require' for known asynchronous loads.
+  Future changes may make these equivalent."
+  {:added "1.10"}
+  [& args]
+  (locking clojure.lang.RT/REQUIRE_LOCK
+    (apply require args)))
+
+(defn requiring-resolve
+  "Resolves namespace-qualified sym per 'resolve'. If initial resolve
+fails, attempts to require sym's namespace and retries."
+  {:added "1.10"}
+  [sym]
+  (if (qualified-symbol? sym)
+    (or (resolve sym)
+        (do (-> sym namespace symbol require #_serialized-require)
+            (resolve sym)))
+    (throw (ArgumentException. (str "Not a qualified symbol: " sym)))))       ;;; IllegalArgumentException.
 (defn use
   "Like 'require, but also refers to each lib's namespace using
   clojure.core/refer. Use :use in the ns macro in preference to calling

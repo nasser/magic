@@ -35,7 +35,7 @@
    (let [iter (.GetEnumerator coll)]                             ;;; .iterator
      (if (.MoveNext iter)                                        ;;; .hasNext
        (loop [ret (.Current iter)]                               ;;; .next
-         (if (.MoveNext iter)                                    ;;; .hasNext 
+         (if (.MoveNext iter)                                    ;;; .hasNext
            (let [ret (f ret (.Current iter))]                    ;;; .next
              (if (reduced? ret)
                @ret
@@ -105,7 +105,7 @@
   (coll-reduce
    ([coll f] (seq-reduce coll f))
    ([coll f val] (seq-reduce coll f val)))
-  
+
   System.Collections.IEnumerable                     ;;;Iterable
   (coll-reduce
    ([coll f] (iter-reduce coll f))
@@ -126,11 +126,11 @@
   (internal-reduce
    [s f val]
    val)
-  
+
   ;; handles vectors and ranges
   clojure.lang.IChunkedSeq
   (internal-reduce
-   [s f val]
+    [s f val]
     (loop [s s f f val val]
       (if-let [s (seq s)]
         (if (chunked-seq? s)
@@ -150,13 +150,13 @@
          len (.Length s)]                            ;;; .length
      (loop [i (.I str-seq)                           ;;; .i
             val val]
-       (if (< i len)                        
+       (if (< i len)
          (let [ret (f val (.get_Chars s i))]        ;;; .charAt
                 (if (reduced? ret)
                   @ret
                   (recur (inc i) ret)))
          val))))
-  
+
   Object                                       ;;;java.lang.Object
   (internal-reduce
    [s f val]
@@ -172,10 +172,32 @@
                   (recur cls (next s) f ret)))
          (interface-or-naive-reduce s f val))
        val))))
-       
+
 (defprotocol IKVReduce
   "Protocol for concrete associative types that can reduce themselves
    via a function of key and val faster than first/next recursion over map
    entries. Called by clojure.core/reduce-kv, and has same
    semantics (just different arg order)."
-  (kv-reduce [amap f init])) 
+  (kv-reduce [amap f init]))
+
+(defprotocol Datafiable
+  :extend-via-metadata true
+
+  (datafy [o] "return a representation of o as data (default identity)"))
+
+(extend-protocol Datafiable
+  nil
+  (datafy [_] nil)
+
+  Object
+  (datafy [x] x))
+
+(defprotocol Navigable
+  :extend-via-metadata true
+
+  (nav [coll k v] "return (possibly transformed) v in the context of coll and k (a key/index or nil),
+defaults to returning v."))
+
+(extend-protocol Navigable
+  Object
+  (nav [_ _ x] x))
