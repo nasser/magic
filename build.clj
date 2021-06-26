@@ -3,6 +3,19 @@
             [magic.spells.sparse-case :refer [sparse-case]])
   (:import [System.IO File Directory Path DirectoryInfo]))
 
+(in-ns 'clojure.core)
+
+;; forward declare vars added to clojure.core after 1.9 to preserve
+;; bootstrapping. ideally we would just compile clojure.core first but that
+;; causes its own problems.
+(defmacro -forward-declare-new-vars [vars]
+  `(do
+      ~@(map (fn [v] `(let [vv# (declare ~v)] (println "forward declaring" vv#))) vars)))
+
+(-forward-declare-new-vars [requiring-resolve])
+
+(in-ns 'build)
+
 (def std-libs-to-compile
   '[clojure.string ;; respect this order to prevent compiling twice the same file
     clojure.walk
