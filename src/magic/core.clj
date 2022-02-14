@@ -897,31 +897,31 @@
      (il/callvirt invoke-method)
      (convert-type Object (ast-type ast))]))
 
-(defn invoke-compiler
+(defn magic-function-invoke-compiler
   [{:keys [fn args] :as ast} compilers]
-  ;; TODO revisit high performance generic function interfaces
-  (let [;; fn-type (var-type fn)
-        ;; arg-types (map ast-type args)
-        ;; TODO this is hacky and gross
-        ;; best-method (when fn-type
-        ;;               (select-method (filter #(= (.Name %) "invokeTyped")
-        ;;                                      (.GetMethods fn-type))
-        ;;                              arg-types))
-        ;; param-types (when best-method
-        ;;               (map #(.ParameterType %) (.GetParameters best-method)))
-        ;; interface-match (when best-method
-        ;;                   (implementing-interface fn-type best-method))
-        ]
-    [(compile fn compilers)
-     (ifn-invoke-compiler ast compilers)
-     #_(if interface-match
-         [(il/castclass interface-match)
-          (interleave
-           (map #(compile % compilers) args)
-           (map #(convert %1 %2) arg-types param-types))
-          (il/callvirt (apply interop/method interface-match "invokeTyped" param-types))
-          (convert (.ReturnType best-method) (ast-type ast))]
-         (ifn-invoke-compiler ast compilers))]))
+  (let [fn-type (var-type fn)
+        arg-types (map ast-type args)
+        best-method (when fn-type
+                      (select-method (filter #(= (.Name %) "invokeTyped")
+                                             (.GetMethods fn-type))
+                                     arg-types))
+        param-types (when best-method
+                      (map #(.ParameterType %) (.GetParameters best-method)))
+        interface-match (when best-method
+                          (implementing-interface fn-type best-method))]
+    (when interface-match
+      [(il/castclass interface-match)
+       (interleave
+        (map #(compile % compilers) args)
+        (map #(convert-type %1 %2) arg-types param-types))
+       (il/callvirt (apply interop/method interface-match "invokeTyped" param-types))
+       (convert ast (.ReturnType best-method))])))
+
+(defn invoke-compiler
+  [{:keys [fn] :as ast} compilers]
+  [(compile fn compilers)
+   (or (magic-function-invoke-compiler ast compilers)
+       (ifn-invoke-compiler ast compilers))])
 
 (defn var-compiler
   [{:keys [var] :as ast} compilers]
