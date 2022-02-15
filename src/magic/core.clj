@@ -594,27 +594,53 @@
    (il/ldfld field)])
 
 (def ^:dynamic *pic-experiment* false)
+(def internal-static-field
+  (enum-or FieldAttributes/Assembly FieldAttributes/Static))
 
+(defn dynamic-instance-method-compiler
+  [{:keys [op method target args]} compilers]
+  (let [callsite-name (u/gensym (str "<callsite>" method))
+        callsite-field (il/field Magic.CallSiteInstanceMethod callsite-name internal-static-field)
+        skip-label (il/label)]
+    [(il/ldsfld callsite-field)
+     (il/ldnull)
+     (il/ceq)
+     (il/brfalse skip-label)
+     (load-constant (munge (str method)))
+     (il/newobj (first (.GetConstructors Magic.CallSiteInstanceMethod)))
+     (il/stsfld callsite-field)
+     skip-label
+     (il/ldsfld callsite-field)
+     (compile target compilers)
+     (prepare-array args compilers)
+     (il/callvirt (interop/method Magic.CallSiteInstanceMethod "Invoke" Object |System.Object[]|))]))
+
+(defn dynamic-static-method-compiler
+  [{:keys [op method target args]} compilers]
+  (let [callsite-name (u/gensym (str "<callsite>" method))
+        callsite-field (il/field Magic.CallSiteStaticMethod callsite-name internal-static-field)
+        skip-label (il/label)]
+    [(il/ldsfld callsite-field)
+     (il/ldnull)
+     (il/ceq)
+     (il/brfalse skip-label)
+     (compile target compilers)
+     (load-constant (munge (str method)))
+     (il/newobj (first (.GetConstructors Magic.CallSiteStaticMethod)))
+     (il/stsfld callsite-field)
+     skip-label
+     (il/ldsfld callsite-field)
+     (prepare-array args compilers)
+     (il/callvirt (interop/method Magic.CallSiteStaticMethod "Invoke" |System.Object[]|))]))
+
+;; TODO split into dynamic-instance-method-compiler and dynamic-static-method-compiler
 (defn dynamic-method-compiler
   "Symbolic bytecode for dynamic methods"
-  [{:keys [op method target args]} compilers]
+  [{:keys [op method target args] :as ast} compilers]
   (if *pic-experiment*
-    (let [callsite-name (u/gensym (str "<callsite>" method))
-          callsite-field (il/field Magic.CallSiteInstanceMethod callsite-name (enum-or FieldAttributes/Assembly FieldAttributes/Static))
-          skip-label (il/label)]
-      [(il/ldsfld callsite-field)
-       (il/ldnull)
-       (il/ceq)
-       (il/brfalse skip-label)
-       (load-constant (munge (str method)))
-       (il/newobj (first (.GetConstructors Magic.CallSiteInstanceMethod)))
-       (il/stsfld callsite-field)
-       skip-label
-       (il/ldsfld callsite-field)
-       (compile target compilers)
-       (prepare-array args compilers)
-       (il/callvirt (interop/method Magic.CallSiteInstanceMethod "Invoke" Object |System.Object[]|))
-       ])
+    (if (= op :dynamic-instance-method)
+      (dynamic-instance-method-compiler ast compilers)
+      (dynamic-static-method-compiler ast compilers))
     (let [dispatch-method-name (if (= op :dynamic-instance-method)
                                  "InvokeInstanceMethod"
                                  "InvokeStaticMethod")]
@@ -628,7 +654,7 @@
   [{:keys [:m-or-f target]} compilers]
   (if *pic-experiment*
     (let [callsite-name (u/gensym (str "<callsite>" m-or-f))
-          callsite-field (il/field Magic.CallSiteZeroArityMember callsite-name (enum-or FieldAttributes/Assembly FieldAttributes/Static))
+          callsite-field (il/field Magic.CallSiteZeroArityMember callsite-name internal-static-field)
           skip-label (il/label)]
       [(il/ldsfld callsite-field)
        (il/ldnull)
@@ -656,7 +682,7 @@
   [{:keys [type args]} compilers]
   (if *pic-experiment*
     (let [callsite-name (u/gensym (str "<callsite>" type))
-          callsite-field (il/field Magic.CallSiteConstructor callsite-name (enum-or FieldAttributes/Assembly FieldAttributes/Static))
+          callsite-field (il/field Magic.CallSiteConstructor callsite-name internal-static-field)
           skip-label (il/label)]
       [(il/ldsfld callsite-field)
        (il/ldnull)
@@ -1010,6 +1036,32 @@
   [{:keys [var] :as ast} compilers]
   [(load-var var)])
 
+(defn dynamic-set-member-compiler
+  [{:keys [target val] :as ast} compilers]
+  (let [target' (-> target :target)
+        member-name (str (-> target :m-or-f))]
+    (if *pic-experiment*
+      (let [callsite-name (u/gensym (str "<callsite>set!" member-name))
+            callsite-field (il/field Magic.CallSiteSetMember callsite-name (enum-or FieldAttributes/Assembly FieldAttributes/Static))
+            skip-label (il/label)]
+        [(il/ldsfld callsite-field)
+         (il/ldnull)
+         (il/ceq)
+         (il/brfalse skip-label)
+         (load-constant member-name)
+         (il/newobj (first (.GetConstructors Magic.CallSiteSetMember)))
+         (il/stsfld callsite-field)
+         skip-label
+         (il/ldsfld callsite-field)
+         (compile target' compilers)
+         (compile val compilers)
+         (il/callvirt (interop/method Magic.CallSiteSetMember "Invoke" Object Object))])
+      [(compile target' compilers)
+       (load-constant (str (-> target :m-or-f)))
+       (compile val compilers)
+       (convert val Object)
+       (il/call (magic.interop/method Magic.Dispatch "SetMember" Object String Object))
+       (convert-type Object (ast-type val))])))
 
 (defn set!-compiler
   [{:keys [target val] :as ast} compilers]
@@ -1073,12 +1125,7 @@
          (when value-used?
            (il/ldloc v))])
       (= target-op :dynamic-zero-arity)
-      [(compile target' compilers)
-       (load-constant (str (-> target :m-or-f)))
-       (compile val compilers)
-       (convert val Object)
-       (il/call (magic.interop/method Magic.Dispatch "SetMember" Object String Object))
-       (convert-type Object (ast-type val))
+      [(dynamic-set-member-compiler ast compilers)
        (when-not value-used?
          (il/pop))]
       (= target-op :var)

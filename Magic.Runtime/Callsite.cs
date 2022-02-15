@@ -14,7 +14,7 @@ namespace Magic
             MemberName = memberName;
         }
 
-        object Invoke(object o, object value)
+        public object Invoke(object o, object value)
         {
             var oType = o.GetType();
             var valueType = value.GetType();
@@ -89,20 +89,22 @@ namespace Magic
     // TODO artities
     public class CallSiteStaticMethod
     {
+        Type TargetType;
         string MethodName;
 
-        public CallSiteStaticMethod(string methodName)
+        public CallSiteStaticMethod(Type targetType, string methodName)
         {
+            TargetType = targetType;
             MethodName = methodName;
         }
 
-        public object Invoke(object t, object[] args)
+        public object Invoke(object[] args)
         {
-            var method = Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Static, (Type)t, MethodName, args);
+            var method = Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Static, TargetType, MethodName, args);
             if (method != null)
                 return Dispatch.InvokeUnwrappingExceptions(method, null, args);
             var argsString = args.Select(a => a.ToString()).ToArray();
-            throw new Exception($"Could not invoke static member method `{MethodName}` on target {t} with argument types { String.Join(", ", argsString) }.");
+            throw new Exception($"Could not invoke static member method `{MethodName}` on target {TargetType} with argument types { String.Join(", ", argsString) }.");
         }
     }
 
