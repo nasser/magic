@@ -939,14 +939,17 @@
         target' (-> target :target)
         field (-> target :field)
         property (-> target :property)
-        value-used? (not (statement? ast))]
+        value-used? (not (statement? ast))
+        target-type (ast-type target')]
     (cond
       (= target-op :instance-field)
       (if (.IsInitOnly field)
         (throw (ex-info "Cannot set! immutable field"
                         {:field (.Name field) :type (.DeclaringType field) :form (:form ast)}))
         (let [v (il/local (ast-type val))]
-          [(compile target' compilers)
+          [(if (types/is-value-type? target-type)
+             (compile (assoc target' :load-address? true) compilers)
+             (compile target' compilers))
            (compile val compilers)
            (when value-used?
              [(il/stloc v)
