@@ -4,6 +4,7 @@
    [clojure.tools.analyzer.ast :refer [nodes children update-children]]
    [clojure.tools.analyzer.passes
     [trim :refer [trim]]]
+   [magic.flags :refer [*elide-meta*]]
    [magic.analyzer
     [collect-closed-overs :refer [collect-closed-overs]]
     [uniquify :refer [uniquify-locals]]
@@ -22,6 +23,16 @@
   (if (= :fn (:op ast))
     (assoc ast :keywords (->> ast nodes (filter #(and (= :const (:op %))
                                                       (keyword? (:val %))))))
+    ast))
+
+(defn maybe-elide-meta
+  "Elide meta expressions if *elide-meta* enabled"
+  {:pass-info {:walk :post :before #{#'collect-keywords}}}
+  [ast]
+  (if *elide-meta* 
+    (case (:op ast)
+      :with-meta (recur (:expr ast))
+      (dissoc ast :meta))
     ast))
 
 (def ^:dynamic *stack-empty?* true)
@@ -313,6 +324,7 @@
   #{#'collect-vars
     #'collect-keywords
     #'track-constant-literals
+    #'maybe-elide-meta
     #'propagate-defn-name
     #'compute-outside-type
     #'extract-form-meta
