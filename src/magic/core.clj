@@ -902,8 +902,14 @@
   [{:keys [fn args] :as ast} compilers]
   (when *direct-linking*
     (let [fn-type (var-type ast)
+          ;; clojure.core/list is bound to an instance of
+          ;; clojure.lang.PersistentList+PLCreator which is both variadic
+          ;; (extends RestFn) and has an invokeStatic method. this trips us up,
+          ;; so we dodge it here. magic itself will never generate an
+          ;; invokeStatic method for a variadic function.
+          variadic? (isa? fn-type clojure.lang.RestFn)
           arg-types (map ast-type args)
-          best-method (when fn-type
+          best-method (when (and fn-type (not variadic?))
                         (select-method (filter #(= (.Name %) "invokeStatic")
                                                (.GetMethods fn-type))
                                        arg-types))
