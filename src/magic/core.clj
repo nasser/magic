@@ -901,7 +901,7 @@
 (defn magic-function-static-invoke-compiler
   [{:keys [fn args] :as ast} compilers]
   (when *direct-linking*
-    (let [fn-type (var-type fn)
+    (let [fn-type (var-type ast)
           arg-types (map ast-type args)
           best-method (when fn-type
                         (select-method (filter #(= (.Name %) "invokeStatic")
@@ -919,7 +919,7 @@
 (defn magic-function-invoke-compiler
   [{:keys [fn args] :as ast} compilers]
   (when *strongly-typed-invokes*
-    (let [fn-type (var-type fn)
+    (let [fn-type (var-type ast)
           arg-types (map ast-type args)
           best-method (when fn-type
                         (select-method (filter #(= (.Name %) "invokeTyped")
