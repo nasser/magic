@@ -1081,15 +1081,17 @@
 (defn private-constructor [t]
   (first (.GetConstructors t (enum-or BindingFlags/NonPublic BindingFlags/Instance))))
 
-;; TODO this is unused
-(def default-constructor
+(defn ifn-ctor [base-type]
   (il/constructor
    (enum-or MethodAttributes/Public)
-   CallingConventions/Standard
-   []
+   CallingConventions/Standard []
    [(il/ldarg-0)
-    (il/call (private-constructor clojure.lang.AFunction))
+    (il/call (private-constructor base-type))
     (il/ret)]))
+
+(def afunction-ctor (ifn-ctor clojure.lang.AFunction))
+
+(def restfn-ctor (ifn-ctor clojure.lang.RestFn))
 
 (defn ifn-type? [t]
   (.IsAssignableFrom clojure.lang.IFn t))
@@ -1144,15 +1146,7 @@
                  (when load-address?
                    (reference-to-type (ast-type ast)))]
                 (local-compiler ast _cmplrs)))})
-          ctor (il/constructor
-                (enum-or MethodAttributes/Public)
-                CallingConventions/Standard []
-                [(il/ldarg-0)
-                 (il/call (private-constructor
-                           (if variadic?
-                             clojure.lang.RestFn
-                             clojure.lang.AFunction)))
-                 (il/ret)])
+          ctor (if variadic? restfn-ctor afunction-ctor)
           methods* (->> methods
                         (map #(assoc % :fn-name-tag fn-name-tag))
                         (map #(compile % specialized-compilers)))]
@@ -1177,7 +1171,7 @@
     (.GetFields fn-type (enum-or BindingFlags/NonPublic BindingFlags/Instance)))])
 
 (defn fn-method-compiler
-  [{:keys [fn-name-tag body params form variadic? closed-overs]} compilers]
+  [{:keys [fn-name-tag body params form variadic? fn-variadic? closed-overs] :as ast} compilers]
   (let [param-hint (-> form first tag)
         param-types (mapv ast-type params)
         param-names (into #{} (map :name params))
@@ -1192,10 +1186,32 @@
         public-static (enum-or MethodAttributes/Public MethodAttributes/Static)
         recur-target (il/label)
         invoke-method-name (if variadic? "doInvoke" "invoke")
-        emit-static-invoke? (and *direct-linking* (not variadic?) (zero? (count closed-overs)))
-        specialized-compilers
+        emit-static-invoke? (and *direct-linking* (not fn-variadic?) (zero? (count closed-overs)))
+        specialized-compilers-static
         (merge compilers
-               {:recur (fn fn-recur-compiler
+               {:local (fn fn-static-method-local-compiler
+                         [{:keys [local] :as ast} local-compilers]
+                         (if (= local :fn)
+                           ;; static invokes are never variadic
+                           (il/newobj afunction-ctor)
+                           (compile* ast compilers)))
+                :recur (fn fn-static-recur-compiler
+                         [{:keys [exprs]
+                           :as   ast} cmplrs]
+                         [(interleave
+                           (map #(compile % cmplrs) exprs)
+                           (map #(convert %1 %2) exprs param-types))
+                          (map store-argument (->> params count (range 0) reverse))
+                          (il/br recur-target)])})
+        specialized-compilers-instance
+        (merge compilers
+               {:local (fn fn-method-local-compiler
+                         [{:keys [name local] :as ast} local-compilers]
+                         (if (and (= local :arg)
+                                  (param-names name))
+                           (local-compiler (update ast :arg-id inc) local-compilers)
+                           (compile* ast compilers)))
+                :recur (fn fn-recur-compiler
                          [{:keys [exprs]
                            :as   ast} cmplrs]
                          [(interleave
@@ -1203,16 +1219,8 @@
                            (map #(convert %1 %2) exprs param-types))
                           (map store-argument (->> params count inc (range 1) reverse))
                           (il/br recur-target)])})
-        specialized-compilers-instance
-        (merge specialized-compilers
-               {:local (fn fn-method-local-compiler
-                         [{:keys [name local] :as ast} local-compilers]
-                         (if (and (= local :arg)
-                                  (param-names name))
-                           (local-compiler (update ast :arg-id inc) local-compilers)
-                           (compile* ast compilers)))})
         compiled-body-instance (compile body specialized-compilers-instance)
-        compiled-body-static (when emit-static-invoke? (compile body specialized-compilers))
+        compiled-body-static (when emit-static-invoke? (compile body specialized-compilers-static))
         static-method
         (when emit-static-invoke?
           (il/method
@@ -1228,10 +1236,14 @@
          invoke-method-name
          public-virtual
          Object param-il-unhinted
-         [recur-target
+         (if emit-static-invoke?
+          [(->> (count param-types) range (map inc) (map load-argument-standard))
+              (il/call static-method)
+              (il/ret)]
+          [recur-target
           compiled-body-instance
           (convert-type return-type Object)
-          (il/ret)])
+          (il/ret)]))
         hinted-method
         (il/method
          "invokeTyped"
@@ -1259,7 +1271,7 @@
           (il/ret)])]
     [(if (and (= param-types obj-params)
               (= return-type Object))
-       unhinted-method
+       [static-method unhinted-method]
        [static-method hinted-method unhinted-shim])]))
 
 (defn try-compiler

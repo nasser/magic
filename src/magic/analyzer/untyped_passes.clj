@@ -237,6 +237,13 @@
         (assoc :containing-fn-name *fn-name*)
         (update-children propagate-fn-name))))
 
+(defn propagate-fn-variadic
+  {:pass-info {:walk :any}}
+  [{:keys [op variadic? methods] :as ast}]
+  (case op
+    :fn (assoc ast :methods (mapv #(assoc % :fn-variadic? variadic?) methods))
+    ast))
+
 (defn- arg->binding [init]
   (let [name (gensym)]
     {:op :binding
@@ -339,6 +346,7 @@
     #'treat-throw-as-return
     #'prevent-recur-out-of-try
     #'propagate-fn-name
+    #'propagate-fn-variadic
     #'explicit-const-type})
 
 (def scheduled-passes
