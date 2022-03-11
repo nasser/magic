@@ -265,6 +265,24 @@
       (assoc ast :val resolved))
     ast))
 
+(defn optimize-record-keyword-lookup
+  [{fn-ast :fn :keys [op args] :as ast}]
+  (if (and (= :invoke op)
+           (= 1 (count args))
+           (= :const (:op fn-ast))
+           (= :keyword (:type fn-ast)))
+    (let [arg (first args)
+          kw-name (-> fn-ast :val name)
+          arg-type (ast-type arg)
+          fields (.GetFields arg-type)
+          field-map (reduce (fn [m f] (assoc m (.Name f) f)) {} fields)]
+      (if-let [field (field-map kw-name)]
+        {:op :instance-field
+         :target arg
+         :field field}
+        ast))
+    ast))
+
 (defn typed-pass* [ast]
   (try 
     (-> ast
@@ -278,6 +296,7 @@
         ensure-latest-types
         host/analyze-type
         host/analyze-host-field
+        optimize-record-keyword-lookup
         host/analyze-constructor
         host/analyze-host-interop
         host/analyze-host-call
