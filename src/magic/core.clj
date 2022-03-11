@@ -1,7 +1,7 @@
 (ns magic.core
   (:refer-clojure :exclude [compile])
   (:require [mage.core :as il]
-            [magic.analyzer.util :refer [var-interfaces var-type throw!]]
+            [magic.analyzer.util :refer [var-interfaces var-type var-reference throw!]]
             [magic.analyzer.types :as types :refer [tag ast-type ast-type-ignore-tag non-void-ast-type]]
             [magic.analyzer.binder :refer [select-method]]
             [magic.interop :as interop]
