@@ -4,6 +4,7 @@
    [clojure.tools.analyzer.ast :refer [nodes children update-children]]
    [clojure.tools.analyzer.passes
     [trim :refer [trim]]]
+   [magic.flags :refer [*elide-meta*]]
    [magic.analyzer
     [collect-closed-overs :refer [collect-closed-overs]]
     [uniquify :refer [uniquify-locals]]
@@ -22,6 +23,16 @@
   (if (= :fn (:op ast))
     (assoc ast :keywords (->> ast nodes (filter #(and (= :const (:op %))
                                                       (keyword? (:val %))))))
+    ast))
+
+(defn maybe-elide-meta
+  "Elide meta expressions if *elide-meta* enabled"
+  {:pass-info {:walk :post :before #{#'collect-keywords}}}
+  [ast]
+  (if *elide-meta* 
+    (case (:op ast)
+      :with-meta (recur (:expr ast))
+      (dissoc ast :meta))
     ast))
 
 (def ^:dynamic *stack-empty?* true)
@@ -226,6 +237,13 @@
         (assoc :containing-fn-name *fn-name*)
         (update-children propagate-fn-name))))
 
+(defn propagate-fn-variadic
+  {:pass-info {:walk :any}}
+  [{:keys [op variadic? methods] :as ast}]
+  (case op
+    :fn (assoc ast :methods (mapv #(assoc % :fn-variadic? variadic?) methods))
+    ast))
+
 (defn- arg->binding [init]
   (let [name (gensym)]
     {:op :binding
@@ -313,6 +331,7 @@
   #{#'collect-vars
     #'collect-keywords
     #'track-constant-literals
+    #'maybe-elide-meta
     #'propagate-defn-name
     #'compute-outside-type
     #'extract-form-meta
@@ -327,6 +346,7 @@
     #'treat-throw-as-return
     #'prevent-recur-out-of-try
     #'propagate-fn-name
+    #'propagate-fn-variadic
     #'explicit-const-type})
 
 (def scheduled-passes

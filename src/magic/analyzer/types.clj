@@ -4,6 +4,7 @@
              [binder :refer [select-method]]
              [util :refer [throw! var-interfaces var-type] :as util]
              [reflection :refer [find-method]]]
+            [magic.flags :refer [*strongly-typed-invokes*]]
             [magic.emission :refer [*module*]])
   (:import Magic.Runtime
            [System Double Single 
@@ -328,6 +329,20 @@
 (defmethod ast-type-impl :dynamic-field [ast]
   System.Object)
 
+(defn exact-match-invoke-type
+  [{:keys [fn args] :as ast}]
+  (when *strongly-typed-invokes*
+    (let [arg-types (map ast-type-impl args)
+          target-interfaces (var-interfaces fn)
+          vt (var-type fn)
+          invokes (when vt
+                    (filter #(= (.Name %) "invokeTyped")
+                            (.GetMethods vt)))
+          exact-match (when invokes
+                        (select-method invokes arg-types))]
+      (when exact-match
+        (.ReturnType exact-match)))))
+
 (defmethod ast-type-impl :invoke
   [{:keys [fn args] :as ast}]
   (resolve
@@ -344,19 +359,7 @@
             first
             meta
             :tag)
-       ;; TODO revisit high performance generic function interfaces
-       #_(let [arg-types (map ast-type-impl args)
-               target-interfaces (var-interfaces fn)
-              ;; TODO this is hacky and gross
-               vt (var-type fn)
-               invokes (when vt
-                         (filter #(= (.Name %) "invokeTyped")
-                                 (.GetMethods vt)))
-               exact-match (when invokes
-                             (select-method invokes arg-types))]
-           (if exact-match
-             (.ReturnType exact-match)
-             Object))
+       (exact-match-invoke-type ast)
        Object)))
 
 (defmethod ast-type-impl :new [ast]
