@@ -270,6 +270,35 @@
          (il/ldc-i4-0)
          end-label]))))
 
+(defintrinsic clojure.core/not=
+  #(when (numeric-args %) Boolean)
+  (fn intrinsic-not-eq-compiler
+    [{:keys [args] :as ast} type compilers]
+    (case (count args)
+      1
+      (il/ldc-i4-0)
+      (let [arg-pairs (partition 2 1 args)
+            equal-label (il/label)
+            end-label (il/label)
+            il-pairs
+            (map (fn [[a b]]
+                   (let [best-numeric-type
+                         (->> [a b] (map ast-type) types/best-numeric-promotion)]
+                     [(magic/compile a compilers)
+                      (magic/convert a best-numeric-type)
+                      (magic/compile b compilers)
+                      (magic/convert b best-numeric-type)]))
+                 arg-pairs)]
+        [(->> (interleave il-pairs (repeat [(mage.core/beq equal-label)]))
+              drop-last)
+         (il/ceq)
+         (il/ldc-i4-0)
+         (il/ceq)
+         (il/br end-label)
+         equal-label
+         (il/ldc-i4-0)
+         end-label]))))
+
 (defintrinsic clojure.core/deref
   #(when (->> % :args first ast-type (.IsAssignableFrom clojure.lang.IDeref)) Object)
   (fn intrinsic-deref-compiler
@@ -411,11 +440,14 @@
     [{[first-arg] :args} type compilers]
     (let [arg-type (ast-type first-arg)]
       [(magic/compile first-arg compilers)
-       (if (types/is-array? arg-type)
+       (cond
+         (types/is-array? arg-type)
          (il/ldlen)
+         (= String arg-type)
+         (il/callvirt (interop/method String "get_Length"))
+         :else
          [(magic/convert first-arg Object)
-          (il/call (interop/method RT "count" Object))]
-         )])))
+          (il/call (interop/method RT "count" Object))])])))
 
 (defintrinsic clojure.core/make-array
   (fn [{[first-arg :as args] :args}]
@@ -452,6 +484,26 @@
        (magic/convert arg Boolean)
        (il/ldc-i4-0)
        (il/ceq)])))
+
+(defintrinsic clojure.core/neg?
+  #(when-numeric-arg % Boolean)
+  (fn intrinsic-neg?-compiler
+    [{:keys [args] :as ast} type compilers]
+    (let [arg (first args)
+          arg-type (types/ast-type arg)]
+      [(magic/compile arg compilers)
+       (cond
+         (= arg-type SByte)  [(il/ldc-i4-0) (il/clt)]
+         (= arg-type Byte)   [(il/ldc-i4-0) (il/clt)]
+         (= arg-type Int16)  [(il/ldc-i4-0) (il/clt)]
+         (= arg-type UInt16) [(il/ldc-i4-0) (il/clt)]
+         (= arg-type Int32)  [(il/ldc-i4-0) (il/clt)]
+         (= arg-type UInt32) [(il/ldc-i4-0) (il/clt-un)]
+         (= arg-type Int64)  [(il/ldc-i4-0) (il/conv-i8) (il/clt)]
+         (= arg-type UInt64) [(il/ldc-i4-0) (il/conv-i8) (il/clt-un)]
+         (= arg-type Single) [(il/ldc-r4 (float 0)) (il/clt)]
+         (= arg-type Double) [(il/ldc-r8 0.0) (il/clt)]
+         :else (throw (ex-info "intrinsic neg? failed, unexpected type" {:type arg-type})))])))
 
 ;;;; array functions
 ;; amap
