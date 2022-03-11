@@ -908,8 +908,9 @@
           ;; so we dodge it here. magic itself will never generate an
           ;; invokeStatic method for a variadic function.
           variadic? (isa? fn-type clojure.lang.RestFn)
+          dynamic? (and (var-reference ast) (.isDynamic (var-reference ast)))
           arg-types (map ast-type args)
-          best-method (when (and fn-type (not variadic?))
+          best-method (when (and fn-type (not variadic?) (not dynamic?))
                         (select-method (filter #(= (.Name %) "invokeStatic")
                                                (.GetMethods fn-type))
                                        arg-types))
