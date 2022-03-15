@@ -3,7 +3,7 @@ name: .NET
 # This script achieves the MAGIC compiler boostrappping and stores the new assemblies in a github artifact
 # The DLLs will be accessible for 90 days upon build date.
 
-on: [push]
+on: [push, workflow_dispatch]
 
 jobs:
   build:
