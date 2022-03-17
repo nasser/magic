@@ -618,6 +618,27 @@
    Magic.CallsiteInstanceMethod18
    Magic.CallsiteInstanceMethod19])
 
+(def callsite-static-method-types
+  [Magic.CallsiteStaticMethod01
+   Magic.CallsiteStaticMethod02
+   Magic.CallsiteStaticMethod03
+   Magic.CallsiteStaticMethod04
+   Magic.CallsiteStaticMethod05
+   Magic.CallsiteStaticMethod06
+   Magic.CallsiteStaticMethod07
+   Magic.CallsiteStaticMethod08
+   Magic.CallsiteStaticMethod09
+   Magic.CallsiteStaticMethod10
+   Magic.CallsiteStaticMethod11
+   Magic.CallsiteStaticMethod12
+   Magic.CallsiteStaticMethod13
+   Magic.CallsiteStaticMethod14
+   Magic.CallsiteStaticMethod15
+   Magic.CallsiteStaticMethod16
+   Magic.CallsiteStaticMethod17
+   Magic.CallsiteStaticMethod18
+   Magic.CallsiteStaticMethod19])
+
 
 (defn cached-dynamic-instance-method-compiler
   [{:keys [method target args]} compilers]
@@ -658,10 +679,11 @@
     (cached-dynamic-instance-method-compiler ast compilers)
     (fallback-dynamic-method-compiler ast compilers)))
 
-(defn dynamic-static-method-compiler
-  [{:keys [op method target args]} compilers]
+(defn cached-dynamic-static-method-compiler
+  [{:keys [method target args]} compilers]
   (let [callsite-name (u/gensym (str "<callsite>" method))
-        callsite-field (il/field Magic.CallSiteStaticMethod callsite-name internal-static-field)
+        callsite-type (get callsite-static-method-types (dec (count args)))
+        callsite-field (il/field callsite-type callsite-name internal-static-field [[ThreadStaticAttribute]])
         skip-label (il/label)]
     [(il/ldsfld callsite-field)
      (il/ldnull)
@@ -669,12 +691,22 @@
      (il/brfalse skip-label)
      (compile target compilers)
      (load-constant (munge (str method)))
-     (il/newobj (first (.GetConstructors Magic.CallSiteStaticMethod)))
+     (il/newobj (first (.GetConstructors callsite-type)))
      (il/stsfld callsite-field)
      skip-label
      (il/ldsfld callsite-field)
-     (prepare-array args compilers)
-     (il/callvirt (interop/method Magic.CallSiteStaticMethod "Invoke" |System.Object[]|))]))
+     (map
+      (fn [c]
+        [(compile c compilers)
+         (convert c Object)])
+      args)
+     (il/callvirt (->> callsite-type .GetMethods (filter #(= "Invoke" (.Name %))) first))]))
+
+(defn dynamic-static-method-compiler
+  [{:keys [args] :as ast} compilers]
+  (if (<= (count args) (count callsite-instance-method-types))
+    (cached-dynamic-static-method-compiler ast compilers)
+    (fallback-dynamic-method-compiler ast compilers)))
 
 ;; TODO split into dynamic-instance-method-compiler and dynamic-static-method-compiler
 (defn dynamic-method-compiler
