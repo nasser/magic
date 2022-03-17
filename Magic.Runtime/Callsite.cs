@@ -77,12 +77,13 @@ namespace Magic
         {
             if(field.FieldType.IsPrimitive)
                 return (obj, val) => {
-                    val = Convert.ChangeType(val, field.FieldType);
+                    val = Binder.Shared.ConvertArgument(field.FieldType, val);
                     field.SetValue(obj, val);
                     return val;
                 };
             else
                 return (obj, val) => {
+                    val = Binder.Shared.ConvertArgument(field.FieldType, val);
                     field.SetValue(obj, val);
                     return val;
                 };
@@ -92,12 +93,13 @@ namespace Magic
         {
             if(property.PropertyType.IsPrimitive)
                 return (obj, val) => {
-                    val = Convert.ChangeType(val, property.PropertyType);
+                    val = Binder.Shared.ConvertArgument(property.PropertyType, val);
                     property.SetValue(obj, val, null);
                     return val;
                 };
             else
                 return (obj, val) => {
+                    val = Binder.Shared.ConvertArgument(property.PropertyType, val);
                     property.SetValue(obj, val, null);
                     return val;
                 };
@@ -128,6 +130,7 @@ namespace Magic
             if (field != null)
             {
                 cache.CacheMethod(o, value, DelegateHelpers.GetSetMemberDelegate(field));
+                value = Binder.Shared.ConvertArgument(field.FieldType, value);
                 field.SetValue(o, value);
                 return value;
             }
@@ -135,6 +138,7 @@ namespace Magic
             if (property != null)
             {
                 cache.CacheMethod(o, value, DelegateHelpers.GetSetMemberDelegate(property));
+                value = Binder.Shared.ConvertArgument(property.PropertyType, value);
                 property.SetValue(o, value, null);
                 return value;
             }
@@ -184,6 +188,5 @@ namespace Magic
             }
             throw new ArgumentException($"Could not invoke zero arity member `{MemberName}` on target {(o == null ? "null" : o.ToString())}.");
         }
-
     }
 }
