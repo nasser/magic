@@ -22,7 +22,7 @@ namespace Magic
             if(cache.TryGet(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14, out var result))
                 return result(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14);
 
-            var method = (MethodInfo)Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Instance, Target, MemberName, new [] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14 });
+            var method = Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Instance, Target, MemberName, new [] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14 });
             if (method != null)
             {
                 cache.CacheMethod(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14, DelegateHelpers.GetMethodDelegate15(method));

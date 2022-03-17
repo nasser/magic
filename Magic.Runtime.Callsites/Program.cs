@@ -3,6 +3,7 @@
 var callsiteCacheTemplate = File.ReadAllText("CallsiteCache.mustache");
 var callsiteInstanceMethodTemplate = File.ReadAllText("CallsiteInstanceMethod.mustache");
 var callsiteStaticMethodTemplate = File.ReadAllText("CallsiteStaticMethod.mustache");
+var callsiteConstructorTemplate = File.ReadAllText("CallsiteConstructor.mustache");
 var getMethodDelegateTemplate = File.ReadAllText("GetMethodDelegate.mustache");
 var stubble = new StubbleBuilder().Build();
 
@@ -17,6 +18,7 @@ void GenerateSourceCode(int count=20, string path="out")
         File.WriteAllText(Path.Join(path, $"GetMethodDelegate{i:D2}.g.cs"), GenerateGetMethodDelegateMethod(i));
         File.WriteAllText(Path.Join(path, $"CallsiteInstanceMethod{i:D2}.g.cs"), GenerateCallsiteInstanceMethodClass(i));
         File.WriteAllText(Path.Join(path, $"CallsiteStaticMethod{i:D2}.g.cs"), GenerateCallsiteStaticMethodClass(i));
+        File.WriteAllText(Path.Join(path, $"CallsiteConstructorClass{i:D2}.g.cs"), GenerateCallsiteConstructorClass(i));
         File.WriteAllText(Path.Join(path, $"CallsiteCacheClass{i:D2}.g.cs"), GenerateCallsiteCacheClass(i));
     }
     File.WriteAllText(Path.Join(path, $"GetMethodDelegate{count:D2}.g.cs"), GenerateGetMethodDelegateMethod(count));
@@ -33,6 +35,16 @@ string GenerateGetMethodDelegateMethod(int arity)
         subscriptsPlusOne = Enumerable.Range(0, arity).Skip(1).ToArray()
     });
     return output.Replace(",)", ")").Replace(" && ;", ";").Replace(",.", ".").Replace(", }", " }").Replace("new [] {  }", "null");
+}
+
+string GenerateCallsiteConstructorClass(int arity)
+{
+    var output = stubble.Render(callsiteConstructorTemplate, new
+    {
+        arityPadded = string.Format("{0:D2}", arity),
+        subscripts = Enumerable.Range(0, arity).ToArray()
+    });
+    return output.Replace(",)", ")").Replace(" && ;", ";").Replace(",.", ".").Replace(", }", " }");
 }
 
 string GenerateCallsiteStaticMethodClass(int arity)

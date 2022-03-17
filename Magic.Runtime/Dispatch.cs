@@ -10,7 +10,11 @@ namespace Magic
         {
             try
             {
-                return method.Invoke(target, args);
+                var ctor = method as ConstructorInfo;
+                if(ctor != null)
+                    return ctor.Invoke(args);
+                else
+                    return method.Invoke(target, args);
             }
             catch (TargetInvocationException e)
             {
@@ -67,6 +71,17 @@ namespace Magic
             if (methods.Length > 0)
                 method = Binder.Shared.BindToMethod(bindingFlags, methods, ref args, null, null, null, out state);
             return method;
+        }
+
+        internal static MethodBase BindToConstructor(Type t, object[] args)
+        {
+            var ctors = t.GetConstructors().Where(c => c.GetParameters().Length == args.Length).ToArray();
+            Object state;
+            MethodBase ctor;
+            ctor = null;
+            if (ctors.Length > 0)
+                ctor = Binder.Shared.BindToMethod(BindingFlags.Public | BindingFlags.Instance, ctors, ref args, null, null, null, out state);
+            return ctor;
         }
 
         public static object InvokeInstanceMethod(object o, string name, object[] args)

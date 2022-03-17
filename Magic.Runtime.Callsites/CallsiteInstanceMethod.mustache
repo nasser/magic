@@ -20,7 +20,7 @@ namespace Magic
             if(cache.TryGet(target{{#subscripts}}, arg{{.}}{{/subscripts}}, out var result))
                 return result(target{{#subscripts}}, arg{{.}}{{/subscripts}});
 
-            var method = (MethodInfo)Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Instance, target.GetType(), MemberName, new [] { {{#subscripts}}arg{{.}},{{/subscripts}} });
+            var method = Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Instance, target.GetType(), MemberName, new [] { {{#subscripts}}arg{{.}},{{/subscripts}} });
             if (method != null)
             {
                 cache.CacheMethod(target{{#subscripts}}, arg{{.}}{{/subscripts}}, DelegateHelpers.GetMethodDelegate{{arityPlusOnePadded}}(method));

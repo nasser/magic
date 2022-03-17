@@ -639,6 +639,26 @@
    Magic.CallsiteStaticMethod18
    Magic.CallsiteStaticMethod19])
 
+(def callsite-constructor-types
+  [|Magic.CallsiteConstructor01`1|
+   |Magic.CallsiteConstructor02`1|
+   |Magic.CallsiteConstructor03`1|
+   |Magic.CallsiteConstructor04`1|
+   |Magic.CallsiteConstructor05`1|
+   |Magic.CallsiteConstructor06`1|
+   |Magic.CallsiteConstructor07`1|
+   |Magic.CallsiteConstructor08`1|
+   |Magic.CallsiteConstructor09`1|
+   |Magic.CallsiteConstructor10`1|
+   |Magic.CallsiteConstructor11`1|
+   |Magic.CallsiteConstructor12`1|
+   |Magic.CallsiteConstructor13`1|
+   |Magic.CallsiteConstructor14`1|
+   |Magic.CallsiteConstructor15`1|
+   |Magic.CallsiteConstructor16`1|
+   |Magic.CallsiteConstructor17`1|
+   |Magic.CallsiteConstructor18`1|
+   |Magic.CallsiteConstructor19`1|])
 
 (defn cached-dynamic-instance-method-compiler
   [{:keys [method target args]} compilers]
@@ -757,19 +777,24 @@
   [{:keys [type args]} compilers]
   (if *pic-experiment*
     (let [callsite-name (u/gensym (str "<callsite>" type))
-          callsite-field (il/field Magic.CallSiteConstructor callsite-name internal-static-field)
+          callsite-type (get callsite-constructor-types (dec (count args)))
+          callsite-type (.MakeGenericType callsite-type (into-array Type [type]))
+          callsite-field (il/field callsite-type callsite-name internal-static-field [[ThreadStaticAttribute]])
           skip-label (il/label)]
       [(il/ldsfld callsite-field)
        (il/ldnull)
        (il/ceq)
        (il/brfalse skip-label)
-       (load-constant type)
-       (il/newobj (first (.GetConstructors Magic.CallSiteConstructor)))
+       (il/newobj (first (.GetConstructors callsite-type)))
        (il/stsfld callsite-field)
        skip-label
        (il/ldsfld callsite-field)
-       (prepare-array args compilers)
-       (il/callvirt (interop/method Magic.CallSiteConstructor "Invoke" |System.Object[]|))
+       (map
+        (fn [c]
+          [(compile c compilers)
+           (convert c Object)])
+        args)
+       (il/callvirt (->> callsite-type .GetMethods (filter #(= "Invoke" (.Name %))) first))
        ])
     [(load-constant type)
      (prepare-array args compilers)

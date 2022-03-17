@@ -20,7 +20,7 @@ namespace Magic
             if(cache.TryGet(target, arg0, out var result))
                 return result(target, arg0);
 
-            var method = (MethodInfo)Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Instance, target.GetType(), MemberName, new [] { arg0 });
+            var method = Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Instance, target.GetType(), MemberName, new [] { arg0 });
             if (method != null)
             {
                 cache.CacheMethod(target, arg0, DelegateHelpers.GetMethodDelegate02(method));

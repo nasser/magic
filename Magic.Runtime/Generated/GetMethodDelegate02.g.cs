@@ -5,7 +5,7 @@ namespace Magic
 {
     public static partial class DelegateHelpers
     {
-        public static CallsiteFunc<object, object, object> GetMethodDelegate02(MethodInfo method)
+        public static CallsiteFunc<object, object, object> GetMethodDelegate02(MethodBase method)
         {
             CallsiteFunc<object, object, object> ret;
             if(method.IsStatic)
@@ -14,6 +14,14 @@ namespace Magic
                     var args = new[] { arg0,arg1 };
                     Binder.Shared.ConvertArguments(method, args);
                     return method.Invoke(null, args);
+                };
+            else if(method.IsConstructor)
+                ret = (arg0,arg1) => 
+                {
+                    var ctor = method as ConstructorInfo;
+                    var args = new[] { arg0,arg1 };
+                    Binder.Shared.ConvertArguments(ctor, args);
+                    return ctor.Invoke(args);
                 };
             else
                 ret = (target, arg1) => 
