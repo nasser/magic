@@ -16,6 +16,24 @@ namespace Magic
             return _binder.BindToField(bindingAttr, match, value, culture);
         }
 
+        public void ConvertArguments(MethodBase method, object[] args)
+        {
+            var parameters = method.GetParameters();
+            for (int i = 0; i < args.Length; i++)
+            {
+                // this is assumed to work at this point. a situation where
+                // we could not convert the argument types should not have
+                // bound and SelectMethod should have returned null
+                if(parameters[i].ParameterType.IsEnum) {
+                    args[i] = Enum.ToObject(parameters[i].ParameterType, args[i]);
+
+                } else if(args[i] is IConvertible) {
+                    args[i] = Convert.ChangeType(args[i], parameters[i].ParameterType);
+
+                }
+            }
+        }
+
         public override MethodBase BindToMethod(BindingFlags bindingAttr, MethodBase[] match, ref object[] args, ParameterModifier[] modifiers, CultureInfo culture, string[] names, out object state)
         {
             try {
@@ -30,20 +48,7 @@ namespace Magic
             var result = SelectMethod(bindingAttr, match, argumentTypes, modifiers);
             if(result != null)
             {
-                var parameters = result.GetParameters();
-                for (int i = 0; i < args.Length; i++)
-                {
-                    // this is assumed to work at this point. a situation where
-                    // we could not convert the argument types should not have
-                    // bound and SelectMethod should have returned null
-                    if(parameters[i].ParameterType.IsEnum) {
-                        args[i] = Enum.ToObject(parameters[i].ParameterType, args[i]);
-
-                    } else if(args[i] is IConvertible) {
-                        args[i] = Convert.ChangeType(args[i], parameters[i].ParameterType);
-
-                    }
-                }
+                ConvertArguments(result, args);
             }
 
             return result;
