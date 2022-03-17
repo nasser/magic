@@ -238,7 +238,6 @@ namespace Magic
             var sw = System.Diagnostics.Stopwatch.StartNew();
             if(cache.TryGet(o, out var result)) {
                 var v = result(o);
-                Console.WriteLine($"[CallSiteZeroArityMember] invoke hot in {sw.Elapsed.TotalMilliseconds}ms");
                 return v;
             }
             
@@ -248,7 +247,6 @@ namespace Magic
             {
                 cache.CacheMethod(o, DelegateHelpers.GetZeroArityDelegate(field));
                 var v = field.GetValue(o);
-                Console.WriteLine($"[CallSiteZeroArityMember] invoke cold {field} in {sw.Elapsed.TotalMilliseconds}ms");
                 return v;
             }
             var property = oType.GetProperty(MemberName);
@@ -256,7 +254,6 @@ namespace Magic
             {
                 cache.CacheMethod(o, DelegateHelpers.GetZeroArityDelegate(property));
                 var v = Dispatch.InvokeUnwrappingExceptions(property.GetGetMethod(), o, null);
-                Console.WriteLine($"[CallSiteZeroArityMember] invoke cold {property} in {sw.Elapsed.TotalMilliseconds}ms");
                 return v;
             }
             var method = oType.GetMethod(MemberName, Type.EmptyTypes);
@@ -264,7 +261,6 @@ namespace Magic
             {
                 cache.CacheMethod(o, DelegateHelpers.GetZeroArityDelegate(method));
                 var v = Dispatch.InvokeUnwrappingExceptions(method, o, null);
-                Console.WriteLine($"[CallSiteZeroArityMember] invoke cold {method} in {sw.ElapsedMilliseconds}ms");
                 return v;
             }
             throw new ArgumentException($"Could not invoke zero arity member `{MemberName}` on target {(o == null ? "null" : o.ToString())}.");
