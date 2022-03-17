@@ -9,9 +9,19 @@ namespace Magic
         {
             CallsiteFunc<object, object, object, object, object, object, object, object, object, object> ret;
             if(method.IsStatic)
-                ret = (arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8) => method.Invoke(null, new[] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8 });
+                ret = (arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8) => 
+                {
+                    var args = new[] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8 };
+                    Binder.Shared.ConvertArguments(method, args);
+                    return method.Invoke(null, args);
+                };
             else
-                ret = (target, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) => method.Invoke(target, new [] { arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8 });
+                ret = (target, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) => 
+                {
+                    var args = new [] { arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8 };
+                    Binder.Shared.ConvertArguments(method, args);
+                    return method.Invoke(target, args);
+                };
             return ret;
         }
 

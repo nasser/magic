@@ -9,9 +9,19 @@ namespace Magic
         {
             CallsiteFunc<object, object, object, object, object, object, object, object, object, object, object, object, object, object, object, object, object, object> ret;
             if(method.IsStatic)
-                ret = (arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15,arg16) => method.Invoke(null, new[] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15,arg16 });
+                ret = (arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15,arg16) => 
+                {
+                    var args = new[] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15,arg16 };
+                    Binder.Shared.ConvertArguments(method, args);
+                    return method.Invoke(null, args);
+                };
             else
-                ret = (target, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16) => method.Invoke(target, new [] { arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15,arg16 });
+                ret = (target, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16) => 
+                {
+                    var args = new [] { arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15,arg16 };
+                    Binder.Shared.ConvertArguments(method, args);
+                    return method.Invoke(target, args);
+                };
             return ret;
         }
 

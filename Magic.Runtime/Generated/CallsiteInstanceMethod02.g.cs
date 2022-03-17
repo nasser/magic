@@ -24,7 +24,9 @@ namespace Magic
             if (method != null)
             {
                 cache.CacheMethod(target, arg0, arg1, DelegateHelpers.GetMethodDelegate03(method));
-                return Dispatch.InvokeUnwrappingExceptions(method, target, new[] { arg0,arg1 });
+                var args = new[] { arg0,arg1 };
+                Binder.Shared.ConvertArguments(method, args);
+                return Dispatch.InvokeUnwrappingExceptions(method, target, args);
             }
             throw new ArgumentException($"Could not invoke instance member method `{MemberName}` on target {target.ToString()} ({target.GetType()}) with argument types {arg0.GetType()}, {arg1.GetType()}.");
         }

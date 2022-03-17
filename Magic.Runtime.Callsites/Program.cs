@@ -27,8 +27,8 @@ string GenerateGetMethodDelegateMethod(int arity)
     {
         arityPadded = string.Format("{0:D2}", arity),
         arityPlusOnePadded = string.Format("{0:D2}", arity + 1),
-        subscripts = Enumerable.Range(0, arity),
-        subscriptsPlusOne = Enumerable.Range(0, arity).Skip(1)
+        subscripts = Enumerable.Range(0, arity).ToArray(),
+        subscriptsPlusOne = Enumerable.Range(0, arity).Skip(1).ToArray()
     });
     return output.Replace(",)", ")").Replace(" && ;", ";").Replace(",.", ".").Replace(", }", " }").Replace("new [] {  }", "null");
 }
@@ -39,7 +39,7 @@ string GenerateCallsiteInstanceMethodClass(int arity)
     {
         arityPadded = string.Format("{0:D2}", arity),
         arityPlusOnePadded = string.Format("{0:D2}", arity + 1),
-        subscripts = Enumerable.Range(0, arity)
+        subscripts = Enumerable.Range(0, arity).ToArray()
     });
     return output.Replace(",)", ")").Replace(" && ;", ";").Replace(",.", ".").Replace(", }", " }");
 }
@@ -49,7 +49,7 @@ string GenerateCallsiteCacheClass(int arity)
     var output = stubble.Render(callsiteCacheTemplate, new
     {
         arityPadded = string.Format("{0:D2}", arity),
-        subscripts = Enumerable.Range(0, arity)
+        subscripts = Enumerable.Range(0, arity).ToArray()
     });
     return output.Replace(",)", ")").Replace(" && ;", ";");
 }
