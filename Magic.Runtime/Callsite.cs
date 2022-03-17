@@ -65,22 +65,22 @@ namespace Magic
         //     return ret;
         // }
 
-        public static Func<object, object> GetZeroArityDelegate(FieldInfo field)
+        public static CallsiteFunc<object, object> GetZeroArityDelegate(FieldInfo field)
         {
             return obj => field.GetValue(obj);
         }
 
-        public static Func<object, object> GetZeroArityDelegate(MethodInfo method)
+        public static CallsiteFunc<object, object> GetZeroArityDelegate(MethodInfo method)
         {
             return obj => method.Invoke(obj, null);
         }
 
-        public static Func<object, object> GetZeroArityDelegate(PropertyInfo property)
+        public static CallsiteFunc<object, object> GetZeroArityDelegate(PropertyInfo property)
         {
             return GetZeroArityDelegate(property.GetGetMethod());
         }
 
-        public static Func<object, object, object> GetSetMemberDelegate(FieldInfo field)
+        public static CallsiteFunc<object, object, object> GetSetMemberDelegate(FieldInfo field)
         {
             if(field.FieldType.IsPrimitive)
                 return (obj, val) => {
@@ -95,7 +95,7 @@ namespace Magic
                 };
         }
 
-        public static Func<object, object, object> GetSetMemberDelegate(PropertyInfo property)
+        public static CallsiteFunc<object, object, object> GetSetMemberDelegate(PropertyInfo property)
         {
             if(property.PropertyType.IsPrimitive)
                 return (obj, val) => {
