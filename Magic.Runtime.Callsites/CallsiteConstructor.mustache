@@ -21,10 +21,9 @@ namespace Magic
             var ctor = Dispatch.BindToConstructor(typeof(T), new [] { {{#subscripts}}arg{{.}},{{/subscripts}} });
             if (ctor != null)
             {
-                cache.CacheMethod({{#subscripts}}arg{{.}},{{/subscripts}} DelegateHelpers.GetMethodDelegate{{arityPadded}}(ctor));
-                var args = new[] { {{#subscripts}}arg{{.}},{{/subscripts}} };
-                Binder.Shared.ConvertArguments(ctor, args);
-                return (T)Dispatch.InvokeUnwrappingExceptions(ctor, null, args);
+                var f = DelegateHelpers.GetMethodDelegate{{arityPadded}}(ctor);
+                cache.CacheMethod({{#subscripts}}arg{{.}},{{/subscripts}} f);
+                return (T)f({{#subscripts}}arg{{.}},{{/subscripts}});
             }
             throw new ArgumentException($"Could not invoke constructor `{typeof(T)}` with types{{#subscripts}} {arg{{.}}.GetType()},{{/subscripts}}.");
         }

@@ -25,10 +25,9 @@ namespace Magic
             var method = Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Instance, Target, MemberName, new [] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7 });
             if (method != null)
             {
-                cache.CacheMethod(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7, DelegateHelpers.GetMethodDelegate08(method));
-                var args = new[] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7 };
-                Binder.Shared.ConvertArguments(method, args);
-                return Dispatch.InvokeUnwrappingExceptions(method, null, args);
+                var f = DelegateHelpers.GetMethodDelegate08(method);
+                cache.CacheMethod(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7, f);
+                return f(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7);
             }
             throw new ArgumentException($"Could not invoke static method `{MemberName}` on type {Target} with argument types {arg0.GetType()}, {arg1.GetType()}, {arg2.GetType()}, {arg3.GetType()}, {arg4.GetType()}, {arg5.GetType()}, {arg6.GetType()}, {arg7.GetType()}.");
         }

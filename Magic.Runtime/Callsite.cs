@@ -124,23 +124,24 @@ namespace Magic
         {
             if(cache.TryGet(o, value, out var result))
                 return result(o, value);
+
+            CallsiteFunc<object, object, object> f = null;
             
             var oType = o == null ? typeof(Object) : o.GetType();
             var field = oType.GetField(MemberName);
             if (field != null)
             {
-                cache.CacheMethod(o, value, DelegateHelpers.GetSetMemberDelegate(field));
-                value = Binder.Shared.ConvertArgument(field.FieldType, value);
-                field.SetValue(o, value);
-                return value;
+                f = DelegateHelpers.GetSetMemberDelegate(field);
             }
             var property = oType.GetProperty(MemberName);
             if (property != null)
             {
-                cache.CacheMethod(o, value, DelegateHelpers.GetSetMemberDelegate(property));
-                value = Binder.Shared.ConvertArgument(property.PropertyType, value);
-                property.SetValue(o, value, null);
-                return value;
+                f = DelegateHelpers.GetSetMemberDelegate(property);
+            }
+            if(f != null)
+            {
+                cache.CacheMethod(o, value, f);
+                return f(o, value);
             }
             throw new ArgumentException($"Could not set member `{MemberName}` on target {o.ToString()}, no such member exists.");
         }
@@ -164,27 +165,28 @@ namespace Magic
                 return result(o);
             }
             
+            CallsiteFunc<object, object> f = null;
+            
             var oType = o == null ? typeof(Object) : o.GetType();
             var field = oType.GetField(MemberName);
             if (field != null)
             {
-                cache.CacheMethod(o, DelegateHelpers.GetZeroArityDelegate(field));
-                var v = field.GetValue(o);
-                return v;
+                f = DelegateHelpers.GetZeroArityDelegate(field);
             }
             var property = oType.GetProperty(MemberName);
             if (property != null)
             {
-                cache.CacheMethod(o, DelegateHelpers.GetZeroArityDelegate(property));
-                var v = Dispatch.InvokeUnwrappingExceptions(property.GetGetMethod(), o, null);
-                return v;
+                f = DelegateHelpers.GetZeroArityDelegate(property);
             }
             var method = oType.GetMethod(MemberName, Type.EmptyTypes);
             if (method != null)
             {
-                cache.CacheMethod(o, DelegateHelpers.GetZeroArityDelegate(method));
-                var v = Dispatch.InvokeUnwrappingExceptions(method, o, null);
-                return v;
+                f = DelegateHelpers.GetZeroArityDelegate(method);
+            }
+            if(f != null)
+            {
+                cache.CacheMethod(o, f);
+                return f(o);
             }
             throw new ArgumentException($"Could not invoke zero arity member `{MemberName}` on target {(o == null ? "null" : o.ToString())}.");
         }

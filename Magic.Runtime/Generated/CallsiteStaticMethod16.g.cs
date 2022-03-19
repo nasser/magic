@@ -25,10 +25,9 @@ namespace Magic
             var method = Dispatch.BindToMethod(BindingFlags.Public | BindingFlags.Instance, Target, MemberName, new [] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15 });
             if (method != null)
             {
-                cache.CacheMethod(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15, DelegateHelpers.GetMethodDelegate16(method));
-                var args = new[] { arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15 };
-                Binder.Shared.ConvertArguments(method, args);
-                return Dispatch.InvokeUnwrappingExceptions(method, null, args);
+                var f = DelegateHelpers.GetMethodDelegate16(method);
+                cache.CacheMethod(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15, f);
+                return f(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10,arg11,arg12,arg13,arg14,arg15);
             }
             throw new ArgumentException($"Could not invoke static method `{MemberName}` on type {Target} with argument types {arg0.GetType()}, {arg1.GetType()}, {arg2.GetType()}, {arg3.GetType()}, {arg4.GetType()}, {arg5.GetType()}, {arg6.GetType()}, {arg7.GetType()}, {arg8.GetType()}, {arg9.GetType()}, {arg10.GetType()}, {arg11.GetType()}, {arg12.GetType()}, {arg13.GetType()}, {arg14.GetType()}, {arg15.GetType()}.");
         }
