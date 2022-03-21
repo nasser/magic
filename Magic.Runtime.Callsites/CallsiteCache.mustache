@@ -60,6 +60,13 @@ namespace Magic
 
         public bool TryGet({{#subscripts}}object arg{{.}}, {{/subscripts}}out CallsiteFunc<object{{#subscripts}}, object{{/subscripts}}> result)
         {
+            var sig0 = l0l1Cache[0].Signature;
+            var func0 = l0l1Cache[0].Function;
+            if (sig0.Match({{#subscripts}}arg{{.}},{{/subscripts}}))
+            {
+                result = func0;
+                return true;
+            }
             for (var i = 0; i < count; i++)
             {
                 var sig = l0l1Cache[i].Signature;

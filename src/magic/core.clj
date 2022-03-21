@@ -745,7 +745,7 @@
      (load-constant (str m-or-f))
      (il/call (interop/method Magic.Dispatch "InvokeZeroArityMember" Object String))]
     (let [callsite-name (u/gensym (str "<callsite>" m-or-f))
-          callsite-field (il/field Magic.CallSiteZeroArityMember callsite-name internal-static-field)
+          callsite-field (il/field Magic.CallSiteZeroArityMember callsite-name internal-static-field [[ThreadStaticAttribute]])
           skip-label (il/label)]
       [(il/ldsfld callsite-field)
        (il/ldnull)
@@ -1139,7 +1139,7 @@
        (il/call (magic.interop/method Magic.Dispatch "SetMember" Object String Object))
        (convert-type Object (ast-type val))]
       (let [callsite-name (u/gensym (str "<callsite>set!" member-name))
-            callsite-field (il/field Magic.CallSiteSetMember callsite-name (enum-or FieldAttributes/Assembly FieldAttributes/Static))
+            callsite-field (il/field Magic.CallSiteSetMember callsite-name internal-static-field [[ThreadStaticAttribute]])
             skip-label (il/label)]
         [(il/ldsfld callsite-field)
          (il/ldnull)

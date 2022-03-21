@@ -56,6 +56,13 @@ namespace Magic
 
         public bool TryGet(object arg0, out CallsiteFunc<object, object> result)
         {
+            var sig0 = l0l1Cache[0].Signature;
+            var func0 = l0l1Cache[0].Function;
+            if (sig0.Match(arg0))
+            {
+                result = func0;
+                return true;
+            }
             for (var i = 0; i < count; i++)
             {
                 var sig = l0l1Cache[i].Signature;

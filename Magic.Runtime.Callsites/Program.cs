@@ -32,9 +32,11 @@ string GenerateGetMethodDelegateMethod(int arity)
         arityPadded = string.Format("{0:D2}", arity),
         arityPlusOnePadded = string.Format("{0:D2}", arity + 1),
         subscripts = Enumerable.Range(0, arity).ToArray(),
-        subscriptsPlusOne = Enumerable.Range(0, arity).Skip(1).ToArray()
+        subscriptsPlusOne = Enumerable.Range(0, arity+1).ToArray(),
+        subscriptsMinusOne = Enumerable.Range(0, arity-1).ToArray(),
+        subscriptsSkipOne = Enumerable.Range(0, arity).Skip(1).ToArray()
     });
-    return output.Replace(",)", ")").Replace(" && ;", ";").Replace(",.", ".").Replace(", }", " }").Replace("new [] {  }", "null");
+    return output.Replace(",)", ")").Replace(",>", ">").Replace(" && ;", ";").Replace(",.", ".").Replace(", }", " }").Replace("new [] {  }", "null");
 }
 
 string GenerateCallsiteConstructorClass(int arity)
