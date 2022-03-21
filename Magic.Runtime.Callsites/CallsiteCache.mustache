@@ -18,9 +18,9 @@ namespace Magic
                 {{/subscripts}}
             }
 
-            public bool Match({{#subscripts}}object arg{{.}},{{/subscripts}})
+            public bool Match({{#subscripts}}Type arg{{.}},{{/subscripts}})
             {
-                return {{#subscripts}}type{{.}} == arg{{.}}.GetType() && {{/subscripts}};
+                return {{#subscripts}}object.ReferenceEquals(type{{.}}, arg{{.}}) && {{/subscripts}};
             }
         }
 
@@ -60,24 +60,25 @@ namespace Magic
 
         public bool TryGet({{#subscripts}}object arg{{.}}, {{/subscripts}}out CallsiteFunc<object{{#subscripts}}, object{{/subscripts}}> result)
         {
-            var sig0 = l0l1Cache[0].Signature;
-            var func0 = l0l1Cache[0].Function;
-            if (sig0.Match({{#subscripts}}arg{{.}},{{/subscripts}}))
+            return TryGetInner(l0l1Cache, {{#subscripts}}arg{{.}}.GetType(),{{/subscripts}}out result);
+        }
+
+        bool TryGetInner(Entry[] l0l1Cache, {{#subscripts}}Type arg{{.}}, {{/subscripts}}out CallsiteFunc<object{{#subscripts}}, object{{/subscripts}}> result)
+        {
+            for (var i = 0; i < l0l1Cache.Length; i++)
             {
-                result = func0;
-                return true;
-            }
-            for (var i = 0; i < count; i++)
-            {
-                var sig = l0l1Cache[i].Signature;
-                var func = l0l1Cache[i].Function;
-                if (sig.Match({{#subscripts}}arg{{.}},{{/subscripts}}))
+                if (i >= count) break;
+                var entry = l0l1Cache[i];
+                if (entry.Signature.Match({{#subscripts}}arg{{.}},{{/subscripts}}))
                 {
-                    // CacheSwap(0, i);
-                    var temp = l0l1Cache[i];
-                    l0l1Cache[i] = l0l1Cache[0];
-                    l0l1Cache[0] = temp;
-                    result = func;
+                    result = entry.Function;
+                    if(i > 0)
+                    {
+                        // CacheSwap(0, i);
+                        var temp = l0l1Cache[i];
+                        l0l1Cache[i] = l0l1Cache[0];
+                        l0l1Cache[0] = temp;
+                    }
                     return true;
                 }
             }

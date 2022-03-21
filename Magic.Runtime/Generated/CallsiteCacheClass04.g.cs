@@ -20,9 +20,9 @@ namespace Magic
                 type3 = arg3.GetType();
             }
 
-            public bool Match(object arg0,object arg1,object arg2,object arg3)
+            public bool Match(Type arg0,Type arg1,Type arg2,Type arg3)
             {
-                return type0 == arg0.GetType() && type1 == arg1.GetType() && type2 == arg2.GetType() && type3 == arg3.GetType();
+                return object.ReferenceEquals(type0, arg0) && object.ReferenceEquals(type1, arg1) && object.ReferenceEquals(type2, arg2) && object.ReferenceEquals(type3, arg3);
             }
         }
 
@@ -62,24 +62,25 @@ namespace Magic
 
         public bool TryGet(object arg0, object arg1, object arg2, object arg3, out CallsiteFunc<object, object, object, object, object> result)
         {
-            var sig0 = l0l1Cache[0].Signature;
-            var func0 = l0l1Cache[0].Function;
-            if (sig0.Match(arg0,arg1,arg2,arg3))
+            return TryGetInner(l0l1Cache, arg0.GetType(),arg1.GetType(),arg2.GetType(),arg3.GetType(),out result);
+        }
+
+        bool TryGetInner(Entry[] l0l1Cache, Type arg0, Type arg1, Type arg2, Type arg3, out CallsiteFunc<object, object, object, object, object> result)
+        {
+            for (var i = 0; i < l0l1Cache.Length; i++)
             {
-                result = func0;
-                return true;
-            }
-            for (var i = 0; i < count; i++)
-            {
-                var sig = l0l1Cache[i].Signature;
-                var func = l0l1Cache[i].Function;
-                if (sig.Match(arg0,arg1,arg2,arg3))
+                if (i >= count) break;
+                var entry = l0l1Cache[i];
+                if (entry.Signature.Match(arg0,arg1,arg2,arg3))
                 {
-                    // CacheSwap(0, i);
-                    var temp = l0l1Cache[i];
-                    l0l1Cache[i] = l0l1Cache[0];
-                    l0l1Cache[0] = temp;
-                    result = func;
+                    result = entry.Function;
+                    if(i > 0)
+                    {
+                        // CacheSwap(0, i);
+                        var temp = l0l1Cache[i];
+                        l0l1Cache[i] = l0l1Cache[0];
+                        l0l1Cache[0] = temp;
+                    }
                     return true;
                 }
             }

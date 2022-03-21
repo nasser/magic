@@ -14,9 +14,9 @@ namespace Magic
                 type0 = arg0.GetType();
             }
 
-            public bool Match(object arg0)
+            public bool Match(Type arg0)
             {
-                return type0 == arg0.GetType();
+                return object.ReferenceEquals(type0, arg0);
             }
         }
 
@@ -56,24 +56,25 @@ namespace Magic
 
         public bool TryGet(object arg0, out CallsiteFunc<object, object> result)
         {
-            var sig0 = l0l1Cache[0].Signature;
-            var func0 = l0l1Cache[0].Function;
-            if (sig0.Match(arg0))
+            return TryGetInner(l0l1Cache, arg0.GetType(),out result);
+        }
+
+        bool TryGetInner(Entry[] l0l1Cache, Type arg0, out CallsiteFunc<object, object> result)
+        {
+            for (var i = 0; i < l0l1Cache.Length; i++)
             {
-                result = func0;
-                return true;
-            }
-            for (var i = 0; i < count; i++)
-            {
-                var sig = l0l1Cache[i].Signature;
-                var func = l0l1Cache[i].Function;
-                if (sig.Match(arg0))
+                if (i >= count) break;
+                var entry = l0l1Cache[i];
+                if (entry.Signature.Match(arg0))
                 {
-                    // CacheSwap(0, i);
-                    var temp = l0l1Cache[i];
-                    l0l1Cache[i] = l0l1Cache[0];
-                    l0l1Cache[0] = temp;
-                    result = func;
+                    result = entry.Function;
+                    if(i > 0)
+                    {
+                        // CacheSwap(0, i);
+                        var temp = l0l1Cache[i];
+                        l0l1Cache[i] = l0l1Cache[0];
+                        l0l1Cache[0] = temp;
+                    }
                     return true;
                 }
             }

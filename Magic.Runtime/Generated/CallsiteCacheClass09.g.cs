@@ -30,9 +30,9 @@ namespace Magic
                 type8 = arg8.GetType();
             }
 
-            public bool Match(object arg0,object arg1,object arg2,object arg3,object arg4,object arg5,object arg6,object arg7,object arg8)
+            public bool Match(Type arg0,Type arg1,Type arg2,Type arg3,Type arg4,Type arg5,Type arg6,Type arg7,Type arg8)
             {
-                return type0 == arg0.GetType() && type1 == arg1.GetType() && type2 == arg2.GetType() && type3 == arg3.GetType() && type4 == arg4.GetType() && type5 == arg5.GetType() && type6 == arg6.GetType() && type7 == arg7.GetType() && type8 == arg8.GetType();
+                return object.ReferenceEquals(type0, arg0) && object.ReferenceEquals(type1, arg1) && object.ReferenceEquals(type2, arg2) && object.ReferenceEquals(type3, arg3) && object.ReferenceEquals(type4, arg4) && object.ReferenceEquals(type5, arg5) && object.ReferenceEquals(type6, arg6) && object.ReferenceEquals(type7, arg7) && object.ReferenceEquals(type8, arg8);
             }
         }
 
@@ -72,24 +72,25 @@ namespace Magic
 
         public bool TryGet(object arg0, object arg1, object arg2, object arg3, object arg4, object arg5, object arg6, object arg7, object arg8, out CallsiteFunc<object, object, object, object, object, object, object, object, object, object> result)
         {
-            var sig0 = l0l1Cache[0].Signature;
-            var func0 = l0l1Cache[0].Function;
-            if (sig0.Match(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8))
+            return TryGetInner(l0l1Cache, arg0.GetType(),arg1.GetType(),arg2.GetType(),arg3.GetType(),arg4.GetType(),arg5.GetType(),arg6.GetType(),arg7.GetType(),arg8.GetType(),out result);
+        }
+
+        bool TryGetInner(Entry[] l0l1Cache, Type arg0, Type arg1, Type arg2, Type arg3, Type arg4, Type arg5, Type arg6, Type arg7, Type arg8, out CallsiteFunc<object, object, object, object, object, object, object, object, object, object> result)
+        {
+            for (var i = 0; i < l0l1Cache.Length; i++)
             {
-                result = func0;
-                return true;
-            }
-            for (var i = 0; i < count; i++)
-            {
-                var sig = l0l1Cache[i].Signature;
-                var func = l0l1Cache[i].Function;
-                if (sig.Match(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8))
+                if (i >= count) break;
+                var entry = l0l1Cache[i];
+                if (entry.Signature.Match(arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8))
                 {
-                    // CacheSwap(0, i);
-                    var temp = l0l1Cache[i];
-                    l0l1Cache[i] = l0l1Cache[0];
-                    l0l1Cache[0] = temp;
-                    result = func;
+                    result = entry.Function;
+                    if(i > 0)
+                    {
+                        // CacheSwap(0, i);
+                        var temp = l0l1Cache[i];
+                        l0l1Cache[i] = l0l1Cache[0];
+                        l0l1Cache[0] = temp;
+                    }
                     return true;
                 }
             }
