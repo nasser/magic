@@ -24,6 +24,17 @@
            (throw (System.Reflection.AmbiguousMatchException.
                    (str t "::" name " " (string/join "," params) " " (vec parameter-matches))))))))))
 
+(def all-methods
+  (memoize (fn []
+             (->> (AppDomain/CurrentDomain)
+                  .GetAssemblies
+                  (remove #(isa? (type %) System.Reflection.Emit.AssemblyBuilder))
+                  (remove #(.Contains (.FullName %) "eval"))
+                  (mapcat #(.GetTypes %))
+                  (remove #(.StartsWith (.Name %) "<magic>"))
+                  (remove #(.StartsWith (.Name %) "__Init__"))
+                  (mapcat #(.GetMethods %))))))
+
 (defn parameters
   [method] (.GetParameters method))
 

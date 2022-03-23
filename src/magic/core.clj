@@ -10,7 +10,7 @@
             [clojure.string :as string])
   (:import [clojure.lang Var RT IFn Keyword Symbol]
            [System.IO FileInfo Path]
-           [System.Runtime.CompilerServices IsVolatile]
+           [System.Runtime.CompilerServices IsVolatile IsByRefLikeAttribute]
            [System.Reflection.Emit OpCodes]
            [System.Reflection
             CallingConventions
@@ -659,13 +659,65 @@
    |Magic.CallsiteConstructor18`1|
    |Magic.CallsiteConstructor19`1|])
 
+(defn is-byreflike? [type]
+  (some #(= (.AttributeType %) IsByRefLikeAttribute)
+        (.CustomAttributes type)))
+
+(defn needs-precompilation? [method]
+  (and
+   (not (.. method DeclaringType IsGenericType))
+   (empty? (.GetGenericArguments method))
+   (not (some #(.. % ParameterType IsByRef) (.GetParameters method)))
+   (or (some #(.. % ParameterType IsValueType) (.GetParameters method))
+       (and (.. method DeclaringType IsValueType)
+            (not (is-byreflike? (.. method DeclaringType)))
+            (not (.. method IsStatic))))))
+
+(defn precompilation-signature [method]
+  (let [param-types (mapv #(.ParameterType %) (.GetParameters method))
+        ret-type (if (= (.ReturnType method) System.Void) Object (.ReturnType method))
+        decl-type (.DeclaringType method)]
+    (if (.IsStatic method)
+        (vec (concat param-types [ret-type]))
+        (vec (cons decl-type (concat param-types [ret-type]))))))
+
+(defn get-precompilation-signatures [name arity static?]
+  (->> (interop/all-methods)
+     (filter #(and (= name (.Name %))
+                   (= arity (count (.GetParameters %)))
+                   (.. % DeclaringType IsPublic)
+                   (.. % IsPublic)
+                   (= static? (.. % IsStatic))
+                   (needs-precompilation? %)))
+     (mapv precompilation-signature)
+     (into #{})))
+
+(defn workaround-callsite [signature]
+  (when (> (count signature) 1)
+    (println "[workaround-callsite]" signature)
+    (let [arity (count signature)
+          name (format "GetMethodDelegateFast%02d" (dec arity))
+          open-method (.GetMethod Magic.DelegateHelpers name)
+          closed-method (.MakeGenericMethod open-method (into-array Type signature))]
+      [(il/ldnull) (il/call closed-method) (il/pop)])))
+
+(defn il2cpp-workaround-method [signatures]
+  (when-not (empty? signatures)
+    (il/method
+     (u/gensym "<il2cpp-workaround>")
+     (enum-or MethodAttributes/Public MethodAttributes/Static)
+     System.Void []
+     [(mapv workaround-callsite signatures)
+      (il/ret)])))
+
 (defn cached-dynamic-instance-method-compiler
   [{:keys [method target args]} compilers]
   (let [callsite-name (u/gensym (str "<callsite>" method))
         callsite-type (get callsite-instance-method-types (dec (count args)))
         callsite-field (il/field callsite-type callsite-name internal-static-field [[ThreadStaticAttribute]])
         skip-label (il/label)]
-    [(il/ldsfld callsite-field)
+    [(il2cpp-workaround-method (get-precompilation-signatures (str method) (count args) false))
+     (il/ldsfld callsite-field)
      (il/ldnull)
      (il/ceq)
      (il/brfalse skip-label)
@@ -704,7 +756,8 @@
         callsite-type (get callsite-static-method-types (dec (count args)))
         callsite-field (il/field callsite-type callsite-name internal-static-field [[ThreadStaticAttribute]])
         skip-label (il/label)]
-    [(il/ldsfld callsite-field)
+    [(il2cpp-workaround-method (get-precompilation-signatures (str method) (count args) true))
+     (il/ldsfld callsite-field)
      (il/ldnull)
      (il/ceq)
      (il/brfalse skip-label)
@@ -747,7 +800,9 @@
     (let [callsite-name (u/gensym (str "<callsite>" m-or-f))
           callsite-field (il/field Magic.CallSiteZeroArityMember callsite-name internal-static-field [[ThreadStaticAttribute]])
           skip-label (il/label)]
-      [(il/ldsfld callsite-field)
+      [(il2cpp-workaround-method (get-precompilation-signatures (str "get_" m-or-f) 0 false))
+      (il2cpp-workaround-method (get-precompilation-signatures (str m-or-f) 0 false))
+       (il/ldsfld callsite-field)
        (il/ldnull)
        (il/ceq)
        (il/brfalse skip-label)
