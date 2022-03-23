@@ -8,6 +8,8 @@ namespace Magic
     {
         public static CallsiteFunc<object, object, object, object, object, object> GetMethodDelegate05(MethodBase method)
         {
+            if(method.IsConstructor)
+                return GetMethodDelegateSlow05(method);
             var returnType = ((MethodInfo)method).ReturnType;
             if(returnType == typeof(void))
                 returnType = typeof(object);
