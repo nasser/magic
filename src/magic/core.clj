@@ -597,7 +597,8 @@
   (enum-or FieldAttributes/Assembly FieldAttributes/Static))
 
 (def callsite-instance-method-types
-  [Magic.CallsiteInstanceMethod01
+  [Magic.CallSiteZeroArityMember
+   Magic.CallsiteInstanceMethod01
    Magic.CallsiteInstanceMethod02
    Magic.CallsiteInstanceMethod03
    Magic.CallsiteInstanceMethod04
@@ -715,7 +716,7 @@
 (defn cached-dynamic-instance-method-compiler
   [{:keys [method target args]} compilers]
   (let [callsite-name (u/gensym (str "<callsite>" method))
-        callsite-type (get callsite-instance-method-types (dec (count args)))
+        callsite-type (get callsite-instance-method-types (count args))
         callsite-field (il/field callsite-type callsite-name internal-static-field [[ThreadStaticAttribute]])
         skip-label (il/label)]
     [(il2cpp-workaround-method (str method) (count args) false)
