@@ -4,3 +4,4 @@
 (def ^:dynamic *direct-linking* false)
 (def ^:dynamic *elide-meta* false)
 (def ^:dynamic *legacy-dynamic-callsites* false)
+(def ^:dynamic *emit-il2cpp-workaround* false)
