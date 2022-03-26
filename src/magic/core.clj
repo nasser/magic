@@ -713,11 +713,13 @@
           (il/ret)])))))
 
 (defn cached-dynamic-instance-method-compiler
-  [{:keys [method target args]} compilers]
+  [{:keys [method target args] :as ast} compilers]
   (let [callsite-name (u/gensym (str "<callsite>" method))
         callsite-type (get callsite-instance-method-types (count args))
         callsite-field (il/field callsite-type callsite-name internal-static-field [[ThreadStaticAttribute]])
         skip-label (il/label)]
+    (when-not callsite-type
+      (throw! "[cached-dynamic-instance-method-compiler] null callsite-type! " (:form ast) (dec (count args)) (count args)))
     [(il2cpp-workaround-method (str method) (count args) false)
      (il/ldsfld callsite-field)
      (il/ldnull)
@@ -753,11 +755,13 @@
     (fallback-dynamic-method-compiler ast compilers)))
 
 (defn cached-dynamic-static-method-compiler
-  [{:keys [method target args]} compilers]
+  [{:keys [method target args] :as ast} compilers]
   (let [callsite-name (u/gensym (str "<callsite>" method))
         callsite-type (get callsite-static-method-types (dec (count args)))
         callsite-field (il/field callsite-type callsite-name internal-static-field [[ThreadStaticAttribute]])
         skip-label (il/label)]
+    (when-not callsite-type
+      (throw! "[cached-dynamic-static-method-compiler] null callsite-type!" (:form ast)))
     [(il2cpp-workaround-method (str method) (count args) true)
      (il/ldsfld callsite-field)
      (il/ldnull)
@@ -823,7 +827,7 @@
 
 (defn dynamic-constructor-compiler
   "Symbolic bytecode for dynamic constructors"
-  [{:keys [type args]} compilers]
+  [{:keys [type args] :as ast} compilers]
   (if *legacy-dynamic-callsites*
     [(load-constant type)
      (prepare-array args compilers)
@@ -834,6 +838,8 @@
           callsite-type (.MakeGenericType callsite-type (into-array Type [type]))
           callsite-field (il/field callsite-type callsite-name internal-static-field [[ThreadStaticAttribute]])
           skip-label (il/label)]
+      (when-not callsite-type
+        (throw! "[dynamic-constructor-compiler] null callsite-type!" (:form ast)))
       [(il/ldsfld callsite-field)
        (il/ldnull)
        (il/ceq)
