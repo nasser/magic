@@ -33,6 +33,7 @@
                   (mapcat #(.GetTypes %))
                   (remove #(.StartsWith (.Name %) "<magic>"))
                   (remove #(.StartsWith (.Name %) "__Init__"))
+                  (remove nil?)
                   (mapcat #(.GetMethods %))))))
 
 (defn parameters
