@@ -138,7 +138,7 @@
   ([namespace opts]
    (when-not (:suppress-print-forms opts)
      (println "[compile-namespace]" namespace))
-   (let [relative-path (munge (str namespace))
+   (let [relative-path (-> namespace str munge (.Replace "." "/" ))
          clj-name (str relative-path ".clj")
          cljc-name (str relative-path ".cljc")]
      (if-let [file (or (find-file clj-name) (find-file cljc-name))]
