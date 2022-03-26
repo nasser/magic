@@ -14,7 +14,7 @@ namespace Magic
             public Signature({{#subscripts}}object arg{{.}},{{/subscripts}})
             {
                 {{#subscripts}}
-                type{{.}} = arg{{.}}.GetType();
+                type{{.}} = arg{{.}} == null ? typeof(object) : arg{{.}}.GetType();
                 {{/subscripts}}
             }
 
@@ -60,7 +60,7 @@ namespace Magic
 
         public bool TryGet({{#subscripts}}object arg{{.}}, {{/subscripts}}out CallsiteFunc<object{{#subscripts}}, object{{/subscripts}}> result)
         {
-            return TryGetInner(l0l1Cache, {{#subscripts}}arg{{.}}.GetType(),{{/subscripts}}out result);
+            return TryGetInner(l0l1Cache, {{#subscripts}}arg{{.}} == null ? typeof(object) : arg{{.}}.GetType(),{{/subscripts}}out result);
         }
 
         bool TryGetInner(Entry[] l0l1Cache, {{#subscripts}}Type arg{{.}}, {{/subscripts}}out CallsiteFunc<object{{#subscripts}}, object{{/subscripts}}> result)

@@ -20,16 +20,16 @@ namespace Magic
             
             public Signature(object arg0,object arg1,object arg2,object arg3,object arg4,object arg5,object arg6,object arg7,object arg8,object arg9)
             {
-                type0 = arg0.GetType();
-                type1 = arg1.GetType();
-                type2 = arg2.GetType();
-                type3 = arg3.GetType();
-                type4 = arg4.GetType();
-                type5 = arg5.GetType();
-                type6 = arg6.GetType();
-                type7 = arg7.GetType();
-                type8 = arg8.GetType();
-                type9 = arg9.GetType();
+                type0 = arg0 == null ? typeof(object) : arg0.GetType();
+                type1 = arg1 == null ? typeof(object) : arg1.GetType();
+                type2 = arg2 == null ? typeof(object) : arg2.GetType();
+                type3 = arg3 == null ? typeof(object) : arg3.GetType();
+                type4 = arg4 == null ? typeof(object) : arg4.GetType();
+                type5 = arg5 == null ? typeof(object) : arg5.GetType();
+                type6 = arg6 == null ? typeof(object) : arg6.GetType();
+                type7 = arg7 == null ? typeof(object) : arg7.GetType();
+                type8 = arg8 == null ? typeof(object) : arg8.GetType();
+                type9 = arg9 == null ? typeof(object) : arg9.GetType();
             }
 
             public bool Match(Type arg0,Type arg1,Type arg2,Type arg3,Type arg4,Type arg5,Type arg6,Type arg7,Type arg8,Type arg9)
@@ -74,7 +74,7 @@ namespace Magic
 
         public bool TryGet(object arg0, object arg1, object arg2, object arg3, object arg4, object arg5, object arg6, object arg7, object arg8, object arg9, out CallsiteFunc<object, object, object, object, object, object, object, object, object, object, object> result)
         {
-            return TryGetInner(l0l1Cache, arg0.GetType(),arg1.GetType(),arg2.GetType(),arg3.GetType(),arg4.GetType(),arg5.GetType(),arg6.GetType(),arg7.GetType(),arg8.GetType(),arg9.GetType(),out result);
+            return TryGetInner(l0l1Cache, arg0 == null ? typeof(object) : arg0.GetType(),arg1 == null ? typeof(object) : arg1.GetType(),arg2 == null ? typeof(object) : arg2.GetType(),arg3 == null ? typeof(object) : arg3.GetType(),arg4 == null ? typeof(object) : arg4.GetType(),arg5 == null ? typeof(object) : arg5.GetType(),arg6 == null ? typeof(object) : arg6.GetType(),arg7 == null ? typeof(object) : arg7.GetType(),arg8 == null ? typeof(object) : arg8.GetType(),arg9 == null ? typeof(object) : arg9.GetType(),out result);
         }
 
         bool TryGetInner(Entry[] l0l1Cache, Type arg0, Type arg1, Type arg2, Type arg3, Type arg4, Type arg5, Type arg6, Type arg7, Type arg8, Type arg9, out CallsiteFunc<object, object, object, object, object, object, object, object, object, object, object> result)

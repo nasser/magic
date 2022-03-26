@@ -17,13 +17,13 @@ namespace Magic
             
             public Signature(object arg0,object arg1,object arg2,object arg3,object arg4,object arg5,object arg6)
             {
-                type0 = arg0.GetType();
-                type1 = arg1.GetType();
-                type2 = arg2.GetType();
-                type3 = arg3.GetType();
-                type4 = arg4.GetType();
-                type5 = arg5.GetType();
-                type6 = arg6.GetType();
+                type0 = arg0 == null ? typeof(object) : arg0.GetType();
+                type1 = arg1 == null ? typeof(object) : arg1.GetType();
+                type2 = arg2 == null ? typeof(object) : arg2.GetType();
+                type3 = arg3 == null ? typeof(object) : arg3.GetType();
+                type4 = arg4 == null ? typeof(object) : arg4.GetType();
+                type5 = arg5 == null ? typeof(object) : arg5.GetType();
+                type6 = arg6 == null ? typeof(object) : arg6.GetType();
             }
 
             public bool Match(Type arg0,Type arg1,Type arg2,Type arg3,Type arg4,Type arg5,Type arg6)
@@ -68,7 +68,7 @@ namespace Magic
 
         public bool TryGet(object arg0, object arg1, object arg2, object arg3, object arg4, object arg5, object arg6, out CallsiteFunc<object, object, object, object, object, object, object, object> result)
         {
-            return TryGetInner(l0l1Cache, arg0.GetType(),arg1.GetType(),arg2.GetType(),arg3.GetType(),arg4.GetType(),arg5.GetType(),arg6.GetType(),out result);
+            return TryGetInner(l0l1Cache, arg0 == null ? typeof(object) : arg0.GetType(),arg1 == null ? typeof(object) : arg1.GetType(),arg2 == null ? typeof(object) : arg2.GetType(),arg3 == null ? typeof(object) : arg3.GetType(),arg4 == null ? typeof(object) : arg4.GetType(),arg5 == null ? typeof(object) : arg5.GetType(),arg6 == null ? typeof(object) : arg6.GetType(),out result);
         }
 
         bool TryGetInner(Entry[] l0l1Cache, Type arg0, Type arg1, Type arg2, Type arg3, Type arg4, Type arg5, Type arg6, out CallsiteFunc<object, object, object, object, object, object, object, object> result)

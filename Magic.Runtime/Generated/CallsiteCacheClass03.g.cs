@@ -13,9 +13,9 @@ namespace Magic
             
             public Signature(object arg0,object arg1,object arg2)
             {
-                type0 = arg0.GetType();
-                type1 = arg1.GetType();
-                type2 = arg2.GetType();
+                type0 = arg0 == null ? typeof(object) : arg0.GetType();
+                type1 = arg1 == null ? typeof(object) : arg1.GetType();
+                type2 = arg2 == null ? typeof(object) : arg2.GetType();
             }
 
             public bool Match(Type arg0,Type arg1,Type arg2)
@@ -60,7 +60,7 @@ namespace Magic
 
         public bool TryGet(object arg0, object arg1, object arg2, out CallsiteFunc<object, object, object, object> result)
         {
-            return TryGetInner(l0l1Cache, arg0.GetType(),arg1.GetType(),arg2.GetType(),out result);
+            return TryGetInner(l0l1Cache, arg0 == null ? typeof(object) : arg0.GetType(),arg1 == null ? typeof(object) : arg1.GetType(),arg2 == null ? typeof(object) : arg2.GetType(),out result);
         }
 
         bool TryGetInner(Entry[] l0l1Cache, Type arg0, Type arg1, Type arg2, out CallsiteFunc<object, object, object, object> result)
