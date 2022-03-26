@@ -695,7 +695,6 @@
 
 (defn workaround-callsite [signature]
   (when (> (count signature) 1)
-    (println "[workaround-callsite]" signature)
     (let [arity (count signature)
           name (format "GetMethodDelegateFast%02d" (dec arity))
           open-method (.GetMethod Magic.DelegateHelpers name)
