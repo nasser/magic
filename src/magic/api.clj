@@ -183,7 +183,7 @@
   (try
     (let [full-path (.FullName file)]
       (compile-file full-path (compiler-munge (str path))
-                    {:write-files true :suppress-print-forms false}))
+                    {:write-files true :suppress-print-forms true}))
     (catch clojure.lang.ExceptionInfo e
       (present-error e))))
 
