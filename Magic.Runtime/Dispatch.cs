@@ -86,7 +86,7 @@ namespace Magic
 
         public static object InvokeInstanceMethod(object o, string name, object[] args)
         {
-            var method = BindToMethod(BindingFlags.Public | BindingFlags.Instance, o.GetType(), name, args);
+            var method = BindToMethod(BindingFlags.Public | BindingFlags.Instance, o == null ? typeof(object) : o.GetType(), name, args);
             if (method != null)
                 return InvokeUnwrappingExceptions(method, o, args);
             var argsString = args.Select(a => a.ToString()).ToArray();

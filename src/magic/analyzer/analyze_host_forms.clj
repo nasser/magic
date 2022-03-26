@@ -12,13 +12,14 @@
   (:import [System.Reflection BindingFlags]
            [System.Reflection.Emit TypeBuilder]))
 
-(defn get-all-methods 
-  ([t] (into #{}
-             (concat
-              (.GetMethods t)
-              (mapcat get-all-methods (.GetInterfaces t))
-              (when-let [base (.BaseType t)]
-                (get-all-methods base)))))
+(defn get-all-methods
+  ([t] (when t
+         (into #{}
+               (concat
+                (.GetMethods t)
+                (mapcat get-all-methods (.GetInterfaces t))
+                (when-let [base (.BaseType t)]
+                  (get-all-methods base))))))
   ([t name] (->> t get-all-methods (filter #(= name (.Name %))))))
 
 (def public-instance (enum-or BindingFlags/Instance BindingFlags/Public))
@@ -150,8 +151,9 @@
             m-or-f (str m-or-f)
             static? (= :class (:type target))
             binding-flags (if static? public-static public-instance)
-            all-methods (concat (.GetMethods target-type)
-                                (mapcat #(.GetMethods %) (.GetInterfaces target-type)))
+            all-methods (when target-type
+                          (concat (.GetMethods target-type)
+                                  (mapcat #(.GetMethods %) (.GetInterfaces target-type))))
             relevant-methods (->> all-methods
                                   (filter #(= (.Name %) m-or-f))
                                   (filter #(empty? (.GetParameters %))))
@@ -196,7 +198,7 @@
     (let [{:keys [class field]} (:fn ast)
           resolved-type (types/resolve class)
           field (str field)
-          method (->> resolved-type .GetMethods (filter #(= field (.Name %))) first)]
+          method (when resolved-type (->> resolved-type .GetMethods (filter #(= field (.Name %))) first))]
       (if method
         (merge ast {:op :static-method
                     :method method})

@@ -215,7 +215,7 @@
           interfaces* (into #{} (concat interfaces (mapcat #(.GetInterfaces %) interfaces)))
           proxy-name (gen-il-name (str containing-fn-name "<proxy>"))
           proxy-type (gt/proxy-type *module* proxy-name super interfaces)
-          candidate-methods (into #{} (concat (.GetMethods super)
+          candidate-methods (into #{} (concat (when super (.GetMethods super))
                                               (mapcat #(.GetMethods %) interfaces*)))
           fns (mapv #(analyze-method % candidate-methods :proxy-type proxy-type false) fns)
           closed-overs (reduce (fn [co ast] (merge co (:closed-overs ast))) {} fns)
@@ -355,7 +355,7 @@
             proxy-type (*typed-pass-locals* this-name)
             super-type (.BaseType proxy-type)
             candidate-methods
-            (->> (.GetMethods super-type)
+            (->> (when super-type (.GetMethods super-type))
                  (filter #(= (.Name %) method-name)))
             args* (mapv typed-passes args)
             arg-types (map ast-type args*)]
