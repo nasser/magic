@@ -1,7 +1,7 @@
 (ns magic.util
   (:refer-clojure :exclude [gensym]))
 
-(def ^:dynamic *gensym-map* (atom {}))
+(defonce ^:dynamic *gensym-map* (atom {}))
 
 (defn gensym [base]
   (let [base (str base)]
