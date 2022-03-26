@@ -2255,8 +2255,7 @@
 
 (defn error-compiler
   [{:keys [exception ast]} compilers]
-  (throw (ex-info "Failed to compile"
-                  {:exception exception :ast ast :form (:form ast)})))
+  (throw (ex-info (str "Failed to compile (error-compiler): " exception " " (.Message exception) " " (:form ast)) {:exception exception :ast ast :form (:form ast)})))
 
 (def base-compilers
   {:const               #'const-compiler
@@ -2337,10 +2336,7 @@
   ([ast compilers]
    (when-let [compiler (ast->compiler ast compilers)]
      (binding [*op-stack* (conj *op-stack* (:op ast))]
-       (try
-         (compiler ast compilers)
-         (catch Exception e
-           (throw (ex-info "Failed to compile" {:exception e :form (:form ast) :meta (-> ast :form meta) :file *file* :op-stack *op-stack*}))))))))
+       (compiler ast compilers)))))
 
 (defn maybe-compile-reference-to [{:keys [op load-address?] :as ast}]
   ;; locals will have compiled to ldloca already, so we skip them here
