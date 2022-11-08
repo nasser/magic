@@ -1,5 +1,6 @@
 (ns build
   (:require [magic.core :refer [*spells*]]
+            [magic.api :refer [compile-namespace]]
             [magic.spells.sparse-case :refer [sparse-case]])
   (:import [System.IO File Directory Path DirectoryInfo]))
 
@@ -54,7 +55,7 @@
               *compile-path*             "bootstrap"]
       (doseq [lib std-libs-to-compile]
         (println (str "building " lib))
-        (compile lib)))))
+        (compile-namespace lib {:write-files true :suppress-print-forms true})))))
 
 (defn move [source destination]
   (println "[moving]" source destination)
