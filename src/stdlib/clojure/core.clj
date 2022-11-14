@@ -6795,7 +6795,7 @@ fails, attempts to require sym's namespace and retries."
   post-switch equivalence checking must not be done (occurs with hash
   collisions)."
   [expr-sym default tests thens]
-  (let [hashcode #(clojure.lang.Util/hash %)
+  (let [hashcode #(clojure.lang.Util/hasheq %)
         hashes (into1 #{} (map hashcode tests))]
     (if (== (count tests) (count hashes))
       (if (fits-table? hashes)

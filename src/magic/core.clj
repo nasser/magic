@@ -1649,7 +1649,7 @@
           (:hash-equiv :hash-identity)
           [(compile local compilers)
            (convert local Object)
-           (il/call (interop/method clojure.lang.Util "hash" Object))])
+           (il/call (interop/method clojure.lang.Util "hasheq" Object))])
         switch-body-il
         (case mode
           :int
