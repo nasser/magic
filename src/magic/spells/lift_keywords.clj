@@ -30,7 +30,8 @@
      [old-fn-compiler]
      (fn lifted-keyword-fn-compiler
        [{:keys [keywords fn-type fn-type-cctor] :as ast} compilers]
-       (if-not (or (.IsCreated fn-type)
+       (if-not (or (and fn-type (.IsCreated fn-type))
+                   (nil? fn-type-cctor)
                    (zero? (count keywords)))
          (let [vars (->> keywords (map :val) (into #{}))
                kw-fields (kw-field-map fn-type vars)
