@@ -331,7 +331,9 @@
 
 (defn exact-match-invoke-type
   [{:keys [fn args] :as ast}]
-  (when *strongly-typed-invokes*
+  (when (and *strongly-typed-invokes* 
+             ;; invoking (var ...) is never strongly typed
+             (not (= (:op fn) :the-var)))
     (let [arg-types (map ast-type-impl args)
           target-interfaces (var-interfaces fn)
           vt (var-type fn)

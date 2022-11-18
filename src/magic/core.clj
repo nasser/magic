@@ -1155,7 +1155,9 @@
 
 (defn magic-function-invoke-compiler
   [{:keys [fn args] :as ast} compilers]
-  (when *strongly-typed-invokes*
+  (when (and *strongly-typed-invokes*
+             ;; invoking (var ...) is never strongly typed
+             (not (= (:op fn) :the-var)))
     (let [fn-type (var-type ast)
           arg-types (map ast-type args)
           best-method (when fn-type
