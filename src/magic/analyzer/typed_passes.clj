@@ -116,9 +116,17 @@
                type-key this-type))
       (throw (ex-info "No match binding method" {:name name :params (map ast-type params) :candidates (vec candidate-methods)
                                                  :type-key type-key :this-type this-type :explicit-this? explicit-this?})))))
+(def make-cctor
+  (memoize
+   (fn [containing-type]
+     (.DefineConstructor
+      containing-type
+      (enum-or MethodAttributes/Public MethodAttributes/Static)
+      CallingConventions/Standard
+      Type/EmptyTypes))))
 
 (defn analyze-deftype
-  [{:keys [op classname fields implements methods] :as ast}]
+  [{:keys [op classname fields implements methods vars keywords] :as ast}]
   (case op
     :deftype
     (let [classname (str classname)
@@ -150,6 +158,16 @@
       (define-special-statics deftype-type)
       (assoc ast
              :deftype-type deftype-type
+             ;; due to a quirk of System.Reflection.Emit, we cannot query a TypeBuilder
+             ;; for a static constructor. Ideally, optimization passes that need a cctor
+             ;; would create one themselves or reuse one if another pass had created one
+             ;; already, but the SRE quirk makes that difficult. instead we create one here
+             ;; and expose it in the AST. this means that the core compiler is doing
+             ;; work for the optimization passes, which is less than ideal, but what
+             ;; are you going to do.
+             :deftype-type-cctor (when (or (pos? (count vars))
+                                           (pos? (count keywords)))
+                                   (make-cctor deftype-type))
              :methods methods*
              :implements interfaces))
     ast))
@@ -162,14 +180,6 @@
     "."
     "_")))
 
-(def make-fn-type-cctor
- (memoize 
-  (fn [fn-type]
-    (.DefineConstructor
-     fn-type
-     (enum-or MethodAttributes/Public MethodAttributes/Static)
-     CallingConventions/Standard
-     Type/EmptyTypes))))
 
 (defn analyze-fn
   [{:keys [op name local vars keywords variadic?] :as ast}]
@@ -192,7 +202,7 @@
              ;; are you going to do.
              :fn-type-cctor (when (or (pos? (count vars))
                                       (pos? (count keywords)))
-                              (make-fn-type-cctor fn-type))))
+                              (make-cctor fn-type))))
     ast))
 
 (defn analyze-proxy

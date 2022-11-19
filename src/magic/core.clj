@@ -2058,7 +2058,7 @@
         (il/newobj ctor)
         (il/ret)]))))
 
-(defn deftype-compiler [{:keys [fields methods positional-factory implements name classname deftype-type]} compilers]
+(defn deftype-compiler [{:keys [fields methods positional-factory implements name classname deftype-type deftype-type-cctor]} compilers]
   (let [super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         iface-override (enum-or super-override MethodAttributes/Final MethodAttributes/NewSlot)
         ifaces* (into #{} (concat implements (mapcat #(.GetInterfaces %) implements)))
@@ -2189,6 +2189,8 @@
         ctx' (reduce (fn [ctx method] (il/emit! ctx method))
                      {::il/type-builder deftype-type}
                      [(vals ctors) (vals methods*)])]
+    (when deftype-type-cctor
+      (il/emit! {::il/ilg (.GetILGenerator deftype-type-cctor)} (il/ret)))
     (compile-deftype-getbasis ctx' deftype-type
                               (if defrecord?
                                 (vec (drop-last 4 fields))

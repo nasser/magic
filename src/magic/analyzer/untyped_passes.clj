@@ -13,14 +13,14 @@
 (defn collect-vars
   "Collect all vars within :fn nodes into :vars key"
   [ast]
-  (if (= :fn (:op ast))
+  (if (or (= :deftype (:op ast)) (= :fn (:op ast)))
     (assoc ast :vars (->> ast nodes (filter #(= :var (:op %)))))
     ast))
 
 (defn collect-keywords
   "Collect all keywords within :fn nodes into :keywords key"
   [ast]
-  (if (= :fn (:op ast))
+  (if (or (= :deftype (:op ast)) (= :fn (:op ast)))
     (assoc ast :keywords (->> ast nodes (filter #(and (= :const (:op %))
                                                       (keyword? (:val %))))))
     ast))
