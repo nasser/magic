@@ -5850,9 +5850,16 @@ Note that read can execute code (controlled by *read-eval*),
 ;; extends basic clojure loading mechanisms with hooks (dynamic vars) that allow
 ;; an embedding system to change how loading and compiling works
 ;; contributed by Ramsey Nasser
+
+(def load-code-from-filesystem?
+  (some #(= % clojure.lang.RuntimeBootstrapFlag+CodeSource/FileSystem)
+        clojure.lang.RuntimeBootstrapFlag/CodeLoadOrder))
+
 (def ^:dynamic
   ^{:doc "The vector of paths to use as roots when loading namespaces."}
-  *load-paths* [(System.IO.Path/GetDirectoryName (.Location (.Assembly clojure.lang.RT)))])
+  *load-paths* (if load-code-from-filesystem?
+                  [(System.IO.Path/GetDirectoryName (.Location (.Assembly clojure.lang.RT)))]
+                  []))
 
 ;; dynamic vars provided by the runtime
 ;; *load-file-fn* 
@@ -5922,31 +5929,46 @@ Note that read can execute code (controlled by *read-eval*),
                                           (find-file cljc-name))
          ^System.IO.FileInfo assy-info (or (find-file clj-dll-name)
                                            (find-file cljc-dll-name))]
-     (cond
-       ;; load from file system
-       (and assy-info
-            (or (not clj-info)
-                (>= (.. assy-info LastWriteTime Ticks)
-                    (.. clj-info LastWriteTime Ticks))))
-       (-load-assembly (.FullName assy-info) relative-path)
-
-       (and clj-info *compile-files*)
-       (*compile-file-fn* clj-info relative-path)
-
-       clj-info
-       (*load-file-fn* clj-info relative-path)
-
-       ;; load from init type or fail
-       :else
-       (or (-try-load-init-type relative-path)
-           (and fail-of-not-found
+     (loop [code-source (first clojure.lang.RuntimeBootstrapFlag/CodeLoadOrder)
+            code-sources (rest clojure.lang.RuntimeBootstrapFlag/CodeLoadOrder)]
+       (cond
+          ;; fail if all sources have failed
+          (nil? code-source)
+          (when fail-of-not-found
                 (throw (System.IO.FileNotFoundException.
                         (str "Could not locate any of "
                              [clj-name cljc-name clj-dll-name cljc-dll-name]
                              (str " on load path " *load-paths*)
                              (when (.Contains relative-path "_")
                                (str " Please check that namespaces with dashes "
-                                    "use underscores in the Clojure file name.")))))))))))
+                                    "use underscores in the Clojure file name."))))))
+
+          ;; load from file system
+          (= code-source clojure.lang.RuntimeBootstrapFlag+CodeSource/FileSystem)
+          (cond
+            (and assy-info
+                  (or (not clj-info)
+                      (>= (.. assy-info LastWriteTime Ticks)
+                          (.. clj-info LastWriteTime Ticks))))
+            (-load-assembly (.FullName assy-info) relative-path)
+
+            (and clj-info *compile-files*)
+            (*compile-file-fn* clj-info relative-path)
+
+            clj-info
+            (*load-file-fn* clj-info relative-path)
+
+            :else
+            (recur (first code-sources) (rest code-sources)))
+
+            ;; load from init type
+            (= code-source clojure.lang.RuntimeBootstrapFlag+CodeSource/InitType)
+            (or (-try-load-init-type relative-path)
+                (recur (first code-sources) (rest code-sources)))
+            
+            ;; load from embedded resource
+            (= code-source clojure.lang.RuntimeBootstrapFlag+CodeSource/EmbeddedResource)
+            (throw (NotSupportedException. "Loading from embedded resources is not supported")))))))
 
 #_
 (def ^:dynamic
