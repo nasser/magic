@@ -6,7 +6,7 @@
             [magic.analyzer.types :as types :refer [tag ast-type ast-type-ignore-tag non-void-ast-type]]
             [magic.analyzer.binder :refer [select-method]]
             [magic.interop :as interop]
-            [magic.flags :refer [*emit-il2cpp-workaround* *strongly-typed-invokes* *direct-linking* *legacy-dynamic-callsites*]]
+            [magic.flags :refer [*strongly-typed-invokes* *direct-linking* *legacy-dynamic-callsites*]]
             [clojure.string :as string])
   (:import [clojure.lang Var RT IFn Keyword Symbol]
            [System.IO FileInfo Path]
@@ -701,17 +701,6 @@
           closed-method (.MakeGenericMethod open-method (into-array Type signature))]
       [(il/ldnull) (il/call closed-method) (il/pop)])))
 
-(defn il2cpp-workaround-method [name arity static?]
-  (when *emit-il2cpp-workaround*
-    (let [signatures (get-precompilation-signatures name arity static?)]
-      (when-not (empty? signatures)
-        (il/method
-         (u/gensym "<il2cpp-workaround>")
-         (enum-or MethodAttributes/Public MethodAttributes/Static)
-         System.Void []
-         [(mapv workaround-callsite signatures)
-          (il/ret)])))))
-
 (defn cached-dynamic-instance-method-compiler
   [{:keys [method target args] :as ast} compilers]
   (let [callsite-name (u/gensym (str "<callsite>" method))
@@ -720,8 +709,7 @@
         skip-label (il/label)]
     (when-not callsite-type
       (throw! "[cached-dynamic-instance-method-compiler] null callsite-type! " (:form ast) (dec (count args)) (count args)))
-    [(il2cpp-workaround-method (str method) (count args) false)
-     (il/ldsfld callsite-field)
+    [(il/ldsfld callsite-field)
      (il/ldnull)
      (il/ceq)
      (il/brfalse skip-label)
@@ -762,8 +750,7 @@
         skip-label (il/label)]
     (when-not callsite-type
       (throw! "[cached-dynamic-static-method-compiler] null callsite-type!" (:form ast)))
-    [(il2cpp-workaround-method (str method) (count args) true)
-     (il/ldsfld callsite-field)
+    [(il/ldsfld callsite-field)
      (il/ldnull)
      (il/ceq)
      (il/brfalse skip-label)
@@ -806,9 +793,7 @@
     (let [callsite-name (u/gensym (str "<callsite>" m-or-f))
           callsite-field (il/field Magic.CallSiteZeroArityMember callsite-name internal-static-field [[ThreadStaticAttribute]])
           skip-label (il/label)]
-      [(il2cpp-workaround-method (str "get_" m-or-f) 0 false)
-       (il2cpp-workaround-method (str m-or-f) 0 false)
-       (il/ldsfld callsite-field)
+      [(il/ldsfld callsite-field)
        (il/ldnull)
        (il/ceq)
        (il/brfalse skip-label)
