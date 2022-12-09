@@ -578,8 +578,8 @@
     (il/ldsfld field)))
 
 (defn field-volatile? [f]
-  (if (instance? System.Reflection.Emit.FieldBuilder f)
-    (println (str "cannot look up required custom modifiers on FieldBuilder" f ", skipping"))
+  ;; cannot look up required custom modifiers on FieldBuilder
+  (when-not (instance? System.Reflection.Emit.FieldBuilder f)
     (let [modifiers (into #{} (.GetRequiredCustomModifiers f))]
       (modifiers IsVolatile))))
 
