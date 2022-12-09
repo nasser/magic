@@ -8,7 +8,7 @@ For deeper analysis follow the [developer's blog](http://nas.sr/magic/).
 
 ## Status
 
-Experimental, unfinished, way pre-alpha. Here be dragons.
+The compiler is feature complete and can be considered beta quality software.
 
 ## Overview
 
