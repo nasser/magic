@@ -42,7 +42,7 @@
     (println "[compile-expression]" (-> expr (trim 30)) (str *ns*) (ns-aliases *ns*)))
   (let [ast (ana/analyze expr)
         il (magic/compile ast) 
-        expr-name (u/gensym "<magic>expr")
+        expr-name (u/gensym (str "<magic>_" (-> *ns* str munge) "_expr"))
         expr-type (.DefineType magic.emission/*module* expr-name abstract-sealed)
         expr-method (if (:compiled-for-eval opts)
                       (.DefineMethod expr-type "eval" public-static (ast-type ast) Type/EmptyTypes)
