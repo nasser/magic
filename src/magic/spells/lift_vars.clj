@@ -63,7 +63,6 @@
          [old-deftype-compiler]
          (fn lifted-var-deftype-compiler
            [{:keys [vars deftype-type deftype-type-cctor form] :as ast} compilers]
-           (println "[lifted-var-deftype-compiler] " deftype-type  " " deftype-type-cctor)
            (if-not (or (.IsCreated deftype-type)
                        (zero? (count vars)))
              (let [specialized-compilers
