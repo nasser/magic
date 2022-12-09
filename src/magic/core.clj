@@ -1435,6 +1435,7 @@
         obj-params (mapv (constantly Object) params)
         param-il (map #(il/parameter (ast-type %) (-> % :form str)) params)
         param-il-unhinted (map #(il/parameter Object (-> % :form str)) params)
+        skip-return? (types/always-throws? body)
         body-type (if (types/disregard-type? body)
                     System.Void
                     (ast-type body))
@@ -1487,7 +1488,7 @@
            [recur-target
             compiled-body-static
             (convert-type body-type return-type)
-            (il/ret)]))
+            (when-not skip-return? (il/ret))]))
         unhinted-method
         (il/method
          invoke-method-name
@@ -1500,7 +1501,7 @@
           [recur-target
           compiled-body-instance
           (convert-type return-type Object)
-          (il/ret)]))
+          (when-not skip-return? (il/ret))]))
         hinted-method
         (il/method
          "invokeTyped"
@@ -1513,7 +1514,7 @@
            [recur-target
             compiled-body-instance
             (convert-type body-type return-type)
-            (il/ret)]))
+            (when-not skip-return? (il/ret))]))
         unhinted-shim
         (il/method
          invoke-method-name
@@ -1839,6 +1840,7 @@
   [{:keys [op name body source-method reify-type deftype-type] :as ast} compilers]
   (let [proxy? (= op :proxy-method)
         name (str name)
+        skip-return? (types/always-throws? body)
         explicit-override? (string/includes? name ".")
         super-override (enum-or MethodAttributes/Public MethodAttributes/Virtual)
         explicit-override (enum-or MethodAttributes/Private MethodAttributes/Virtual MethodAttributes/NewSlot)
@@ -1880,7 +1882,7 @@
      [recur-target
       (compile body specialized-compilers)
       (convert body return-type)
-      (il/ret)])))
+      (when-not skip-return? (il/ret))])))
 
 (defn iobj-implementation [meta-il meta-field meta-ctor closed-over-field-map]
   (let [iface-override (enum-or MethodAttributes/Public MethodAttributes/Virtual MethodAttributes/Final MethodAttributes/NewSlot)

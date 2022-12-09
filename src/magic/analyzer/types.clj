@@ -121,6 +121,15 @@
   (or (ast-type-impl ast)
       Object))
 
+(defn always-throws? [ast]
+  (case (:op ast)
+    :if (and (always-throws? (:then ast))
+             (always-throws? (:else ast)))
+    :let (always-throws? (:body ast))
+    :do (always-throws? (:ret ast))
+    :throw true
+    #_:else false))
+
 (defn disregard-type? [ast]
   (case (:op ast)
     :if (and (disregard-type? (:then ast))
