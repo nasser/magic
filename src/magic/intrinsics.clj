@@ -236,7 +236,7 @@
                     (magic/compile b compilers)
                     (magic/convert b best-numeric-type)]))
                arg-pairs)]
-      [(->> (interleave il-pairs (repeat (il/blt less-label)))
+      [(->> (interleave il-pairs (repeat (il/ble less-label)))
             drop-last)
        (il/cgt)
        (when (> (count il-pairs) 1)
