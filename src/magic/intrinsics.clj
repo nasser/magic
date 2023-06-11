@@ -213,10 +213,11 @@
       [(->> (interleave il-pairs (repeat (il/bge greater-label)))
             drop-last)
        (il/clt)
-       (il/br end-label)
-       greater-label
-       (il/ldc-i4-0)
-       end-label])))
+       (when (> (count il-pairs) 1)
+        [(il/br end-label)
+         greater-label
+         (il/ldc-i4-0)
+         end-label])])))
 
 (defintrinsic clojure.core/>
   #(when (numeric-args %) Boolean)
@@ -238,10 +239,11 @@
       [(->> (interleave il-pairs (repeat (il/blt less-label)))
             drop-last)
        (il/cgt)
-       (il/br end-label)
-       less-label
-       (il/ldc-i4-0)
-       end-label])))
+       (when (> (count il-pairs) 1)
+       [(il/br end-label)
+        less-label
+        (il/ldc-i4-0)
+        end-label])])))
 
 (defintrinsic clojure.core/=
   #(when (numeric-args %) Boolean)
